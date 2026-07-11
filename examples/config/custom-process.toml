@@ -1,0 +1,30 @@
+# Trusted user or explicitly selected custom renderer.
+# Replace /opt/ptymark/bin/math-renderer with an actual absolute executable path.
+# ptymark never invokes this through a shell.
+schema_version = 1
+default_profile = "custom"
+
+[profiles.custom]
+extends = "interactive"
+
+[profiles.custom.engines.math]
+candidates = ["custom-math", "source"]
+preferred_artifacts = ["image/svg+xml", "text/plain"]
+
+[engines.custom-math]
+type = "process"
+version = "1"
+semantic_kinds = ["math"]
+artifact_types = ["image/svg+xml"]
+layout = "columns"
+execution = "one-shot"
+program = "/opt/ptymark/bin/math-renderer"
+args = ["--format", "svg"]
+timeout_ms = 1500
+max_stdout_bytes = 8388608
+max_stderr_bytes = 65536
+working_directory = "/tmp"
+inherit_environment = ["PATH", "LANG"]
+
+[engines.custom-math.environment]
+RENDER_MODE = "offline"
