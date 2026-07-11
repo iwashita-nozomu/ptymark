@@ -10,11 +10,13 @@
 name: ptymark Clippy Repair Once
 
 on:
-  push:
-    branches:
-      - agent/renderer-skeleton-staging
+  pull_request:
+    branches: [main, master]
     paths:
       - .github/workflows/ptymark-clippy-repair-once.yml
+      - src/cli.rs
+      - src/config/resolve.rs
+      - src/config/source.rs
 
 permissions:
   contents: write
@@ -28,13 +30,15 @@ concurrency:
 
 jobs:
   repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
-      - name: Check out repository
+      - name: Check out PR head
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           submodules: false
           persist-credentials: false
           fetch-depth: 0
@@ -54,16 +58,17 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          replacements = {
-              Path("src/config/resolve.rs"): [
-                  (
-                      '.entry("chromium".to_owned())\n        .or_insert_with(RuntimeConfig::default);',
-                      '.entry("chromium".to_owned())\n        .or_default();',
-                  ),
-              ],
-              Path("src/config/source.rs"): [
-                  (
-                      '''        if ambient_enabled {
+          resolve = Path("src/config/resolve.rs")
+          text = resolve.read_text()
+          old = '.entry("chromium".to_owned())\n        .or_insert_with(RuntimeConfig::default);'
+          new = '.entry("chromium".to_owned())\n        .or_default();'
+          if old not in text:
+              raise SystemExit("expected RuntimeConfig::default insertion target was not found")
+          resolve.write_text(text.replace(old, new, 1))
+
+          source = Path("src/config/source.rs")
+          text = source.read_text()
+          old = '''        if ambient_enabled {
               if let Some(path) = Self::user_path(environment) {
                   if path.is_file() {
                       seen.insert(canonical_or_original(&path));
@@ -74,8 +79,8 @@ jobs:
                       });
                   }
               }
-              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '    '),
-                      '''        if ambient_enabled {
+              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '            ')
+          new = '''        if ambient_enabled {
               if let Some(path) = Self::user_path(environment)
                   && path.is_file()
               {
@@ -86,18 +91,10 @@ jobs:
                       path,
                   });
               }
-              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '    '),
-                  ),
-              ],
-          }
-
-          for path, changes in replacements.items():
-              text = path.read_text()
-              for old, new in changes:
-                  if old not in text:
-                      raise SystemExit(f"expected Clippy repair target not found in {path}: {old!r}")
-                  text = text.replace(old, new, 1)
-              path.write_text(text)
+              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '            ')
+          if old not in text:
+              raise SystemExit("expected nested user-config condition was not found")
+          source.write_text(text.replace(old, new, 1))
           PY
           cargo fmt --all
 
@@ -115,4 +112,4 @@ jobs:
           git add src/config/resolve.rs src/config/source.rs
           git commit -m "Satisfy Clippy in configuration skeleton"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
