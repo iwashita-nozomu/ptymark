@@ -6,6 +6,8 @@ upstream design ../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md docum
 upstream design ../vendor/agent-canon/documents/shared-runtime-surfaces.toml machine-readable ownership manifest
 upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md runtime profile and validation routing policy
 downstream design ./architecture.md ptymark pre-display renderer contract
+downstream design ./renderer-architecture.md renderer, coordinator, presenter, and cache boundaries
+downstream design ./configuration.md ptymark user configuration contract
 downstream design ./ui-design.md ptymark terminal UI contract
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
@@ -21,16 +23,20 @@ contractsを置くmixed documentation directoryです。AgentCanon-owned shared 
 
 | Document | Responsibility |
 | --- | --- |
-| [Architecture](./architecture.md) | pre-display renderer、detector、existing-engine adapter、display writerの基本設計 |
-| [UI Design](./ui-design.md) | streaming UI、resize、theme、image backend、cache |
+| [Architecture](./architecture.md) | pre-display renderer、detector、display writerの基本設計 |
+| [Renderer Architecture](./renderer-architecture.md) | engine registry/selector、coordinator、presenter、独立cache、性能境界 |
+| [Configuration](./configuration.md) | TOML schema、探索順序、profile、typed session policy、validation |
+| [UI Design](./ui-design.md) | streaming UI、resize、theme、image backend、cache lifecycle |
 | [Usage](./usage.md) | CLI、fallback、external renderer protocol、WezTerm plugin |
-| [Dependencies](./dependencies.md) | Rust/Docker/Mermaid/KaTeX/Typst pins and update policy |
+| [Dependencies](./dependencies.md) | Rust/Docker/Mermaid/MathJax/KaTeX/Typst pins and update policy |
 | [Development Environment](./development-environment.md) | product Docker checks and retained template environment |
 | [Distribution](./distribution.md) | install routes、archive layout、release Actions |
 | [Licensing Policy](./licensing-policy.md) | root、AgentCanon、third-party engineのlicense boundary |
 
 UI runtimeのlive resize、image placement、persistent cacheは
-[Issue #3](https://github.com/iwashita-nozomu/ptymark/issues/3)で追跡します。
+[Issue #3](https://github.com/iwashita-nozomu/ptymark/issues/3)で追跡します。renderer、性能、
+設定利用例は[Issue #4](https://github.com/iwashita-nozomu/ptymark/issues/4)と
+[Issue #5](https://github.com/iwashita-nozomu/ptymark/issues/5)以降で個別管理します。
 
 ## Ownership Matrix
 
@@ -38,7 +44,7 @@ UI runtimeのlive resize、image placement、persistent cacheは
 | --- | --- | --- |
 | AgentCanon-owned shared policy source | coding conventions, review process, workflows, shared templates, tool docs | `vendor/agent-canon/documents/` |
 | Template-owned active contract | bootstrap, host requirements, server contract, remote execution, template remote, licensing boundary | root `documents/` regular files |
-| Project-owned docs | ptymark architecture, UI, usage, dependencies, distribution | root `documents/` regular files |
+| Project-owned docs | ptymark architecture, UI, configuration, dependencies, distribution | root `documents/` regular files |
 | Generated or run artifacts | agent reports, experiment outputs, logs, renderer smoke artifacts | `reports/`, `experiments/`, or temporary build paths |
 
 AgentCanon-owned fileは`vendor/agent-canon/`側を編集します。root regular fileとして
@@ -83,5 +89,5 @@ root regular files.
 - [Result Log Retention And Visualization](../vendor/agent-canon/documents/result-log-retention-and-visualization.md)
 - [Repo-Local Tool Imports](../vendor/agent-canon/documents/repo-local-tool-imports.md)
 - `ptymark.mk`: product checks layered over the retained template `Makefile`
-- `.github/workflows/ptymark-ci.yml`: product CI
+- `.github/workflows/ptymark-ci.yml`: product CI and benchmark evidence
 - `.github/workflows/ptymark-release.yml`: native archive/release flow
