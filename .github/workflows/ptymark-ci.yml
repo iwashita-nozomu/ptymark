@@ -1,10 +1,10 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs canonical ptymark product, configuration, terminal-compatibility, renderer, and performance checks.
+# responsibility Runs canonical ptymark product, configuration, terminal-compatibility, renderer, runtime-composition, and performance checks.
 # upstream environment ../../docker/ptymark.Dockerfile builds the pinned product environment.
-# upstream implementation ../../src/config.rs exposes immutable session configuration.
+# upstream implementation ../../src/runtime.rs composes immutable session services.
 # upstream implementation ../../src/terminal.rs preserves terminal control output.
-# upstream test ../../tests/config_contract.rs verifies user-facing configuration behavior.
+# upstream test ../../tests/runtime_contract.rs verifies provider and composition boundaries.
 # upstream test ../../scripts/benchmark-ptymark-renderers.sh produces performance evidence.
 # downstream workflow ./ptymark-release.yml consumes the same native test and package contracts.
 # @dependency-end
@@ -32,14 +32,7 @@ on:
       - "scripts/benchmark-ptymark-*"
       - "scripts/check-ptymark-*"
       - "scripts/package-ptymark-release.sh"
-      - "documents/architecture.md"
-      - "documents/renderer-architecture.md"
-      - "documents/configuration.md"
-      - "documents/ui-design.md"
-      - "documents/dependencies.md"
-      - "documents/development-environment.md"
-      - "documents/distribution.md"
-      - "documents/usage.md"
+      - "documents/**"
       - "README.md"
       - ".github/workflows/ptymark-ci.yml"
       - ".github/workflows/ptymark-release.yml"
@@ -61,14 +54,7 @@ on:
       - "scripts/benchmark-ptymark-*"
       - "scripts/check-ptymark-*"
       - "scripts/package-ptymark-release.sh"
-      - "documents/architecture.md"
-      - "documents/renderer-architecture.md"
-      - "documents/configuration.md"
-      - "documents/ui-design.md"
-      - "documents/dependencies.md"
-      - "documents/development-environment.md"
-      - "documents/distribution.md"
-      - "documents/usage.md"
+      - "documents/**"
       - "README.md"
       - ".github/workflows/ptymark-ci.yml"
       - ".github/workflows/ptymark-release.yml"
@@ -144,6 +130,13 @@ jobs:
           --file docker/ptymark-compose.yaml
           run --rm --no-TTY dev cargo test --locked --test coordinator_contract
 
+      - name: Run runtime composition contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test runtime_contract
+
       - name: Run terminal compatibility tests in container
         run: >-
           docker compose
@@ -177,15 +170,52 @@ jobs:
           "${compose[@]}" run --rm --no-TTY dev bash -lc \
             'cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private | grep -F "private = true" >/dev/null'
 
-      - name: Check WezTerm plugin and product scripts
+      - name: Run WezTerm plugin smoke
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
+
+      - name: Check Bash syntax
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev bash -n
+          scripts/ptymark-dev-container.sh
+          scripts/check-ptymark-dependencies.sh
+          scripts/check-ptymark-renderers.sh
+          scripts/benchmark-ptymark-renderers.sh
+          scripts/package-ptymark-release.sh
+
+      - name: Run ShellCheck
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev shellcheck
+          scripts/ptymark-dev-container.sh
+          scripts/check-ptymark-dependencies.sh
+          scripts/check-ptymark-renderers.sh
+          scripts/benchmark-ptymark-renderers.sh
+          scripts/package-ptymark-release.sh
+
+      - name: Check Python syntax
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev python3 -m py_compile
+          scripts/check-ptymark-benchmarks.py
+
+      - name: Check Node renderer syntax
         shell: bash
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
-          "${compose[@]}" run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
-          "${compose[@]}" run --rm --no-TTY dev bash -lc \
-            'bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh && shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh'
-          "${compose[@]}" run --rm --no-TTY dev \
-            python3 -m py_compile scripts/check-ptymark-benchmarks.py
+          "${compose[@]}" run --rm --no-TTY dev node --check "$PTYMARK_RENDERER_ROOT/worker.mjs"
+          "${compose[@]}" run --rm --no-TTY dev node --check "$PTYMARK_RENDERER_ROOT/check.mjs"
+          "${compose[@]}" run --rm --no-TTY dev node --check "$PTYMARK_RENDERER_ROOT/benchmark.mjs"
 
       - name: Check pinned dependencies and selected engines
         shell: bash
@@ -272,6 +302,9 @@ jobs:
 
       - name: Run coordinator and cache contract tests
         run: cargo test --locked --test coordinator_contract
+
+      - name: Run runtime composition contract tests
+        run: cargo test --locked --test runtime_contract
 
       - name: Run terminal compatibility tests
         run: cargo test --locked --test terminal_compat
