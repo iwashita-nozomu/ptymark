@@ -134,19 +134,18 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
     let source_renderer = options.source_renderer
         || session.mode == SessionMode::Source
         || session.presentation.mode == PresentationMode::Source;
-    let cache_enabled = options
-        .cache
-        .unwrap_or(session.cache.backend == CacheBackend::Memory && !session.cache.private);
-    if !matches!(
-        session.cache.backend,
-        CacheBackend::None | CacheBackend::Memory
-    ) && cache_enabled
-    {
-        return Err(format!(
-            "cache backend `{:?}` is configured but not implemented in the preview runtime",
-            session.cache.backend
-        ));
-    }
+    let cache_forced_off = options.cache == Some(false) || source_renderer;
+    let cache_enabled = match session.cache.backend {
+        CacheBackend::None => false,
+        CacheBackend::Memory => !cache_forced_off && !session.cache.private,
+        CacheBackend::Disk | CacheBackend::Tiered if cache_forced_off => false,
+        CacheBackend::Disk | CacheBackend::Tiered => {
+            return Err(format!(
+                "cache backend `{:?}` is configured but not implemented in the preview runtime; use `--no-cache` or backend = \"memory\"",
+                session.cache.backend
+            ));
+        }
+    };
 
     let renderer: Box<dyn BlockRenderer> = if source_renderer {
         Box::new(SourceRenderer)
@@ -180,12 +179,14 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
         Box::new(PassthroughDetector)
     };
 
-    let effective = loaded.effective_toml().map_err(|error| error.to_string())?;
+    let identity = loaded
+        .fingerprint_material()
+        .map_err(|error| error.to_string())?;
     let context = RenderContext {
         color: options.color,
         terminal_width: options.terminal_width,
         theme_fingerprint: 0,
-        options_fingerprint: stable_fingerprint(effective.as_bytes()),
+        options_fingerprint: stable_fingerprint(&identity),
     };
     let pre_display = PreDisplayRenderer::new(detector, renderer)
         .with_context(context)
