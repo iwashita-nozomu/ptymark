@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
-ARG NODE_IMAGE=node:22-bookworm
+ARG NODE_IMAGE=node:24.18.0-bookworm
 FROM ${NODE_IMAGE}
 
-ARG RUST_VERSION=1.85.0
-ARG MERMAID_CLI_VERSION=11.4.2
-ARG TYPST_VERSION=0.13.1
+ARG RUST_VERSION=1.97.0
+ARG MERMAID_CLI_VERSION=11.16.0
+ARG TYPST_VERSION=0.15.0
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
