@@ -15,7 +15,9 @@ pub mod runtime;
 pub mod terminal;
 pub mod ui;
 
-pub use artifact::{ArtifactFormat, EngineIdentity, RenderArtifact};
+pub use artifact::{
+    ArtifactExpectation, ArtifactFormat, ArtifactValidationError, EngineIdentity, RenderArtifact,
+};
 pub use cache::{
     ArtifactCache, ArtifactCacheKey, CacheAdmission, CachePolicy, CacheStats, InvalidationScope,
     MemoryArtifactCache, NoopArtifactCache, RenderCache, RenderKey,
