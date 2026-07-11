@@ -1,0 +1,76 @@
+# @dependency-start
+# contract workflow
+# responsibility Captures complete Rust compile, Clippy, and test-build diagnostics for the new runtime composition root once.
+# upstream implementation ../../src/runtime.rs composes runtime providers.
+# upstream implementation ../../src/process_engine.rs executes strict process adapters.
+# downstream workflow ./ptymark-ci.yml remains the canonical repeatable validation path.
+# @dependency-end
+name: ptymark Runtime Diagnostic Once
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - .github/workflows/ptymark-runtime-diagnostic-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptymark-runtime-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Capture complete diagnostics
+        shell: bash
+        run: |
+          set +e
+          cargo check --locked --all-targets > check.log 2>&1
+          check_status=$?
+          cargo clippy --locked --all-targets -- -D warnings > clippy.log 2>&1
+          clippy_status=$?
+          cargo test --locked --all-targets --no-run > tests.log 2>&1
+          tests_status=$?
+          printf '%s\n' "$check_status" > check.exit
+          printf '%s\n' "$clippy_status" > clippy.exit
+          printf '%s\n' "$tests_status" > tests.exit
+          cat check.log
+          cat clippy.log
+          cat tests.log
+          exit 0
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-runtime-diagnostics
+          path: |
+            check.log
+            check.exit
+            clippy.log
+            clippy.exit
+            tests.log
+            tests.exit
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Preserve validation result
+        run: |
+          test "$(cat check.exit)" = 0
+          test "$(cat clippy.exit)" = 0
+          test "$(cat tests.exit)" = 0
