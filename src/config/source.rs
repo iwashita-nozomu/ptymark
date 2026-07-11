@@ -46,7 +46,9 @@ impl ConfigEnvironment {
             xdg_config_home: env::var_os("XDG_CONFIG_HOME").map(PathBuf::from),
             app_data: env::var_os("APPDATA").map(PathBuf::from),
             config_path: env::var_os("PTYMARK_CONFIG").map(PathBuf::from),
-            profile: env::var("PTYMARK_PROFILE").ok().filter(|value| !value.is_empty()),
+            profile: env::var("PTYMARK_PROFILE")
+                .ok()
+                .filter(|value| !value.is_empty()),
             no_config: env::var("PTYMARK_NO_CONFIG")
                 .ok()
                 .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes" | "on")),

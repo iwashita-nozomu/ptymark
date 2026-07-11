@@ -60,7 +60,9 @@ impl Default for FencedDetectorOptions {
 
 #[derive(Debug)]
 enum DetectorState {
-    LineStart { candidate: Vec<u8> },
+    LineStart {
+        candidate: Vec<u8>,
+    },
     PassthroughLine,
     Buffering {
         kind: BlockKind,

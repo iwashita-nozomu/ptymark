@@ -66,13 +66,7 @@ fn main() {
     };
 
     coordinator
-        .render(
-            &block,
-            &context,
-            &[ArtifactFormat::Svg],
-            "bench/svg",
-            1,
-        )
+        .render(&block, &context, &[ArtifactFormat::Svg], "bench/svg", 1)
         .expect("prime cache");
 
     let iterations = 20_000;
@@ -80,13 +74,7 @@ fn main() {
     for _ in 0..iterations {
         let started = Instant::now();
         coordinator
-            .render(
-                &block,
-                &context,
-                &[ArtifactFormat::Svg],
-                "bench/svg",
-                1,
-            )
+            .render(&block, &context, &[ArtifactFormat::Svg], "bench/svg", 1)
             .expect("cache hit");
         samples.push(started.elapsed().as_nanos());
     }

@@ -2,10 +2,7 @@ use super::{ConfigOptions, HELP, load_config, next_path, next_string};
 use crate::{ConfigEnvironment, ConfigManager, ConfigOrigin, ConfigTrust};
 use std::ffi::OsString;
 
-pub(super) fn run(
-    mut arguments: Vec<OsString>,
-    mut options: ConfigOptions,
-) -> Result<i32, String> {
+pub(super) fn run(mut arguments: Vec<OsString>, mut options: ConfigOptions) -> Result<i32, String> {
     let action = arguments
         .first()
         .and_then(|argument| argument.to_str())

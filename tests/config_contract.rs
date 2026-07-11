@@ -261,10 +261,7 @@ extends = "interactive"
 #[test]
 fn invalid_configuration_prevents_child_launch() {
     let root = temp_root("prelaunch-error");
-    let path = write_config(
-        &root,
-        "schema_version = 1\nthis_is_a_typo = true\n",
-    );
+    let path = write_config(&root, "schema_version = 1\nthis_is_a_typo = true\n");
     let marker = root.join("child-started");
     let status = isolated_command(&root)
         .args(["--", "/bin/sh", "-c"])
@@ -273,5 +270,8 @@ fn invalid_configuration_prevents_child_launch() {
         .status()
         .expect("run command mode");
     assert_eq!(status.code(), Some(2));
-    assert!(!marker.exists(), "child must not start after config failure");
+    assert!(
+        !marker.exists(),
+        "child must not start after config failure"
+    );
 }

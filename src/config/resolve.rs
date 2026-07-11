@@ -108,7 +108,10 @@ impl<L: ConfigLocator> ConfigManager<L> {
     }
 }
 
-fn validate_schema(document: &ConfigFile, path: Option<std::path::PathBuf>) -> Result<(), ConfigError> {
+fn validate_schema(
+    document: &ConfigFile,
+    path: Option<std::path::PathBuf>,
+) -> Result<(), ConfigError> {
     if document.schema_version != CONFIG_SCHEMA_VERSION {
         return Err(ConfigError::schema(
             path,
@@ -237,10 +240,7 @@ fn merge_detection(base: &mut DetectionConfig, overlay: DetectionConfig) {
 
 fn merge_engine_selection(base: &mut EngineSelectionConfig, overlay: EngineSelectionConfig) {
     replace_if_some(&mut base.candidates, overlay.candidates);
-    replace_if_some(
-        &mut base.preferred_artifacts,
-        overlay.preferred_artifacts,
-    );
+    replace_if_some(&mut base.preferred_artifacts, overlay.preferred_artifacts);
 }
 
 fn merge_render(base: &mut RenderConfig, overlay: RenderConfig) {
@@ -253,10 +253,7 @@ fn merge_render(base: &mut RenderConfig, overlay: RenderConfig) {
     replace_if_some(&mut base.ordering, overlay.ordering);
     replace_if_some(&mut base.prewarm, overlay.prewarm);
     replace_if_some(&mut base.worker_idle_ms, overlay.worker_idle_ms);
-    replace_if_some(
-        &mut base.worker_max_requests,
-        overlay.worker_max_requests,
-    );
+    replace_if_some(&mut base.worker_max_requests, overlay.worker_max_requests);
 }
 
 fn merge_presentation(base: &mut PresentationConfig, overlay: PresentationConfig) {
@@ -296,10 +293,7 @@ fn merge_diagnostics(base: &mut DiagnosticsConfig, overlay: DiagnosticsConfig) {
 
 fn merge_renderer_bundle(base: &mut RendererBundleConfig, overlay: RendererBundleConfig) {
     replace_if_some(&mut base.path, overlay.path);
-    replace_if_some(
-        &mut base.require_lock_match,
-        overlay.require_lock_match,
-    );
+    replace_if_some(&mut base.require_lock_match, overlay.require_lock_match);
 }
 
 fn resolve_profile(
@@ -378,9 +372,11 @@ fn materialize(
             .fences
             .mermaid
             .unwrap_or_else(|| vec!["mermaid".to_owned()]),
-        math_fences: profile.detection.fences.math.unwrap_or_else(|| {
-            vec!["math".to_owned(), "latex".to_owned(), "tex".to_owned()]
-        }),
+        math_fences: profile
+            .detection
+            .fences
+            .math
+            .unwrap_or_else(|| vec!["math".to_owned(), "latex".to_owned(), "tex".to_owned()]),
     };
 
     let mut engines = BTreeMap::new();
@@ -425,23 +421,18 @@ fn materialize(
             .presentation
             .prefer
             .unwrap_or_else(|| vec!["image/svg+xml".to_owned(), "text/plain".to_owned()]),
-        image_protocols: profile.presentation.image_protocols.unwrap_or_else(|| {
-            vec!["kitty".to_owned(), "iterm2".to_owned(), "sixel".to_owned()]
-        }),
+        image_protocols: profile
+            .presentation
+            .image_protocols
+            .unwrap_or_else(|| vec!["kitty".to_owned(), "iterm2".to_owned(), "sixel".to_owned()]),
         unsupported: profile
             .presentation
             .unsupported
             .unwrap_or(UnsupportedPresentation::Source),
-        transparent_background: profile
-            .presentation
-            .transparent_background
-            .unwrap_or(true),
+        transparent_background: profile.presentation.transparent_background.unwrap_or(true),
         max_columns: profile.presentation.max_columns.unwrap_or(120),
         max_rows: profile.presentation.max_rows.unwrap_or(40),
-        preserve_aspect_ratio: profile
-            .presentation
-            .preserve_aspect_ratio
-            .unwrap_or(true),
+        preserve_aspect_ratio: profile.presentation.preserve_aspect_ratio.unwrap_or(true),
     };
 
     let private = profile.cache.private.unwrap_or(false);
@@ -653,10 +644,7 @@ fn validate_resolved(config: &ResolvedConfig) -> Result<(), ConfigError> {
                 )));
             }
         }
-        if engine.timeout_ms == 0
-            || engine.max_stdout_bytes == 0
-            || engine.max_stderr_bytes == 0
-        {
+        if engine.timeout_ms == 0 || engine.max_stdout_bytes == 0 || engine.max_stderr_bytes == 0 {
             return Err(ConfigError::validation(format!(
                 "external engine `{name}` requires non-zero process limits"
             )));
@@ -674,8 +662,10 @@ fn validate_resolved(config: &ResolvedConfig) -> Result<(), ConfigError> {
         }
     }
 
-    if matches!(config.diagnostics.sink, DiagnosticSink::File | DiagnosticSink::Both)
-        && config.diagnostics.path.is_none()
+    if matches!(
+        config.diagnostics.sink,
+        DiagnosticSink::File | DiagnosticSink::Both
+    ) && config.diagnostics.path.is_none()
     {
         return Err(ConfigError::validation(
             "diagnostics.path is required when sink includes file",
@@ -795,10 +785,7 @@ max_line_bytes = 1024
 
     #[test]
     fn unknown_keys_and_profile_cycles_fail_before_runtime_construction() {
-        let unknown = temp_file(
-            "unknown.toml",
-            "schema_version = 1\nunknown_key = true\n",
-        );
+        let unknown = temp_file("unknown.toml", "schema_version = 1\nunknown_key = true\n");
         let manager = ConfigManager::new(FixedLocator {
             sources: vec![ConfigSource {
                 origin: ConfigOrigin::Explicit,
@@ -806,11 +793,13 @@ max_line_bytes = 1024
                 path: unknown,
             }],
         });
-        assert!(manager
-            .load(ConfigRequest::default(), ConfigEnvironment::default())
-            .expect_err("unknown key must fail")
-            .to_string()
-            .contains("unknown field"));
+        assert!(
+            manager
+                .load(ConfigRequest::default(), ConfigEnvironment::default())
+                .expect_err("unknown key must fail")
+                .to_string()
+                .contains("unknown field")
+        );
 
         let cycle = temp_file(
             "cycle.toml",
@@ -830,11 +819,13 @@ extends = "a"
                 path: cycle,
             }],
         });
-        assert!(manager
-            .load(ConfigRequest::default(), ConfigEnvironment::default())
-            .expect_err("cycle must fail")
-            .to_string()
-            .contains("inheritance cycle"));
+        assert!(
+            manager
+                .load(ConfigRequest::default(), ConfigEnvironment::default())
+                .expect_err("cycle must fail")
+                .to_string()
+                .contains("inheritance cycle")
+        );
     }
 
     #[test]
@@ -878,8 +869,10 @@ hard_timeout_ms = 1000
         let located = locator
             .locate(&request, &ConfigEnvironment::default())
             .expect("locate");
-        assert!(located
-            .iter()
-            .all(|source| source.origin != ConfigOrigin::Project));
+        assert!(
+            located
+                .iter()
+                .all(|source| source.origin != ConfigOrigin::Project)
+        );
     }
 }
