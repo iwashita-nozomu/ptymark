@@ -1,3 +1,5 @@
+pub use crate::fingerprint::stable_fingerprint;
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Viewport {
     pub columns: u16,
@@ -68,15 +70,6 @@ pub fn resize_action(
     } else {
         ResizeAction::Reuse
     }
-}
-
-pub fn stable_fingerprint(bytes: &[u8]) -> u64 {
-    const OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const FNV_PRIME: u64 = 0x00000100000001b3;
-
-    bytes.iter().fold(OFFSET_BASIS, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME)
-    })
 }
 
 #[cfg(test)]
