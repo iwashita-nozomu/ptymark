@@ -1,5 +1,6 @@
 mod model;
 mod resolve;
+mod snapshot;
 mod source;
 
 pub use model::{
@@ -12,6 +13,7 @@ pub use model::{
     RuntimeConfig, SessionMode, UnsupportedPresentation,
 };
 pub use resolve::ConfigManager;
+pub use snapshot::ConfigSnapshot;
 pub use source::{
     ConfigEnvironment, ConfigLocator, ConfigOrigin, ConfigRequest, ConfigSource, ConfigTrust,
     FilesystemConfigLocator,
