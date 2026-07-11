@@ -127,8 +127,9 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
         .into_snapshot(1)
         .map_err(|error| error.to_string())?;
     let columns = match options.terminal_width {
-        Some(width) => u16::try_from(width)
-            .map_err(|_| "`--terminal-width` cannot exceed 65535".to_owned())?,
+        Some(width) => {
+            u16::try_from(width).map_err(|_| "`--terminal-width` cannot exceed 65535".to_owned())?
+        }
         None => 80,
     };
     let mut request = RuntimeRequest::preview();

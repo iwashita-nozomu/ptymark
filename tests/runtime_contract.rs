@@ -1,8 +1,8 @@
 use ptymark::{
     ArtifactFormat, BlockKind, ConfigEnvironment, ConfigManager, ConfigRequest, EngineDescriptor,
-    EngineProvider, EngineRegistry, ExecutionModel, LayoutSensitivity, RenderArtifact, RenderEngine,
-    RenderError, RenderRequest, RuntimeBuildContext, RuntimeBuildError, RuntimeBuildReport,
-    RuntimeBuilder, RuntimeRequest,
+    EngineProvider, EngineRegistry, ExecutionModel, LayoutSensitivity, RenderArtifact,
+    RenderEngine, RenderError, RenderRequest, RuntimeBuildContext, RuntimeBuildError,
+    RuntimeBuildReport, RuntimeBuilder, RuntimeRequest,
 };
 
 fn snapshot(profile: Option<&str>) -> ptymark::ConfigSnapshot {
@@ -35,16 +35,20 @@ fn runtime_builder_composes_the_preview_pipeline() {
     assert!(text.contains("ptymark math preview"));
     assert!(text.ends_with("after\n"));
     assert_eq!(runtime.processing_report().rendered_blocks, 1);
-    assert!(runtime
-        .build_report()
-        .registered_engines
-        .iter()
-        .any(|descriptor| descriptor.identity.id == "preview"));
-    assert!(runtime
-        .build_report()
-        .registered_engines
-        .iter()
-        .any(|descriptor| descriptor.identity.id == "source"));
+    assert!(
+        runtime
+            .build_report()
+            .registered_engines
+            .iter()
+            .any(|descriptor| descriptor.identity.id == "preview")
+    );
+    assert!(
+        runtime
+            .build_report()
+            .registered_engines
+            .iter()
+            .any(|descriptor| descriptor.identity.id == "source")
+    );
 }
 
 #[test]
@@ -60,7 +64,10 @@ fn source_only_runtime_is_exact_and_uses_no_cache() {
     runtime.finish(&mut display).expect("finish");
 
     assert_eq!(display, source);
-    assert_eq!(runtime.build_report().selected_presenter, "terminal/source-v1");
+    assert_eq!(
+        runtime.build_report().selected_presenter,
+        "terminal/source-v1"
+    );
 }
 
 #[test]
@@ -133,16 +140,20 @@ fn embedding_app_can_register_an_engine_without_changing_the_cli_or_coordinator(
         .expect("register provider")
         .build(snapshot(None), RuntimeRequest::preview())
         .expect("build runtime");
-    assert!(runtime
-        .build_report()
-        .registered_engines
-        .iter()
-        .any(|descriptor| descriptor.identity.id == "example/runtime-test"));
-    assert!(runtime
-        .build_report()
-        .engine_providers
-        .iter()
-        .any(|provider| provider == "example/provider"));
+    assert!(
+        runtime
+            .build_report()
+            .registered_engines
+            .iter()
+            .any(|descriptor| descriptor.identity.id == "example/runtime-test")
+    );
+    assert!(
+        runtime
+            .build_report()
+            .engine_providers
+            .iter()
+            .any(|provider| provider == "example/provider")
+    );
 }
 
 #[test]

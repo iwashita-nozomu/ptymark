@@ -5,14 +5,18 @@ use crate::config::{
     EngineType, PresentationMode, ResolvedConfig, SessionMode,
 };
 use crate::coordinator::RenderCoordinator;
-use crate::detector::{FencedDetector, FencedDetectorOptions, PassthroughDetector, SemanticDetector};
+use crate::detector::{
+    FencedDetector, FencedDetectorOptions, PassthroughDetector, SemanticDetector,
+};
 use crate::engine::{
     EngineDescriptor, EngineRegistry, ExecutionModel, PolicyEngineSelector, RenderEngine,
     RenderRequest,
 };
 use crate::fingerprint::stable_fingerprint;
 use crate::model::{BlockKind, SemanticBlock};
-use crate::predisplay::{DisplayInterceptor, PreDisplayError, PreDisplayReport, PreDisplayRenderer};
+use crate::predisplay::{
+    DisplayInterceptor, PreDisplayError, PreDisplayRenderer, PreDisplayReport,
+};
 use crate::presenter::{
     ArtifactPresenter, SourcePresenter, TerminalCapabilities, TerminalTextPresenter,
 };
@@ -329,11 +333,8 @@ impl RuntimeBuilder {
 
         let selector = selector_for(&context);
         let coordinator = RenderCoordinator::with_boxed_cache(registry, selector, cache);
-        let coordinated = CoordinatedRenderer::new(
-            coordinator,
-            presenter,
-            request.terminal_capabilities,
-        );
+        let coordinated =
+            CoordinatedRenderer::new(coordinator, presenter, request.terminal_capabilities);
         let renderer: Box<dyn BlockRenderer> = Box::new(coordinated);
 
         let option_material = format!(
@@ -353,8 +354,8 @@ impl RuntimeBuilder {
             theme_fingerprint: request.theme_fingerprint,
             options_fingerprint: stable_fingerprint(option_material.as_bytes()),
         };
-        let strict = request.strict
-            || snapshot.config().fallback == crate::config::FallbackPolicy::Error;
+        let strict =
+            request.strict || snapshot.config().fallback == crate::config::FallbackPolicy::Error;
         let pre_display = PreDisplayRenderer::new(detector, renderer)
             .with_context(context)
             .strict(strict);
@@ -371,11 +372,8 @@ impl RuntimeBuilder {
 pub struct SessionRuntime {
     snapshot: ConfigSnapshot,
     build_report: RuntimeBuildReport,
-    interceptor: DisplayInterceptor<
-        TerminalOutputGate,
-        Box<dyn SemanticDetector>,
-        Box<dyn BlockRenderer>,
-    >,
+    interceptor:
+        DisplayInterceptor<TerminalOutputGate, Box<dyn SemanticDetector>, Box<dyn BlockRenderer>>,
 }
 
 impl SessionRuntime {
@@ -391,11 +389,7 @@ impl SessionRuntime {
         self.interceptor.report()
     }
 
-    pub fn feed(
-        &mut self,
-        input: &[u8],
-        display: &mut dyn Write,
-    ) -> Result<(), PreDisplayError> {
+    pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PreDisplayError> {
         self.interceptor.feed(input, display)
     }
 

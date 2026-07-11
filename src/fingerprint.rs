@@ -18,7 +18,13 @@ mod tests {
 
     #[test]
     fn fingerprint_is_deterministic_and_order_sensitive() {
-        assert_eq!(stable_fingerprint(b"ptymark"), stable_fingerprint(b"ptymark"));
-        assert_ne!(stable_fingerprint(b"ptymark"), stable_fingerprint(b"ptymrak"));
+        assert_eq!(
+            stable_fingerprint(b"ptymark"),
+            stable_fingerprint(b"ptymark")
+        );
+        assert_ne!(
+            stable_fingerprint(b"ptymark"),
+            stable_fingerprint(b"ptymrak")
+        );
     }
 }

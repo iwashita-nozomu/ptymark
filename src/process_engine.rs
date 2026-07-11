@@ -242,7 +242,10 @@ impl ProcessEngine {
 
         let status = wait_with_timeout(&mut child, self.config.timeout).map_err(|error| {
             terminate_child(&mut child);
-            RenderError::new(format!("renderer `{}` wait failed: {error}", self.config.id))
+            RenderError::new(format!(
+                "renderer `{}` wait failed: {error}",
+                self.config.id
+            ))
         })?;
 
         if status.is_none() {
