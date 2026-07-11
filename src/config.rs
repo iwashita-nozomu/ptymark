@@ -8,8 +8,8 @@ pub use model::{
     DiagnosticFormat, DiagnosticLevel, DiagnosticSink, DiagnosticsConfig, DiagnosticsPolicy,
     EngineSelectionConfig, EngineSelectionPolicy, EngineType, ExternalEngineConfig, FallbackPolicy,
     FenceConfig, PresentationConfig, PresentationMode, PresentationPolicy, ProfileConfig,
-    RenderConfig, RenderOrdering, RenderPolicy, RendererBundleConfig, ResolvedConfig,
-    RuntimeConfig, SessionMode, UnsupportedPresentation,
+    RenderConfig, RenderOrdering, RenderPolicy, RendererBundleConfig, ResolvedConfig, RuntimeConfig,
+    SessionMode, UnsupportedPresentation,
 };
 pub use resolve::ConfigManager;
 pub use source::{
@@ -107,9 +107,32 @@ pub struct LoadedConfig {
 }
 
 impl LoadedConfig {
+    /// Serialize the effective configuration for human inspection.
+    ///
+    /// Explicit external-process environment values may contain credentials or private paths, so
+    /// values are redacted while keys remain visible and explainable.
     pub fn effective_toml(&self) -> Result<String, ConfigError> {
-        toml::to_string_pretty(&self.config)
+        let mut redacted = self.config.clone();
+        for engine in redacted.external_engines.values_mut() {
+            for value in engine.environment.values_mut() {
+                *value = "<redacted>".to_owned();
+            }
+        }
+        toml::to_string_pretty(&redacted)
             .map_err(|error| ConfigError::validation(format!("cannot serialize config: {error}")))
+    }
+
+    /// Return full deterministic policy material for process-local cache/options identity.
+    ///
+    /// This value must never be printed or logged because it can include external-engine
+    /// environment values. It exists separately from `effective_toml()` to avoid cache collisions
+    /// between materially different rendering configurations.
+    pub fn fingerprint_material(&self) -> Result<Vec<u8>, ConfigError> {
+        toml::to_string(&self.config)
+            .map(String::into_bytes)
+            .map_err(|error| {
+                ConfigError::validation(format!("cannot serialize config identity: {error}"))
+            })
     }
 
     pub fn provenance_toml(&self) -> Result<String, ConfigError> {
@@ -122,8 +145,8 @@ impl LoadedConfig {
 impl ResolvedConfig {
     /// Apply the process-local private-session override without weakening terminal safety.
     ///
-    /// The override affects only pre-display services. It never changes input, termios,
-    /// signal forwarding, resize forwarding, child environment, or exit-status behavior.
+    /// The override affects only pre-display services. It never changes input, termios, signal
+    /// forwarding, resize forwarding, child environment, or exit-status behavior.
     pub fn apply_private_override(&mut self) {
         self.cache.backend = CacheBackend::None;
         self.cache.private = true;
