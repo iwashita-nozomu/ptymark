@@ -16,6 +16,9 @@ ptymark-check-local:
 	cargo build --locked --release
 	cargo run --quiet --locked -- demo > /tmp/ptymark-demo.txt
 	grep -F "ptymark mermaid preview" /tmp/ptymark-demo.txt >/dev/null
+	cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+	cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private > /tmp/ptymark-config.toml
+	grep -F 'private = true' /tmp/ptymark-config.toml >/dev/null
 	lua5.4 tests/plugin_smoke.lua
 	bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh
 	shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh
