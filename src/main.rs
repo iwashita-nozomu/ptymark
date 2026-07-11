@@ -1,6 +1,9 @@
 use ptymark::{
-    BlockRenderer, CachePolicy, CoordinatedRenderer, DisplayInterceptor, FencedDetector,
-    MemoryArtifactCache, PreDisplayRenderer, RenderContext, SourceRenderer, TerminalOutputGate,
+    BlockRenderer, CacheBackend, CachePolicy, ConfigEnvironment, ConfigManager, ConfigOrigin,
+    ConfigRequest, ConfigTrust, CoordinatedRenderer, DetectionMode, DisplayInterceptor,
+    FallbackPolicy, FencedDetector, FencedDetectorOptions, MemoryArtifactCache,
+    PassthroughDetector, PreDisplayRenderer, RenderContext, SemanticDetector, SessionMode,
+    SourceRenderer, TerminalOutputGate, stable_fingerprint,
 };
 use std::env;
 use std::ffi::OsString;
@@ -16,19 +19,31 @@ USAGE:
     ptymark -- COMMAND [ARG...]
     ptymark preview [OPTIONS] [FILE|-]
     ptymark demo [OPTIONS]
+    ptymark config paths
+    ptymark config check [CONFIG OPTIONS]
+    ptymark config show [CONFIG OPTIONS] [--provenance]
 
 COMMANDS:
     preview     render bounded Mermaid and block-math input before display
     demo        render a built-in sample through the same pre-display pipeline
+    config      inspect and validate the immutable session configuration
 
 PREVIEW OPTIONS:
     --source                 emit the original semantic source instead of a preview
     --strict                 fail instead of restoring source when rendering fails
     --color                  emit ANSI color in compatible renderers
-    --max-buffer-bytes N     semantic buffer limit (default: 1048576)
+    --max-buffer-bytes N     override the configured semantic buffer limit
     --terminal-width N       width hint for renderer backends
-    --no-cache               disable the in-process render cache
+    --no-cache               disable the configured in-process render cache
+    --config PATH            load an explicit configuration after the user config
+    --profile NAME           select a named configuration profile
+    --no-config              ignore user and environment configuration files
     -h, --help               print this help
+
+CONFIG OPTIONS:
+    --config PATH            load an explicit configuration after the user config
+    --profile NAME           select a named configuration profile
+    --no-config              use built-in profiles only
 
 GLOBAL OPTIONS:
     -h, --help               print this help
@@ -37,7 +52,9 @@ GLOBAL OPTIONS:
 EXAMPLES:
     ptymark -- zsh -l
     printf '$$\\nE = mc^2\\n$$\\n' | ptymark preview
-    ptymark demo --color
+    ptymark preview --profile private --no-cache
+    ptymark config check --config ./ptymark.toml
+    ptymark config show --profile interactive --provenance
 ";
 
 const DEMO: &[u8] = br#"ordinary output remains byte-for-byte passthrough
@@ -54,14 +71,33 @@ E = mc^2
 $$
 "#;
 
+#[derive(Clone, Debug, Default)]
+struct ConfigOptions {
+    explicit_path: Option<PathBuf>,
+    profile: Option<String>,
+    no_config: bool,
+}
+
+impl ConfigOptions {
+    fn request(&self) -> ConfigRequest {
+        ConfigRequest {
+            explicit_path: self.explicit_path.clone(),
+            profile: self.profile.clone(),
+            no_config: self.no_config,
+            ..ConfigRequest::default()
+        }
+    }
+}
+
 #[derive(Debug)]
 struct PreviewOptions {
     source_renderer: bool,
     strict: bool,
     color: bool,
-    cache: bool,
-    max_buffer_bytes: usize,
+    cache: Option<bool>,
+    max_buffer_bytes: Option<usize>,
     terminal_width: Option<usize>,
+    config: ConfigOptions,
     input: PreviewInput,
 }
 
@@ -88,7 +124,8 @@ fn run() -> Result<i32, String> {
         .first()
         .and_then(|argument| argument.to_str())
         .ok_or_else(|| {
-            "missing command; use `ptymark -- COMMAND` or `ptymark preview`".to_owned()
+            "missing command; use `ptymark -- COMMAND`, `ptymark preview`, or `ptymark config`"
+                .to_owned()
         })?;
 
     match first {
@@ -116,6 +153,10 @@ fn run() -> Result<i32, String> {
             }
             run_preview(parse_preview(arguments, PreviewInput::Demo)?)
         }
+        "config" => {
+            arguments.remove(0);
+            run_config(arguments)
+        }
         "--" => {
             arguments.remove(0);
             run_command(arguments)
@@ -138,7 +179,7 @@ fn subcommand_help_requested(arguments: &[OsString]) -> Result<bool, String> {
         return Ok(true);
     }
 
-    Err("`--help` cannot be combined with preview options or an input file".to_owned())
+    Err("`--help` cannot be combined with other subcommand options".to_owned())
 }
 
 fn parse_preview(
@@ -150,9 +191,10 @@ fn parse_preview(
         source_renderer: false,
         strict: false,
         color: false,
-        cache: true,
-        max_buffer_bytes: 1024 * 1024,
+        cache: None,
+        max_buffer_bytes: None,
         terminal_width: None,
+        config: ConfigOptions::default(),
         input: default_input,
     };
     let mut positional_seen = false;
@@ -166,10 +208,17 @@ fn parse_preview(
             "--source" => options.source_renderer = true,
             "--strict" => options.strict = true,
             "--color" => options.color = true,
-            "--no-cache" => options.cache = false,
+            "--no-cache" => options.cache = Some(false),
+            "--no-config" => options.config.no_config = true,
+            "--config" => {
+                options.config.explicit_path = Some(next_path(&mut iterator, "--config")?);
+            }
+            "--profile" => {
+                options.config.profile = Some(next_string(&mut iterator, "--profile")?);
+            }
             "--max-buffer-bytes" => {
                 options.max_buffer_bytes =
-                    next_positive_usize(&mut iterator, "--max-buffer-bytes")?;
+                    Some(next_positive_usize(&mut iterator, "--max-buffer-bytes")?);
             }
             "--terminal-width" => {
                 options.terminal_width =
@@ -204,15 +253,36 @@ fn parse_preview(
     Ok(options)
 }
 
-fn next_positive_usize(
+fn next_string(
     iterator: &mut impl Iterator<Item = OsString>,
     option: &str,
-) -> Result<usize, String> {
+) -> Result<String, String> {
     let value = iterator
         .next()
         .ok_or_else(|| format!("missing value after `{option}`"))?
         .into_string()
         .map_err(|_| format!("value for `{option}` must be valid UTF-8"))?;
+    if value.is_empty() {
+        return Err(format!("value for `{option}` cannot be empty"));
+    }
+    Ok(value)
+}
+
+fn next_path(
+    iterator: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<PathBuf, String> {
+    iterator
+        .next()
+        .map(PathBuf::from)
+        .ok_or_else(|| format!("missing value after `{option}`"))
+}
+
+fn next_positive_usize(
+    iterator: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<usize, String> {
+    let value = next_string(iterator, option)?;
     let parsed = value
         .parse::<usize>()
         .map_err(|_| format!("value for `{option}` must be a positive integer"))?;
@@ -223,12 +293,24 @@ fn next_positive_usize(
 }
 
 fn run_preview(options: PreviewOptions) -> Result<i32, String> {
-    let renderer: Box<dyn BlockRenderer> = if options.source_renderer {
+    let loaded = ConfigManager::default()
+        .load_from_process(options.config.request())
+        .map_err(|error| error.to_string())?;
+    let session = &loaded.config;
+
+    let source_renderer = options.source_renderer || session.mode == SessionMode::Source;
+    let cache_enabled = options.cache.unwrap_or(
+        session.cache.backend == CacheBackend::Memory && !session.cache.private,
+    );
+    let renderer: Box<dyn BlockRenderer> = if source_renderer {
         Box::new(SourceRenderer)
-    } else if options.cache {
+    } else if cache_enabled {
         Box::new(
-            CoordinatedRenderer::preview(MemoryArtifactCache::new(CachePolicy::default()))
-                .map_err(|error| error.to_string())?,
+            CoordinatedRenderer::preview(MemoryArtifactCache::new(CachePolicy::new(
+                session.cache.max_entries,
+                session.cache.max_bytes,
+            )))
+            .map_err(|error| error.to_string())?,
         )
     } else {
         Box::new(
@@ -236,16 +318,39 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
                 .map_err(|error| error.to_string())?,
         )
     };
-    let detector = FencedDetector::new(options.max_buffer_bytes);
+
+    if !matches!(session.cache.backend, CacheBackend::None | CacheBackend::Memory) && cache_enabled {
+        return Err(format!(
+            "cache backend `{:?}` is configured but not implemented in the preview runtime",
+            session.cache.backend
+        ));
+    }
+
+    let detection_enabled = session.mode != SessionMode::Bypass
+        && session.detection.mode != DetectionMode::Off;
+    let detector: Box<dyn SemanticDetector> = if detection_enabled {
+        Box::new(FencedDetector::with_options(FencedDetectorOptions {
+            max_buffer_bytes: options
+                .max_buffer_bytes
+                .unwrap_or(session.detection.max_buffer_bytes),
+            max_line_bytes: session.detection.max_line_bytes,
+            mermaid: session.detection.mermaid,
+            block_math: session.detection.block_math,
+        }))
+    } else {
+        Box::new(PassthroughDetector)
+    };
+
+    let effective = loaded.effective_toml().map_err(|error| error.to_string())?;
     let context = RenderContext {
         color: options.color,
         terminal_width: options.terminal_width,
         theme_fingerprint: 0,
-        options_fingerprint: 0,
+        options_fingerprint: stable_fingerprint(effective.as_bytes()),
     };
     let pre_display = PreDisplayRenderer::new(detector, renderer)
         .with_context(context)
-        .strict(options.strict);
+        .strict(options.strict || session.fallback == FallbackPolicy::Error);
     let mut interceptor = DisplayInterceptor::new(TerminalOutputGate::default(), pre_display);
 
     let mut input: Box<dyn Read> = match options.input {
@@ -278,10 +383,103 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
     Ok(0)
 }
 
+fn run_config(mut arguments: Vec<OsString>) -> Result<i32, String> {
+    let action = arguments
+        .first()
+        .and_then(|argument| argument.to_str())
+        .ok_or_else(|| "missing config action; use `paths`, `check`, or `show`".to_owned())?
+        .to_owned();
+    arguments.remove(0);
+
+    let mut provenance = false;
+    let mut options = ConfigOptions::default();
+    let mut iterator = arguments.into_iter();
+    while let Some(argument) = iterator.next() {
+        let text = argument
+            .to_str()
+            .ok_or_else(|| "config options must be valid UTF-8".to_owned())?;
+        match text {
+            "--config" => options.explicit_path = Some(next_path(&mut iterator, "--config")?),
+            "--profile" => options.profile = Some(next_string(&mut iterator, "--profile")?),
+            "--no-config" => options.no_config = true,
+            "--provenance" if action == "show" => provenance = true,
+            "-h" | "--help" => {
+                print!("{HELP}");
+                return Ok(0);
+            }
+            option => return Err(format!("unknown config option `{option}`")),
+        }
+    }
+
+    let manager = ConfigManager::default();
+    let environment = ConfigEnvironment::from_process();
+    match action.as_str() {
+        "paths" => {
+            for source in manager.candidate_paths(&options.request(), &environment) {
+                let origin = match source.origin {
+                    ConfigOrigin::User => "user",
+                    ConfigOrigin::Environment => "environment",
+                    ConfigOrigin::Explicit => "explicit",
+                    ConfigOrigin::Project => "project",
+                };
+                let trust = match source.trust {
+                    ConfigTrust::UserOwned => "user-owned",
+                    ConfigTrust::ExplicitlySelected => "explicitly-selected",
+                    ConfigTrust::TrustedProject => "trusted-project",
+                    ConfigTrust::UntrustedProject => "untrusted-project-not-loaded",
+                };
+                println!(
+                    "{origin}\t{trust}\t{}\t{}",
+                    if source.path.is_file() { "present" } else { "missing" },
+                    source.path.display()
+                );
+            }
+            Ok(0)
+        }
+        "check" => {
+            let loaded = manager
+                .load(options.request(), environment)
+                .map_err(|error| error.to_string())?;
+            println!(
+                "configuration ok: schema={} profile={} sources={}",
+                loaded.config.schema_version,
+                loaded.config.profile,
+                loaded.provenance.sources.len()
+            );
+            Ok(0)
+        }
+        "show" => {
+            let loaded = manager
+                .load(options.request(), environment)
+                .map_err(|error| error.to_string())?;
+            print!("{}", loaded.effective_toml().map_err(|error| error.to_string())?);
+            if provenance {
+                eprintln!(
+                    "{}",
+                    loaded
+                        .provenance_toml()
+                        .map_err(|error| error.to_string())?
+                );
+            }
+            Ok(0)
+        }
+        _ => Err(format!(
+            "unknown config action `{action}`; use `paths`, `check`, or `show`"
+        )),
+    }
+}
+
 fn run_command(mut arguments: Vec<OsString>) -> Result<i32, String> {
     if arguments.is_empty() {
         return Err("missing command after `--`".to_owned());
     }
+
+    // Configuration is fully parsed and validated before replacing the process. This keeps invalid
+    // configuration from failing after a future PTY host has entered raw mode or spawned a child.
+    ConfigManager::default()
+        .load_from_process(ConfigRequest::default())
+        .map_err(|error| error.to_string())?;
+
     let program = arguments.remove(0);
     let mut command = Command::new(&program);
     command.args(arguments);
