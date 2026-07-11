@@ -28,6 +28,12 @@ impl Viewport {
     }
 }
 
+impl Default for Viewport {
+    fn default() -> Self {
+        Self::cells(80, 24)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum LayoutSensitivity {
     #[default]
@@ -75,6 +81,11 @@ pub fn resize_action(
 #[cfg(test)]
 mod tests {
     use super::{LayoutSensitivity, ResizeAction, Viewport, resize_action};
+
+    #[test]
+    fn default_viewport_is_a_stable_terminal_fallback() {
+        assert_eq!(Viewport::default(), Viewport::cells(80, 24));
+    }
 
     #[test]
     fn column_layout_ignores_height_only_changes() {
