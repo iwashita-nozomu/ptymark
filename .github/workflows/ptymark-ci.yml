@@ -58,6 +58,9 @@ on:
 permissions:
   contents: read
 
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
 concurrency:
   group: ptymark-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -74,6 +77,11 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Build canonical ptymark image
         run: >-
@@ -106,6 +114,11 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
         shell: bash
