@@ -5,6 +5,7 @@ FROM ${NODE_IMAGE}
 
 ARG RUST_VERSION=1.97.0
 ARG MERMAID_CLI_VERSION=11.16.0
+ARG KATEX_VERSION=0.17.0
 ARG TYPST_VERSION=0.15.0
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -42,7 +43,9 @@ RUN apt-get update \
         zsh \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install --global "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}" \
+RUN npm install --global \
+        "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}" \
+        "katex@${KATEX_VERSION}" \
     && npm cache clean --force
 
 RUN mkdir -p \
@@ -65,6 +68,7 @@ RUN rustc --version \
     && cargo --version \
     && node --version \
     && mmdc --version \
+    && katex --version \
     && typst --version \
     && lua5.4 -v \
     && chromium --version
