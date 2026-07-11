@@ -1,0 +1,25 @@
+[package]
+name = "ptymark"
+version = "0.1.0-alpha.1"
+edition = "2024"
+rust-version = "1.97.0"
+description = "Pre-display semantic renderer for terminal streams"
+license = "Apache-2.0"
+repository = "https://github.com/iwashita-nozomu/ptymark"
+readme = "README.md"
+keywords = ["terminal", "pty", "markdown", "wezterm", "mermaid"]
+categories = ["command-line-utilities"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = "symbols"
