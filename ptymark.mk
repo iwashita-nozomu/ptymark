@@ -15,10 +15,15 @@ ptymark-check-local:
 	cargo clippy --locked --all-targets -- -D warnings
 	cargo test --locked --all-targets
 	cargo test --locked --test runtime_contract
+	cargo test --locked --test runtime_override_contract
+	cargo test --locked --test extension_validation_contract
 	cargo build --locked --release
 	cargo run --quiet --locked -- demo > /tmp/ptymark-demo.txt
 	grep -F "ptymark mermaid preview" /tmp/ptymark-demo.txt >/dev/null
 	cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+	@for config in examples/config/*.toml; do \
+		cargo run --quiet --locked -- config check --config "$$config" || exit 1; \
+	done
 	cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private > /tmp/ptymark-config.toml
 	grep -F 'private = true' /tmp/ptymark-config.toml >/dev/null
 	cargo run --quiet --locked -- engine list --no-config > /tmp/ptymark-engines.txt
