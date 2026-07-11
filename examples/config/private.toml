@@ -1,0 +1,5 @@
+# Privacy-first profile for sensitive terminal content.
+# The built-in private profile disables cache persistence, source-bearing diagnostics,
+# diagnostic files, and metrics before a renderer or child command starts.
+schema_version = 1
+default_profile = "private"
