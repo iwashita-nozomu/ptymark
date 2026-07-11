@@ -1,10 +1,11 @@
 # @dependency-start
 # contract workflow
-# responsibility Applies the deterministic Clippy repairs, captures validation diagnostics, and commits only a passing tree once.
-# upstream workflow ./ptymark-clippy-diagnostic-once.yml captures the initial Rust 1.97.0 findings.
+# responsibility Applies deterministic Rust 1.97.0 Clippy repairs, captures validation diagnostics, and commits only a passing tree once.
+# upstream workflow ./ptymark-clippy-diagnostic-once.yml captures the initial findings.
 # upstream implementation ../../src/cli.rs parses global configuration options.
 # upstream implementation ../../src/config/resolve.rs normalizes runtime definitions.
 # upstream implementation ../../src/config/source.rs discovers trusted configuration sources.
+# upstream implementation ../../src/detector.rs implements bounded explicit semantic detection.
 # downstream workflow ./ptymark-ci.yml remains the canonical repeatable validation path.
 # @dependency-end
 name: ptymark Clippy Repair Once
@@ -17,6 +18,7 @@ on:
       - src/cli.rs
       - src/config/resolve.rs
       - src/config/source.rs
+      - src/detector.rs
 
 permissions:
   contents: write
@@ -86,6 +88,67 @@ jobs:
               raise SystemExit("expected outer user-config closing brace was not found")
           del lines[environment_source - 2]
           source.write_text("\n".join(lines) + "\n")
+
+          detector = Path("src/detector.rs")
+          text = detector.read_text()
+          changes = [
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+          options.max_buffer_bytes = max_buffer_bytes;
+          options.max_line_bytes = (64 * 1024).min(max_buffer_bytes);
+          Self::with_options(options)'''.replace('          ', '        '),
+                  '''        Self::with_options(FencedDetectorOptions {
+          max_buffer_bytes,
+          max_line_bytes: (64 * 1024).min(max_buffer_bytes),
+          ..FencedDetectorOptions::default()
+      })'''.replace('          ', '        ').replace('      })', '        })'),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+          options.math_fences = vec!["latex".to_owned()];'''.replace('          ', '        '),
+                  '''        let options = FencedDetectorOptions {
+          math_fences: vec!["latex".to_owned()],
+          ..FencedDetectorOptions::default()
+      };'''.replace('          ', '        ').replace('      };', '        };'),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+          options.mermaid_fences = vec!["diagram".to_owned()];
+          options.math_fences = vec!["diagram".to_owned()];'''.replace('          ', '        '),
+                  '''        let options = FencedDetectorOptions {
+          mermaid_fences: vec!["diagram".to_owned()],
+          math_fences: vec!["diagram".to_owned()],
+          ..FencedDetectorOptions::default()
+      };'''.replace('          ', '        ').replace('      };', '        };'),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+          options.max_buffer_bytes = 1024;
+          options.max_line_bytes = 128;
+          options.mermaid = false;'''.replace('          ', '        '),
+                  '''        let options = FencedDetectorOptions {
+          max_buffer_bytes: 1024,
+          max_line_bytes: 128,
+          mermaid: false,
+          ..FencedDetectorOptions::default()
+      };'''.replace('          ', '        ').replace('      };', '        };'),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+          options.max_buffer_bytes = 1024;
+          options.max_line_bytes = 4;'''.replace('          ', '        '),
+                  '''        let options = FencedDetectorOptions {
+          max_buffer_bytes: 1024,
+          max_line_bytes: 4,
+          ..FencedDetectorOptions::default()
+      };'''.replace('          ', '        ').replace('      };', '        };'),
+              ),
+          ]
+          for old, new in changes:
+              if old not in text:
+                  raise SystemExit(f"expected detector initializer was not found: {old!r}")
+              text = text.replace(old, new, 1)
+          detector.write_text(text)
           PY
           cargo fmt --all
 
@@ -127,7 +190,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/config/resolve.rs src/config/source.rs
+          git add src/config/resolve.rs src/config/source.rs src/detector.rs
           git commit -m "Satisfy Clippy in configuration skeleton"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${GITHUB_HEAD_REF}"
