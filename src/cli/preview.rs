@@ -174,6 +174,8 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
             max_line_bytes: session.detection.max_line_bytes,
             mermaid: session.detection.mermaid,
             block_math: session.detection.block_math,
+            mermaid_fences: session.detection.mermaid_fences.clone(),
+            math_fences: session.detection.math_fences.clone(),
         }))
     } else {
         Box::new(PassthroughDetector)
