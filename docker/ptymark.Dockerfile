@@ -1,11 +1,16 @@
 # syntax=docker/dockerfile:1.7
+# @dependency-start
+# contract environment
+# responsibility Builds the canonical ptymark Rust and existing-renderer validation environment.
+# upstream environment ./ptymark-versions.env pins toolchain versions.
+# upstream environment ../renderers/package-lock.json pins the JavaScript renderer graph.
+# downstream workflow ../.github/workflows/ptymark-ci.yml runs product and performance checks.
+# @dependency-end
 
 ARG NODE_IMAGE=node:24.18.0-bookworm
 FROM ${NODE_IMAGE}
 
 ARG RUST_VERSION=1.97.0
-ARG MERMAID_CLI_VERSION=11.16.0
-ARG KATEX_VERSION=0.17.0
 ARG TYPST_VERSION=0.15.0
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -13,10 +18,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive \
     PUPPETEER_SKIP_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    PTYMARK_RENDERER_ROOT=/opt/ptymark-renderers \
     CARGO_HOME=/home/node/.cargo \
     RUSTUP_HOME=/home/node/.rustup \
     CARGO_TARGET_DIR=/home/node/.cache/ptymark-target \
-    PATH=/home/node/.cargo/bin:${PATH}
+    XDG_CACHE_HOME=/home/node/.cache \
+    PATH=/opt/ptymark-renderers/node_modules/.bin:/home/node/.cargo/bin:${PATH}
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
@@ -43,20 +50,28 @@ RUN apt-get update \
         zsh \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install --global \
-        "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}" \
-        "katex@${KATEX_VERSION}" \
-    && npm cache clean --force
-
 RUN mkdir -p \
         /workspace \
+        /opt/ptymark-renderers \
         /home/node/.cargo/registry \
         /home/node/.cargo/git \
         /home/node/.rustup \
         /home/node/.cache/ptymark-target \
-    && chown -R node:node /workspace /home/node/.cargo /home/node/.rustup /home/node/.cache
+    && chown -R node:node \
+        /workspace \
+        /opt/ptymark-renderers \
+        /home/node/.cargo \
+        /home/node/.rustup \
+        /home/node/.cache
+
+COPY --chown=node:node renderers/package.json renderers/package-lock.json /opt/ptymark-renderers/
 
 USER node
+
+RUN npm ci --prefix /opt/ptymark-renderers --ignore-scripts \
+    && npm cache clean --force
+
+COPY --chown=node:node renderers/*.mjs /opt/ptymark-renderers/
 
 RUN curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
         https://sh.rustup.rs \
