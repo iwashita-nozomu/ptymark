@@ -4,6 +4,7 @@ use crate::renderer::{RenderContext, RenderError};
 use crate::ui::LayoutSensitivity;
 use std::collections::HashMap;
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExecutionModel {
     InProcess,
@@ -11,6 +12,7 @@ pub enum ExecutionModel {
     PersistentWorker,
 }
 
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EngineDescriptor {
     pub identity: EngineIdentity,
@@ -73,18 +75,35 @@ impl EngineRegistry {
     }
 
     pub fn register(&mut self, engine: impl RenderEngine + 'static) -> Result<(), RenderError> {
+        self.register_boxed(Box::new(engine))
+    }
+
+    pub fn register_boxed(&mut self, engine: Box<dyn RenderEngine>) -> Result<(), RenderError> {
         let id = engine.descriptor().identity.id.clone();
+        if id.trim().is_empty() {
+            return Err(RenderError::new("renderer engine ID cannot be empty"));
+        }
         if self.engines.contains_key(&id) {
             return Err(RenderError::new(format!(
                 "renderer engine `{id}` is already registered"
             )));
         }
-        self.engines.insert(id, Box::new(engine));
+        self.engines.insert(id, engine);
         Ok(())
     }
 
     pub fn descriptor(&self, id: &str) -> Option<&EngineDescriptor> {
         self.engines.get(id).map(|engine| engine.descriptor())
+    }
+
+    pub fn descriptors(&self) -> Vec<EngineDescriptor> {
+        let mut descriptors = self
+            .engines
+            .values()
+            .map(|engine| engine.descriptor().clone())
+            .collect::<Vec<_>>();
+        descriptors.sort_by(|left, right| left.identity.id.cmp(&right.identity.id));
+        descriptors
     }
 
     pub fn contains(&self, id: &str) -> bool {
