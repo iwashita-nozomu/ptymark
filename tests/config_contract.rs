@@ -37,6 +37,23 @@ fn isolated_command(root: &Path) -> Command {
 }
 
 #[test]
+fn canonical_example_is_an_executable_configuration_fixture() {
+    let root = temp_root("canonical-example");
+    let example = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/ptymark.example.toml");
+    let output = isolated_command(&root)
+        .args(["config", "check", "--config"])
+        .arg(example)
+        .output()
+        .expect("check canonical example");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("profile=interactive"));
+}
+
+#[test]
 fn config_check_and_show_resolve_a_named_profile() {
     let root = temp_root("config-show");
     let path = write_config(
@@ -85,6 +102,26 @@ max_bytes = 65536
     assert!(stdout.contains("profile = \"compact\""));
     assert!(stdout.contains("max_buffer_bytes = 4096"));
     assert!(stdout.contains("max_entries = 4"));
+}
+
+#[test]
+fn private_override_is_a_no_cache_redacted_snapshot() {
+    let root = temp_root("private-override");
+    let output = isolated_command(&root)
+        .args(["--private", "config", "show", "--no-config"])
+        .output()
+        .expect("private config show");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 config");
+    assert!(stdout.contains("backend = \"none\""));
+    assert!(stdout.contains("private = true"));
+    assert!(stdout.contains("include_source = false"));
+    assert!(stdout.contains("metrics = false"));
+    assert!(stdout.contains("sink = \"stderr\""));
 }
 
 #[test]
@@ -176,6 +213,48 @@ fn project_candidate_is_reported_but_not_implicitly_trusted() {
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 paths");
     assert!(stdout.contains("project\tuntrusted-project-not-loaded"));
     assert!(stdout.contains(".ptymark.toml"));
+}
+
+#[test]
+fn no_config_and_explicit_config_are_rejected_as_ambiguous() {
+    let root = temp_root("conflicting-selectors");
+    let path = write_config(&root, "schema_version = 1\n");
+    let output = isolated_command(&root)
+        .args(["--no-config", "--config"])
+        .arg(path)
+        .args(["config", "check"])
+        .output()
+        .expect("conflicting selectors");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot be combined"));
+}
+
+#[cfg(unix)]
+#[test]
+fn command_mode_accepts_global_selectors_without_exporting_them_to_the_child() {
+    let root = temp_root("global-command-selectors");
+    let path = write_config(
+        &root,
+        r#"
+schema_version = 1
+[profiles.shell]
+extends = "interactive"
+"#,
+    );
+    let status = isolated_command(&root)
+        .args(["--config"])
+        .arg(path)
+        .args([
+            "--profile",
+            "shell",
+            "--",
+            "/bin/sh",
+            "-c",
+            "test -z \"$PTYMARK_CONFIG\" && test -z \"$PTYMARK_PROFILE\" && exit 7",
+        ])
+        .status()
+        .expect("run configured command");
+    assert_eq!(status.code(), Some(7));
 }
 
 #[cfg(unix)]
