@@ -14,9 +14,10 @@ on:
     branches: [main, master]
     paths:
       - .github/workflows/ptymark-final-rust-normalize-once.yml
-      - src/config/resolve.rs
-      - src/config/source.rs
-      - src/detector.rs
+      - src/**
+      - tests/**
+      - Cargo.toml
+      - Cargo.lock
 
 permissions:
   contents: write
@@ -55,105 +56,92 @@ jobs:
 
       - name: Apply remaining deterministic repairs
         run: |
+          cargo clippy --fix --locked --all-targets --allow-dirty --allow-staged
           python3 - <<'PY'
           from pathlib import Path
 
-          resolve = Path('src/config/resolve.rs')
-          text = resolve.read_text()
-          old = '''    runtimes
-              .entry("chromium".to_owned())
-              .or_insert_with(RuntimeConfig::default);'''.replace('              ', '        ')
-          new = '    runtimes.entry("chromium".to_owned()).or_default();'
-          if old not in text:
-              raise SystemExit('expected runtime default target not found')
-          resolve.write_text(text.replace(old, new, 1))
+          path = Path('src/detector.rs')
+          lines = path.read_text().splitlines()
 
-          source = Path('src/config/source.rs')
-          text = source.read_text()
-          old = '''            if let Some(path) = Self::user_path(environment) {
-                          if path.is_file() {
-                              seen.insert(canonical_or_original(&path));
-                              sources.push(ConfigSource {
-                                  origin: ConfigOrigin::User,
-                                  trust: ConfigTrust::UserOwned,
-                                  path,
-                              });
-                          }
-                      }'''.replace('                          ', '                ').replace('                      ', '            ')
-          new = '''            if let Some(path) = Self::user_path(environment)
-                          && path.is_file()
-                      {
-                          seen.insert(canonical_or_original(&path));
-                          sources.push(ConfigSource {
-                              origin: ConfigOrigin::User,
-                              trust: ConfigTrust::UserOwned,
-                              path,
-                          });
-                      }'''.replace('                          ', '                ').replace('                      ', '            ')
-          if old not in text:
-              raise SystemExit('expected user config condition target not found')
-          source.write_text(text.replace(old, new, 1))
+          def replace_once(old, new):
+              for index in range(len(lines) - len(old) + 1):
+                  if lines[index:index + len(old)] == old:
+                      lines[index:index + len(old)] = new
+                      return
+              raise SystemExit('detector normalization target not found:\n' + '\n'.join(old))
 
-          detector = Path('src/detector.rs')
-          text = detector.read_text()
-          replacements = [
-              (
-                  '''        let mut options = FencedDetectorOptions::default();
-                  options.max_buffer_bytes = max_buffer_bytes;
-                  options.max_line_bytes = (64 * 1024).min(max_buffer_bytes);
-                  Self::with_options(options)'''.replace('                  ', '        '),
-                  '''        Self::with_options(FencedDetectorOptions {
-                  max_buffer_bytes,
-                  max_line_bytes: (64 * 1024).min(max_buffer_bytes),
-                  ..FencedDetectorOptions::default()
-              })'''.replace('                  ', '            ').replace('              ', '        '),
-              ),
-              (
-                  '''        let mut options = FencedDetectorOptions::default();
-                  options.math_fences = vec!["latex".to_owned()];'''.replace('                  ', '        '),
-                  '''        let options = FencedDetectorOptions {
-                  math_fences: vec!["latex".to_owned()],
-                  ..FencedDetectorOptions::default()
-              };'''.replace('                  ', '            ').replace('              ', '        '),
-              ),
-              (
-                  '''        let mut options = FencedDetectorOptions::default();
-                  options.mermaid_fences = vec!["diagram".to_owned()];
-                  options.math_fences = vec!["diagram".to_owned()];'''.replace('                  ', '        '),
-                  '''        let options = FencedDetectorOptions {
-                  mermaid_fences: vec!["diagram".to_owned()],
-                  math_fences: vec!["diagram".to_owned()],
-                  ..FencedDetectorOptions::default()
-              };'''.replace('                  ', '            ').replace('              ', '        '),
-              ),
-              (
-                  '''        let mut options = FencedDetectorOptions::default();
-                  options.max_buffer_bytes = 1024;
-                  options.max_line_bytes = 128;
-                  options.mermaid = false;'''.replace('                  ', '        '),
-                  '''        let options = FencedDetectorOptions {
-                  max_buffer_bytes: 1024,
-                  max_line_bytes: 128,
-                  mermaid: false,
-                  ..FencedDetectorOptions::default()
-              };'''.replace('                  ', '            ').replace('              ', '        '),
-              ),
-              (
-                  '''        let mut options = FencedDetectorOptions::default();
-                  options.max_buffer_bytes = 1024;
-                  options.max_line_bytes = 4;'''.replace('                  ', '        '),
-                  '''        let options = FencedDetectorOptions {
-                  max_buffer_bytes: 1024,
-                  max_line_bytes: 4,
-                  ..FencedDetectorOptions::default()
-              };'''.replace('                  ', '            ').replace('              ', '        '),
-              ),
-          ]
-          for old, new in replacements:
-              if old not in text:
-                  raise SystemExit(f'expected detector normalization target not found:\n{old}')
-              text = text.replace(old, new, 1)
-          detector.write_text(text)
+          replace_once(
+              [
+                  '        let mut options = FencedDetectorOptions::default();',
+                  '        options.max_buffer_bytes = max_buffer_bytes;',
+                  '        options.max_line_bytes = (64 * 1024).min(max_buffer_bytes);',
+                  '        Self::with_options(options)',
+              ],
+              [
+                  '        Self::with_options(FencedDetectorOptions {',
+                  '            max_buffer_bytes,',
+                  '            max_line_bytes: (64 * 1024).min(max_buffer_bytes),',
+                  '            ..FencedDetectorOptions::default()',
+                  '        })',
+              ],
+          )
+          replace_once(
+              [
+                  '        let mut options = FencedDetectorOptions::default();',
+                  '        options.math_fences = vec!["latex".to_owned()];',
+              ],
+              [
+                  '        let options = FencedDetectorOptions {',
+                  '            math_fences: vec!["latex".to_owned()],',
+                  '            ..FencedDetectorOptions::default()',
+                  '        };',
+              ],
+          )
+          replace_once(
+              [
+                  '        let mut options = FencedDetectorOptions::default();',
+                  '        options.mermaid_fences = vec!["diagram".to_owned()];',
+                  '        options.math_fences = vec!["diagram".to_owned()];',
+              ],
+              [
+                  '        let options = FencedDetectorOptions {',
+                  '            mermaid_fences: vec!["diagram".to_owned()],',
+                  '            math_fences: vec!["diagram".to_owned()],',
+                  '            ..FencedDetectorOptions::default()',
+                  '        };',
+              ],
+          )
+          replace_once(
+              [
+                  '        let mut options = FencedDetectorOptions::default();',
+                  '        options.max_buffer_bytes = 1024;',
+                  '        options.max_line_bytes = 128;',
+                  '        options.mermaid = false;',
+              ],
+              [
+                  '        let options = FencedDetectorOptions {',
+                  '            max_buffer_bytes: 1024,',
+                  '            max_line_bytes: 128,',
+                  '            mermaid: false,',
+                  '            ..FencedDetectorOptions::default()',
+                  '        };',
+              ],
+          )
+          replace_once(
+              [
+                  '        let mut options = FencedDetectorOptions::default();',
+                  '        options.max_buffer_bytes = 1024;',
+                  '        options.max_line_bytes = 4;',
+              ],
+              [
+                  '        let options = FencedDetectorOptions {',
+                  '            max_buffer_bytes: 1024,',
+                  '            max_line_bytes: 4,',
+                  '            ..FencedDetectorOptions::default()',
+                  '        };',
+              ],
+          )
+          path.write_text('\n'.join(lines) + '\n')
           PY
           cargo fmt --all
 
@@ -167,9 +155,13 @@ jobs:
         env:
           PUSH_TOKEN: ${{ github.token }}
         run: |
+          if git diff --quiet -- src tests; then
+            echo "No source changes were required"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/config.rs src/config/resolve.rs src/config/source.rs src/detector.rs
+          git add src tests
           git commit -m "Normalize configuration and detector skeleton"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${GITHUB_HEAD_REF}"
