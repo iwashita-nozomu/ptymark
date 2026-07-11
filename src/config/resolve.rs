@@ -494,9 +494,7 @@ fn normalize_runtimes(
         required_version: Some(">=24.18.0 <25".to_owned()),
         args: Vec::new(),
     });
-    runtimes
-        .entry("chromium".to_owned())
-        .or_insert_with(RuntimeConfig::default);
+    runtimes.entry("chromium".to_owned()).or_default();
     runtimes
 }
 

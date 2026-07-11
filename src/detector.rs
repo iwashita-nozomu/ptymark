@@ -101,10 +101,11 @@ pub struct FencedDetector {
 impl FencedDetector {
     pub fn new(max_buffer_bytes: usize) -> Self {
         let max_buffer_bytes = max_buffer_bytes.max(1);
-        let mut options = FencedDetectorOptions::default();
-        options.max_buffer_bytes = max_buffer_bytes;
-        options.max_line_bytes = (64 * 1024).min(max_buffer_bytes);
-        Self::with_options(options)
+        Self::with_options(FencedDetectorOptions {
+            max_buffer_bytes,
+            max_line_bytes: (64 * 1024).min(max_buffer_bytes),
+            ..FencedDetectorOptions::default()
+        })
     }
 
     pub fn with_options(mut options: FencedDetectorOptions) -> Self {
@@ -417,8 +418,10 @@ mod tests {
 
     #[test]
     fn configured_math_fence_alias_is_explicit_and_chunk_safe() {
-        let mut options = FencedDetectorOptions::default();
-        options.math_fences = vec!["latex".to_owned()];
+        let options = FencedDetectorOptions {
+            math_fences: vec!["latex".to_owned()],
+            ..FencedDetectorOptions::default()
+        };
         let mut detector = FencedDetector::with_options(options);
         let mut items = detector.feed(b"```la").expect("first feed");
         items.extend(
@@ -436,9 +439,11 @@ mod tests {
 
     #[test]
     fn ambiguous_cross_kind_alias_is_not_detected() {
-        let mut options = FencedDetectorOptions::default();
-        options.mermaid_fences = vec!["diagram".to_owned()];
-        options.math_fences = vec!["diagram".to_owned()];
+        let options = FencedDetectorOptions {
+            mermaid_fences: vec!["diagram".to_owned()],
+            math_fences: vec!["diagram".to_owned()],
+            ..FencedDetectorOptions::default()
+        };
         let source = b"```diagram\nA --> B\n```\n";
         let mut detector = FencedDetector::with_options(options);
         let mut items = detector.feed(source).expect("feed");
@@ -499,10 +504,12 @@ mod tests {
     #[test]
     fn disabling_a_kind_can_only_make_detection_stricter() {
         let source = b"before\n```mermaid\nA --> B\n```\nafter\n";
-        let mut options = FencedDetectorOptions::default();
-        options.max_buffer_bytes = 1024;
-        options.max_line_bytes = 128;
-        options.mermaid = false;
+        let options = FencedDetectorOptions {
+            max_buffer_bytes: 1024,
+            max_line_bytes: 128,
+            mermaid: false,
+            ..FencedDetectorOptions::default()
+        };
         let mut detector = FencedDetector::with_options(options);
         let mut items = detector.feed(source).expect("feed");
         items.extend(detector.finish().expect("finish"));
@@ -519,9 +526,11 @@ mod tests {
     #[test]
     fn line_limit_restores_exact_source() {
         let source = b"$$\n123456789\n$$\n";
-        let mut options = FencedDetectorOptions::default();
-        options.max_buffer_bytes = 1024;
-        options.max_line_bytes = 4;
+        let options = FencedDetectorOptions {
+            max_buffer_bytes: 1024,
+            max_line_bytes: 4,
+            ..FencedDetectorOptions::default()
+        };
         let mut detector = FencedDetector::with_options(options);
         let mut items = detector.feed(source).expect("feed");
         items.extend(detector.finish().expect("finish"));

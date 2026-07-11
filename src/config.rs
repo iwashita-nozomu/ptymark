@@ -8,8 +8,8 @@ pub use model::{
     DiagnosticFormat, DiagnosticLevel, DiagnosticSink, DiagnosticsConfig, DiagnosticsPolicy,
     EngineSelectionConfig, EngineSelectionPolicy, EngineType, ExternalEngineConfig, FallbackPolicy,
     FenceConfig, PresentationConfig, PresentationMode, PresentationPolicy, ProfileConfig,
-    RenderConfig, RenderOrdering, RenderPolicy, RendererBundleConfig, ResolvedConfig, RuntimeConfig,
-    SessionMode, UnsupportedPresentation,
+    RenderConfig, RenderOrdering, RenderPolicy, RendererBundleConfig, ResolvedConfig,
+    RuntimeConfig, SessionMode, UnsupportedPresentation,
 };
 pub use resolve::ConfigManager;
 pub use source::{

@@ -179,15 +179,15 @@ impl ConfigLocator for FilesystemConfigLocator {
         let mut seen = HashSet::new();
 
         if ambient_enabled {
-            if let Some(path) = Self::user_path(environment) {
-                if path.is_file() {
-                    seen.insert(canonical_or_original(&path));
-                    sources.push(ConfigSource {
-                        origin: ConfigOrigin::User,
-                        trust: ConfigTrust::UserOwned,
-                        path,
-                    });
-                }
+            if let Some(path) = Self::user_path(environment)
+                && path.is_file()
+            {
+                seen.insert(canonical_or_original(&path));
+                sources.push(ConfigSource {
+                    origin: ConfigOrigin::User,
+                    trust: ConfigTrust::UserOwned,
+                    path,
+                });
             }
             if let Some(source) = Self::environment_source(environment) {
                 Self::push_existing_source(&mut sources, &mut seen, source)?;
