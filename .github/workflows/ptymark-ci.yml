@@ -173,6 +173,23 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
+      - name: Generate rustfmt patch
+        if: failure()
+        shell: bash
+        run: |
+          cargo fmt --all
+          git diff -- src tests > rustfmt.patch
+          test -s rustfmt.patch
+
+      - name: Upload rustfmt patch
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-rustfmt-${{ matrix.os }}
+          path: rustfmt.patch
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Run Clippy
         run: cargo clippy --locked --all-targets -- -D warnings
 
