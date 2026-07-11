@@ -1,84 +1,178 @@
+<!--
+@dependency-start
+contract design
+responsibility Defines the ptymark pre-display renderer, terminal-safety, configuration, and runtime ownership boundaries.
+upstream design ./configuration.md immutable session configuration contract
+upstream design ./renderer-architecture.md engine, coordinator, presenter, and cache abstractions
+upstream design ./ui-design.md viewport, resize, theme, and image lifecycle
+downstream implementation ../src/terminal.rs terminal output safety gate
+downstream implementation ../src/predisplay.rs display interception and commit ordering
+downstream implementation ../src/config.rs configuration service
+downstream implementation ../src/coordinator.rs rendering orchestration
+downstream test ../tests/terminal_compat.rs terminal byte-preservation contract
+downstream test ../tests/config_contract.rs configuration-before-child-launch contract
+@dependency-end
+-->
+
 # ptymark 基本設計
 
 ## 位置づけ
 
-`ptymark`の中心責務は、**端末エミュレータが文字列を表示する直前に、子プロセスの
-出力ストリームを受け取り、確実に識別できる意味ブロックだけを表示用バイト列へ
-差し替えること**です。
-
-この製品境界全体を**pre-display renderer**と呼びます。コード上の
-`BlockRenderer`は、その中で一つの意味ブロックを変換する部品です。
+`ptymark`の中心責務は、**terminal emulatorが文字列を表示する直前にchild processのoutputを
+受け取り、安全に識別できる完成済みsemantic blockだけを表示artifactへ差し替えること**です。
+この製品境界を**pre-display renderer**と呼びます。
 
 `ptymark`は次のものではありません。
 
-- ターミナルエミュレータ
-- WezTermの画面描画エンジン
+- terminal emulator
+- shell、SSH、tmux、screenの代替
+- WezTermの画面描画engine
+- input/key/mouse/termios/signal変換layer
 - コマンド終了後だけに動くMarkdown viewer
-- `$`や`#`を推測でMarkdownとみなす汎用フィルター
-- Mermaid、TeX、Typstの新しい組版・レイアウトエンジン
-- alternate screenを使うTUIの画面を後から書き換える仕組み
+- 任意の`$`や`#`をMarkdownと推測するfilter
+- Mermaid、TeX、Typstの新しいlayout/typesetting engine
+- committed scrollbackをcursor操作で遡って置換する仕組み
 
-## 表示前境界
+用があるのは**child PTY outputからterminal displayへ向かう一方向**だけです。
+
+## End-to-end boundary
 
 ```mermaid
 flowchart LR
-    User[Keyboard input] --> Terminal[Terminal emulator]
+    Config[Config sources] --> Resolve[ConfigManager / ResolvedConfig]
+    User[Keyboard / mouse] --> Terminal[Terminal emulator]
     Terminal --> Host[PTY host]
     Host --> Child[Shell / CLI]
     Child --> Host
-    Host --> Gate[Display-mode gate]
-    Gate --> Detector[Semantic detector]
-    Detector --> Adapter[Existing-engine adapter]
-    Adapter --> Cache[Bounded render cache]
-    Cache --> Writer[Display writer]
-    Gate --> Writer
-    Writer --> Terminal
+    Host --> Gate[TerminalOutputGate]
+    Gate -->|raw terminal bytes| Commit[Display commit]
+    Gate -->|safe text| Detector[SemanticDetector]
+    Detector --> Coordinator[RenderCoordinator]
+    Coordinator --> Presenter[ArtifactPresenter]
+    Presenter --> Commit
+    Commit --> Terminal
+    Resolve --> Detector
+    Resolve --> Coordinator
+    Resolve --> Presenter
 ```
 
-子プロセスが書いたバイト列は、端末エミュレータへ届く前に
-`PreDisplayRenderer`を通ります。通常出力は同じ順序でそのまま流れ、完成した
-意味ブロックだけが`BlockRenderer`の結果へ置き換わります。
+### Input/control plane
 
-## 構成要素と責務
+次は透過transportの責務であり、rendering configurationの対象外です。
 
-### 1. PTY host
+```text
+keyboard / paste / mouse  -> child PTY
+Ctrl+C / Ctrl+Z / Ctrl+D -> child process / kernel PTY semantics
+SIGWINCH / rows / columns -> child PTY
+termios / raw / echo      -> kernel PTY
+child exit status         -> ptymark exit status
+```
 
-PTY hostは端末と子プロセスの対話性を保つ入出力アダプターです。
+### Display plane
+
+child outputだけを次の順で扱います。
+
+```text
+raw child bytes
+  -> terminal output safety gate
+       -> raw control/update region: exact passthrough
+       -> safe text region: semantic detector
+  -> renderer coordinator
+  -> artifact presenter
+  -> write_all / flush
+```
+
+## 1. Configuration bootstrap
+
+`ConfigManager`はchild launchやterminal mode変更より前に実行します。
+
+```text
+built-in defaults
+  + user config
+  + explicit config
+  + profile/session selector
+  + CLI override
+  -> parse
+  -> schema validation
+  -> profile resolution
+  -> cross-field validation
+  -> immutable ResolvedConfig
+```
 
 責務:
 
-- 子PTYの生成と子プロセス起動
-- keyboard inputの子PTYへの転送
-- 子PTY outputのpre-display rendererへの供給
-- `SIGWINCH`、終了状態、signalの転送
-- terminal mode、viewport、theme観測結果の通知
+- source discoveryとtrust/provenance
+- strict TOML parse、unknown-key拒否
+- `schema_version` boundary
+- deterministic mergeとsingle-parent profile inheritance
+- typed subsystem policy生成
+- unsafe/invalid設定のpre-launch failure
 
 非責務:
 
-- Markdown判定
-- Mermaidや数式の組版
+- terminalのopen/raw-mode変更
+- child process起動
+- engine process起動
+- output parsing
+
+stream loopはraw TOML tableを読みません。各subsystemは`DetectionPolicy`、`EngineSelectionPolicy`、
+`RenderPolicy`、`PresentationPolicy`、`CachePolicyConfig`、`DiagnosticsPolicy`だけを受け取ります。
+
+## 2. PTY host
+
+PTY hostはterminalとchild processの対話性を保つtransport adapterです。
+
+責務:
+
+- child PTY生成とchild process起動
+- input bytesのchild PTYへの無加工転送
+- child PTY outputの`DisplayInterceptor`への供給
+- signal、resize、exit lifecycleの転送
+- observed viewport/theme/capabilityのruntime policyへの通知
+- failure/exit時のterminal state restoration
+
+非責務:
+
+- Markdown/semantic判定
+- diagram/math layout
 - cache policy
-- 表示用layout
+- artifact presentation
+- terminal inputの再解釈
 
-PTY hostは未実装です。現在の`ptymark -- COMMAND`は公開CLI形を固定する透過
-`exec`で、後続変更でこの責務を内部へ追加します。
+PTY hostは未実装です。現在の`ptymark -- COMMAND`はconfigをpreflightした後の透過`exec`です。
 
-### 2. Display-mode gate
+## 3. `TerminalOutputGate`
 
-表示前変換を実行してよい状態かを決めます。
+`TerminalOutputGate`はterminal機能を守る最初の境界です。
 
-- `Transform`: 意味検出とレンダリングを許可する通常状態
-- `Bypass`: 入力を無加工でdisplay writerへ送る状態
+```text
+child bytes -> OutputSegment::RawTerminalBytes | OutputSegment::SafeText
+```
 
-将来のPTY hostはalternate screen、バイナリ的出力、または安全に解析できない
-terminal stateを検出したときに`Bypass`を選びます。
+raw passthrough対象:
 
-`Transform`から`Bypass`へ移るときは、detectorが保留中の未完成sourceを先に
-そのまま表示へ戻します。切替によって文字列を隠しません。
+- ANSI/CSI/SGR
+- OSC 8 hyperlink、OSC 133 shell integration、unknown OSC
+- DCS、APC、PM、unknown escape sequence
+- carriage-return/backspace update region
+- cursor-addressed/erase-driven screen output
+- alternate-screen region
+- binary/unsafe text region
 
-### 3. `SemanticDetector`
+ルール:
 
-`SemanticDetector`はバイトストリームを次のどちらかへ分けます。
+- control sequenceをstrip、normalize、再encodeしない
+- chunk途中のsequenceを完成までbounded bufferし、original bytesでcommitする
+- unsafe state中にsemantic sourceが保留されていればexact sourceを先にflushする
+- unknownはtransformではなくpassthroughを選ぶ
+- configurationでこのminimum bypass集合を弱められない
+
+現在、pure streaming gateとbyte-exact compatibility testsは実装済みです。PTY runtimeのlive
+terminal-state observationとの接続は未実装です。
+
+## 4. `SemanticDetector`
+
+`SemanticDetector`はsafe textだけを次へ分類します。
 
 ```text
 StreamItem::Passthrough(bytes)
@@ -87,19 +181,14 @@ StreamItem::Semantic(SemanticBlock)
 
 責務:
 
-- chunk境界をまたぐ構文境界の保持
-- 完全に閉じたMermaid fenceとblock mathの検出
-- original sourceとrenderer bodyの保持
-- buffer上限の強制
-- 未完成、過大、曖昧な入力のlossless passthrough
+- chunk境界をまたぐexplicit syntax boundary
+- exact original sourceとengine bodyの保持
+- complete Mermaid fenceとblock mathの検出
+- line/source byte limit
+- unfinished、oversized、disabled kindのlossless passthrough
+- ordinary prompt prefixの低遅延release
 
-非責務:
-
-- 組版・描画
-- ANSI色の選択
-- 端末への書き込み
-
-初期detectorは行境界を持つ次の記法だけを高確度で扱います。
+初期対応:
 
 ````markdown
 ```mermaid
@@ -112,174 +201,236 @@ $$
 $$
 ````
 
-インライン`$...$`やMarkdownらしさの推測は、shell変数・金額・commentとの
-誤判定を避けるため初期設計に含めません。
+configurationはkindを無効化し、byte limitを厳しくできますが、unsafe terminal regionで強制
+transformするoptionはありません。inline mathやgeneral Markdown inferenceは初期runtime対象外です。
 
-### 4. `BlockRenderer`
+## 5. Rendering abstraction
 
-`BlockRenderer`は一つの`SemanticBlock`を表示用バイト列へ変換する境界です。
+semantic blockのrenderingは次の高位objectへ分離します。
 
 ```text
-SemanticBlock + RenderContext -> Result<Vec<u8>, RenderError>
+RenderCoordinator
+  ├─ EngineSelector
+  ├─ EngineRegistry
+  ├─ ArtifactCache
+  └─ RenderEngine
+        -> RenderArtifact
+ArtifactPresenter
+        -> display bytes / source fallback
+```
+
+### `EngineDescriptor` / `RenderEngine`
+
+engineは次を宣言します。
+
+- stable ID/version
+- supported semantic kinds
+- artifact formats
+- layout sensitivity
+- execution model: in-process / one-shot / persistent worker
+
+engineはterminal stdoutへ書かず、`RenderArtifact`を返します。
+
+### `RenderCoordinator`
+
+責務:
+
+- typed ordered candidate policy
+- presenter accepted formatとのnegotiation
+- cache key構築とlookup
+- engine attempt/fallback
+- artifact identity/format validation
+- successful cacheable artifactだけのcache admission
+- duration、attempt、fallback、failure metrics
+
+非責務:
+
+- PTY transport
+- terminal control parsing
+- terminal escape generation
+- source fallbackの最終display commit
+
+### Selected existing engines
+
+| Semantic input | Real-time primary | Compatibility/comparator | Artifact |
+| --- | --- | --- | --- |
+| Mermaid | persistent Mermaid/Puppeteer worker | one-shot Mermaid CLI | SVG |
+| TeX block math | persistent MathJax worker | KaTeX | SVG / MathML |
+| Typst-native | Typst CLI | source | SVG / PDF |
+
+layout/typesettingは既存engineへ委譲します。`ptymark`はworker lifecycle、timeout、output bound、
+cache、fallback、presentationを所有します。
+
+## 6. Independent `ArtifactCache`
+
+cacheはcoordinatorからtraitとして利用し、rendererやUIへ埋め込みません。
+
+```text
+ArtifactCache
+  ├─ NoopArtifactCache
+  ├─ MemoryArtifactCache
+  ├─ PersistentArtifactCache   follow-up
+  └─ TieredArtifactCache       follow-up
+```
+
+key domain:
+
+- semantic source fingerprint/kind
+- engine ID/version
+- artifact format
+- layout sensitivity + relevant viewport geometry
+- theme/options fingerprint
+- presenter ID/capability fingerprint
+
+invariants:
+
+- failure、timeout、cancel、stale generationをcacheしない
+- cache corruptionはmissとして扱う
+- no-cache/private backendへ差し替えてもsemantic resultは変わらない
+- entry countとtotal bytesをboundedにする
+- source bodyをfilename/default logへ出さない
+
+no-opとmemory LRUは実装済みです。disk/tiered backendはIssue #3/#12で追跡します。
+
+## 7. `ArtifactPresenter`
+
+presenterはartifactをactive terminal capabilityへ変換します。
+
+```text
+RenderArtifact + TerminalCapabilities + PresentationPolicy
+  -> PresentableBytes | source/text fallback
 ```
 
 責務:
 
-- block kindとbodyに応じたdisplay artifact生成
-- terminal width、color、backend optionの利用
-- existing engine adapterの場合のtimeout、output上限、diagnostic上限
+- accepted artifact formats
+- verified capabilityによるKitty/iTerm2/Sixel selection
+- text/source fallback
+- terminal size/themeへのpresentation policy適用
+- ptymark-owned image identity/lifecycle
 
 非責務:
 
-- stream境界の検出
-- PTY制御
-- stdoutへの直接書き込み
-- failure時のsource fallback判断
-- Mermaid/TeX/Typst layout algorithmの再実装
+- semantic layout
+- engine selection
+- input/mouse mode
+- unverified protocolのforce emission
 
-実装済みrenderer:
+現在はterminal text/source presenterの骨格を実装済みです。image protocol presenterは未実装です。
 
-- `PreviewRenderer`: dependency-free bootstrap表示
-- `SourceRenderer`: original sourceを返すlossless renderer
-- `ExternalRenderer`: existing engine wrapper用のbounded stdio adapter
+## 8. `DisplayInterceptor` / commit point
 
-`ExternalRenderer`はbodyをstdinへ渡し、stdoutをartifactとして受け取ります。
-renderer ID、block kind、source byte数、color、terminal widthは環境変数でも渡します。
-process group、timeout、stdout/stderr上限を管理します。
+`DisplayInterceptor`はgate、detector、rendererをordering-preserving pipelineとして接続します。
+`std::io::Write::write_all`がterminal display直前のcommit pointです。
 
-既存エンジンの初期方針:
+commit rule:
 
-| Block | Engine | Candidate artifact |
-| --- | --- | --- |
-| Mermaid | Mermaid CLI | SVG |
-| Markdown/TeX math | KaTeX | HTML / MathML、必要ならChromium image |
-| Typst-native input | Typst CLI | SVG / PDF |
+1. ordinary/raw bytesは受信順でcommitする。
+2. semantic sourceは明示closing boundaryまでcommitしない。
+3. closed blockはrendered outputまたはexact sourceの一方だけをcommitする。
+4. renderer/presenter failureはdefaultでexact sourceへfallbackする。
+5. strict modeはsemantic renderer errorをsurfaceするが、安全分類の不確実性は常にpassthroughする。
+6. committed textual scrollbackを遡ってerase/replaceしない。
 
-### 5. Render cache / viewport
+`PreDisplayReport`はinput、passthrough、semantic、rendered、fallback、bypass、diagnosticsを分離します。
 
-`RenderKey`はsource fingerprint、block kind、renderer ID、viewport、theme、optionを
-含みます。
+## 9. UI / viewport / resize
 
-`LayoutSensitivity`:
+`Viewport`はcell geometryとoptional pixel geometryを持ち、engine/artifactは
+`LayoutSensitivity`を宣言します。
 
 - `Independent`
 - `Columns`
 - `Pixels`
 - `FullViewport`
 
-`RenderCache`はprocess-localのbounded LRUです。entry countとtotal bytesの両方を
-制限し、theme/renderer単位でinvalidateできます。failure/timeout/cancelled resultは
-cacheしません。
+uncommitted workは最新viewport generationを使い、stale render resultを破棄します。textとして
+committed済みのscrollbackはresizeで書き換えません。image replacementはprotocolがownership、
+anchor、delete、pane lifecycleを安全に提供する場合だけ実施します。
 
-live resize generation、image placement、persistent cacheは
+pure resize/cache key modelは実装済みです。live generation/debounce/cancellation/image lifecycleは
 [Issue #3](https://github.com/iwashita-nozomu/ptymark/issues/3)で追跡します。
-詳細は[UI設計](./ui-design.md)を参照してください。
 
-### 6. Display writer
+## 10. WezTerm plugin
 
-コード上では`std::io::Write`が表示直前のcommit pointです。
-
-責務:
-
-- passthrough bytesまたはrendered bytesを受け取った順に書く
-- 部分書き込みを`write_all`で完了させる
-- 終了時にflushする
-
-構文解析や再描画判断は行いません。端末へ一度書いた内容を後からcursor操作で
-消して置換する設計も採用しません。
-
-### 7. Fallbackとreport
-
-non-strict modeではrendererが失敗したblockのoriginal sourceを表示し、diagnosticを
-`PreDisplayReport`へ残します。
-
-strict modeではrenderer errorを呼び出し元へ返し、失敗したblockを表示へcommit
-しません。
-
-report:
-
-- input bytes
-- ordinary passthrough bytes
-- semantic blocks
-- rendered blocks
-- fallback blocks
-- bypass bytes
-- diagnostics
-
-### 8. WezTerm plugin
-
-`plugin/init.lua`はpre-display renderer本体ではなく、host-native `ptymark`を
-WezTermの新しいtabから起動する薄い統合層です。
+`plugin/init.lua`はthin launcher/capability bridgeです。
 
 責務:
 
-- launch menu entry
-- key binding
-- binary、shell、cwd、environment設定
+- launch menu/key bindingのappend
+- host-native binary/shell/cwdの指定
+- `PTYMARK_CONFIG`、`PTYMARK_PROFILE`、`PTYMARK_NO_CONFIG`のsession environment伝達
 - `SpawnCommandInNewTab`構築
 
-PTY、検出、cache、existing-engine adapterはRustコアに置きます。
+Rust config schemaをLuaへ複製せず、PTY、detector、engine、cache、presentationをpluginへ置きません。
 
 ## 現在の実装範囲
 
 | Boundary | State |
 | --- | --- |
-| public CLI (`ptymark -- COMMAND`) | 実装済み。現在は透過`exec` |
+| config model/discovery/profile/validation/introspection | 実装済み |
+| public command mode preflight + transparent `exec` | 実装済み |
 | `ptymark preview` / `demo` | 実装済み |
-| bounded fenced detector | 実装済み |
+| terminal output safety gate | pure streaming実装済み |
+| explicit bounded detector | 実装済み |
 | pre-display ordering/fallback/bypass | 実装済み |
-| preview/source renderer | 実装済み |
-| bounded external-engine adapter | 実装済み |
-| viewport/resize decision | 実装済み |
-| bounded memory render cache | 実装済み |
-| WezTerm launcher plugin | 実装済み |
-| Mermaid/KaTeX/Typst Docker smoke | 実装済み |
+| engine registry/selector/coordinator | 実装済み |
+| `RenderArtifact` / text-source presenter | 実装済み |
+| no-op / bounded memory artifact cache | 実装済み |
+| persistent renderer worker/benchmark harness | 実装済み |
+| WezTerm launcher/config selector bridge | 実装済み |
 | child PTY host | 未実装 |
-| ANSI/alternate-screen observer | 未実装 |
-| engine-specific runtime wrappers | 未実装 |
-| terminal image backend | 未実装・任意拡張 |
-| live resize/image lifecycle/disk cache | Issue #3 |
+| live ANSI/alternate-screen observer connection | 未実装 |
+| selected production worker runtime builder | 未実装 |
+| terminal image presenters | 未実装 |
+| live resize/image lifecycle/persistent cache | Issues #3/#12 |
+| project trust/editor schema/migrations | Issues #6/#15 |
 
 ## 不変条件
 
-1. ordinary outputはbyte-for-byte、同じ順序で表示される。
-2. semantic sourceはblockが閉じるまでdisplay writerへcommitしない。
-3. closed blockはsourceまたはrendered resultのどちらか一方だけをcommitする。
-4. 未完成・過大・曖昧な入力は元sourceへ戻る。
-5. renderer failureは既定で元sourceへ戻る。
-6. `Bypass`へ切り替える前に保留sourceを失わずflushする。
-7. chunk分割方法によって最終表示が変わらない。
-8. WezTerm pluginなしでもRustコアは同じ動作をする。
-9. 表示済み文字列を後から脆いcursor操作で置換しない。
-10. buffer、外部process時間、外部output、cache memoryには上限を設ける。
-11. 図・数式layoutは既存エンジンに委譲する。
-12. viewport/theme/renderer optionが異なるartifactを同じcache keyで再利用しない。
+1. input、termios、signal、resize、exit semanticsをrendererが変更しない。
+2. terminal control/update outputはoriginal bytes・original orderでcommitする。
+3. safety uncertaintyはtransformではなくpassthroughを選ぶ。
+4. semantic sourceはcomplete boundaryまでbounded bufferする。
+5. closed blockはsourceまたはrendered resultの一方だけをcommitする。
+6. unfinished/oversized/unsafe inputはexact sourceへ戻る。
+7. renderer/presenter failureはdefaultでexact sourceへ戻る。
+8. chunk分割によって最終display bytesが変わらない。
+9. WezTerm pluginなしでもRust coreは同じsemantic behaviorを持つ。
+10. committed textual scrollbackをcursor trickで置換しない。
+11. buffer、process time/output、cache、concurrencyをboundedにする。
+12. layout/typesettingを既存engineへ委譲する。
+13. engine/version/viewport/theme/presenter capabilityが異なるartifactを同じcache keyで再利用しない。
+14. invalid configはchild/terminal mutation前に失敗する。
+15. project config/external executableはtrustなしで自動実行しない。
 
 ## テスト対応
 
-| Design contract | Main tests |
+| Contract | Main tests/checks |
 | --- | --- |
-| detector chunk independence | `detector::tests`, `tests/predisplay_contract.rs` |
-| ordinary passthrough | `ordinary_output_reaches_display_byte_for_byte` |
-| pre-display replacement | `complete_semantic_block_is_replaced_before_display` |
-| renderer fallback/strict | `renderer_failure_restores_original_source_by_default`, `strict_mode_surfaces_renderer_error` |
-| unfinished/over-limit losslessness | `incomplete_block_is_never_hidden`, `buffer_limit_degrades_to_lossless_passthrough` |
-| bypass transition | `bypass_mode_flushes_pending_source_before_direct_display` |
-| existing-engine process safety | `renderer::tests` timeout/output/stdio tests |
-| viewport/cache | `ui::tests` |
-| CLI stdout/exit contract | `tests/cli_contract.rs` |
-| WezTerm integration shape | `tests/plugin_smoke.lua` |
-| Mermaid/KaTeX/Typst environment | `scripts/check-ptymark-renderers.sh` |
+| config parse/merge/profile/pre-launch failure | `config::tests`, `tests/config_contract.rs` |
+| terminal byte equality/chunk independence | `tests/terminal_compat.rs` |
+| detector kind/line/source bounds | `detector::tests` |
+| ordinary/pre-display/fallback/bypass | `tests/predisplay_contract.rs` |
+| engine selection/fallback/cache | `tests/coordinator_contract.rs` |
+| external process timeout/output | `renderer::tests` |
+| viewport/cache identity | `ui::tests`, `cache::tests` |
+| CLI config/stdout/exit | `tests/cli_contract.rs`, `tests/config_contract.rs` |
+| WezTerm selector bridge | `tests/plugin_smoke.lua` |
+| engine correctness | `scripts/check-ptymark-renderers.sh` |
+| worker/one-shot/cache latency | `scripts/benchmark-ptymark-renderers.sh` |
+| canonical environment and all contracts | `.github/workflows/ptymark-ci.yml` |
 
 ## 今後の実装順
 
-1. Unix PTY hostとresize/signal forwarding
-2. ANSI parserとalternate-screen observer
-3. `PreDisplayRenderer`を子PTY output経路へ接続
-4. Mermaid CLI、KaTeX、Typst wrapper/adapters
-5. generation-aware async queue/cancellation
-6. Kitty/iTerm2/Sixelなどoptional image backend
-7. Issue #3のpersistent cacheとsource retrieval UI
+1. GitHub ActionsでRust 1.97 lock/format/type/test evidenceを確定する。
+2. Unix PTY hostとinput/signal/resize transparency testsを実装する。
+3. live terminal observerを`TerminalOutputGate`へ接続する。
+4. `ResolvedConfig`からengine registry/coordinator/presenter runtimeをbuildする。
+5. persistent Mermaid/MathJax worker protocolをproduction adapterへ接続する。
+6. generation-aware async queue、cancellation、backpressureを接続する。
+7. verified Kitty/iTerm2/Sixel presenterをoptionalに追加する。
+8. persistent cache、project trust、source retrieval UIを個別Issueで実装する。
 
-この順序でも`PreDisplayRenderer`、`SemanticDetector`、`BlockRenderer`、display writerの
-境界は変更しません。
+これらを追加しても、configuration、transport、safety gate、detector、coordinator、cache、presenter、
+display commitのownership boundaryは維持します。
