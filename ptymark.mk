@@ -10,6 +10,7 @@ ptymark-check: ptymark-docker-build
 
 ptymark-check-local:
 	@test -f /.dockerenv || { echo "ptymark-check-local must run in the canonical Docker environment" >&2; exit 1; }
+	cargo metadata --locked --format-version 1 >/dev/null
 	cargo fmt --all -- --check
 	cargo clippy --locked --all-targets -- -D warnings
 	cargo test --locked --all-targets
@@ -19,6 +20,7 @@ ptymark-check-local:
 	cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
 	cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private > /tmp/ptymark-config.toml
 	grep -F 'private = true' /tmp/ptymark-config.toml >/dev/null
+	cargo run --quiet --locked -- --config examples/ptymark.example.toml --profile private -- /bin/sh -c 'exit 0'
 	lua5.4 tests/plugin_smoke.lua
 	bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh
 	shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh
