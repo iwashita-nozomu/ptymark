@@ -1,0 +1,57 @@
+# @dependency-start
+# contract workflow
+# responsibility Applies pinned Rust formatting once after introducing the runtime composition root.
+# upstream implementation ../../src/runtime.rs adds provider and runtime composition APIs.
+# upstream implementation ../../src/process_engine.rs adds strict process adapters.
+# downstream workflow ./ptymark-ci.yml verifies the committed normalized sources.
+# @dependency-end
+name: ptymark Rust Format Once
+
+on:
+  push:
+    branches:
+      - agent/initial-project-docs
+    paths:
+      - .github/workflows/ptymark-format-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptymark-format-once-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install pinned Rust formatter
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
+          rustup override set 1.97.0
+
+      - name: Normalize Rust sources
+        run: cargo fmt --all
+
+      - name: Commit formatting
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- '*.rs'; then
+            echo "Rust sources were already normalized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.rs'
+          git commit -m "Normalize runtime composition sources"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
