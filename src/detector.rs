@@ -39,11 +39,28 @@ impl<T: SemanticDetector + ?Sized> SemanticDetector for Box<T> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FencedDetectorOptions {
+    pub max_buffer_bytes: usize,
+    pub max_line_bytes: usize,
+    pub mermaid: bool,
+    pub block_math: bool,
+}
+
+impl Default for FencedDetectorOptions {
+    fn default() -> Self {
+        Self {
+            max_buffer_bytes: 1024 * 1024,
+            max_line_bytes: 64 * 1024,
+            mermaid: true,
+            block_math: true,
+        }
+    }
+}
+
 #[derive(Debug)]
 enum DetectorState {
-    LineStart {
-        candidate: Vec<u8>,
-    },
+    LineStart { candidate: Vec<u8> },
     PassthroughLine,
     Buffering {
         kind: BlockKind,
@@ -56,16 +73,38 @@ enum DetectorState {
 #[derive(Debug)]
 pub struct FencedDetector {
     state: DetectorState,
-    max_buffer_bytes: usize,
+    options: FencedDetectorOptions,
 }
 
 impl FencedDetector {
     pub fn new(max_buffer_bytes: usize) -> Self {
+        let max_buffer_bytes = max_buffer_bytes.max(1);
+        Self::with_options(FencedDetectorOptions {
+            max_buffer_bytes,
+            max_line_bytes: (64 * 1024).min(max_buffer_bytes),
+            ..FencedDetectorOptions::default()
+        })
+    }
+
+    pub fn with_options(mut options: FencedDetectorOptions) -> Self {
+        options.max_buffer_bytes = options.max_buffer_bytes.max(1);
+        options.max_line_bytes = options.max_line_bytes.max(1).min(options.max_buffer_bytes);
         Self {
             state: DetectorState::LineStart {
                 candidate: Vec::new(),
             },
-            max_buffer_bytes: max_buffer_bytes.max(1),
+            options,
+        }
+    }
+
+    pub const fn options(&self) -> FencedDetectorOptions {
+        self.options
+    }
+
+    fn kind_enabled(&self, kind: BlockKind) -> bool {
+        match kind {
+            BlockKind::Math => self.options.block_math,
+            BlockKind::Mermaid => self.options.mermaid,
         }
     }
 }
@@ -89,16 +128,16 @@ const OPENERS: &[(&[u8], BlockKind)] = &[
     (b"   ```mermaid\r\n", BlockKind::Mermaid),
 ];
 
-fn opener_kind(candidate: &[u8]) -> Option<BlockKind> {
-    OPENERS
-        .iter()
-        .find_map(|(pattern, kind)| (*pattern == candidate).then_some(*kind))
+fn opener_kind(detector: &FencedDetector, candidate: &[u8]) -> Option<BlockKind> {
+    OPENERS.iter().find_map(|(pattern, kind)| {
+        (detector.kind_enabled(*kind) && *pattern == candidate).then_some(*kind)
+    })
 }
 
-fn opener_is_still_possible(candidate: &[u8]) -> bool {
+fn opener_is_still_possible(detector: &FencedDetector, candidate: &[u8]) -> bool {
     OPENERS
         .iter()
-        .any(|(pattern, _)| pattern.starts_with(candidate))
+        .any(|(pattern, kind)| detector.kind_enabled(*kind) && pattern.starts_with(candidate))
 }
 
 fn closing_line(kind: BlockKind, line: &[u8]) -> bool {
@@ -145,7 +184,7 @@ impl SemanticDetector for FencedDetector {
             self.state = match state {
                 DetectorState::LineStart { mut candidate } => {
                     candidate.push(byte);
-                    if candidate.len() > self.max_buffer_bytes {
+                    if candidate.len() > self.options.max_line_bytes {
                         push_passthrough(&mut output, &candidate);
                         if byte == b'\n' {
                             DetectorState::LineStart {
@@ -154,14 +193,14 @@ impl SemanticDetector for FencedDetector {
                         } else {
                             DetectorState::PassthroughLine
                         }
-                    } else if let Some(kind) = opener_kind(&candidate) {
+                    } else if let Some(kind) = opener_kind(self, &candidate) {
                         DetectorState::Buffering {
                             kind,
                             source: candidate,
                             body: Vec::new(),
                             pending_line: Vec::new(),
                         }
-                    } else if opener_is_still_possible(&candidate) {
+                    } else if opener_is_still_possible(self, &candidate) {
                         DetectorState::LineStart { candidate }
                     } else {
                         push_passthrough(&mut output, &candidate);
@@ -193,7 +232,9 @@ impl SemanticDetector for FencedDetector {
                     source.push(byte);
                     pending_line.push(byte);
 
-                    if source.len() > self.max_buffer_bytes {
+                    if source.len() > self.options.max_buffer_bytes
+                        || pending_line.len() > self.options.max_line_bytes
+                    {
                         push_passthrough(&mut output, &source);
                         if byte == b'\n' {
                             DetectorState::LineStart {
@@ -270,7 +311,7 @@ impl SemanticDetector for PassthroughDetector {
 
 #[cfg(test)]
 mod tests {
-    use super::{FencedDetector, SemanticDetector};
+    use super::{FencedDetector, FencedDetectorOptions, SemanticDetector};
     use crate::model::{BlockKind, StreamItem};
 
     #[test]
@@ -334,6 +375,48 @@ mod tests {
                 StreamItem::Semantic(_) => panic!("over-limit input must not be transformed"),
             })
             .collect();
+        assert_eq!(bytes, source);
+    }
+
+    #[test]
+    fn disabling_a_kind_can_only_make_detection_stricter() {
+        let source = b"before\n```mermaid\nA --> B\n```\nafter\n";
+        let mut detector = FencedDetector::with_options(FencedDetectorOptions {
+            max_buffer_bytes: 1024,
+            max_line_bytes: 128,
+            mermaid: false,
+            block_math: true,
+        });
+        let mut items = detector.feed(source).expect("feed");
+        items.extend(detector.finish().expect("finish"));
+        let bytes = items
+            .into_iter()
+            .flat_map(|item| match item {
+                StreamItem::Passthrough(bytes) => bytes,
+                StreamItem::Semantic(_) => panic!("disabled kind must remain passthrough"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(bytes, source);
+    }
+
+    #[test]
+    fn line_limit_restores_exact_source() {
+        let source = b"$$\n123456789\n$$\n";
+        let mut detector = FencedDetector::with_options(FencedDetectorOptions {
+            max_buffer_bytes: 1024,
+            max_line_bytes: 4,
+            mermaid: true,
+            block_math: true,
+        });
+        let mut items = detector.feed(source).expect("feed");
+        items.extend(detector.finish().expect("finish"));
+        let bytes = items
+            .into_iter()
+            .flat_map(|item| match item {
+                StreamItem::Passthrough(bytes) => bytes,
+                StreamItem::Semantic(_) => panic!("overlong line must remain passthrough"),
+            })
+            .collect::<Vec<_>>();
         assert_eq!(bytes, source);
     }
 }
