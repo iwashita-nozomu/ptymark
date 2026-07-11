@@ -4,14 +4,15 @@ use ptymark::{
     PolicyEngineSelector, RenderArtifact, RenderContext, RenderCoordinator, RenderEngine,
     RenderError, RenderRequest, SemanticBlock,
 };
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 struct FakeEngine {
     descriptor: EngineDescriptor,
     calls: Arc<AtomicUsize>,
     failure: Option<&'static str>,
     payload: Vec<u8>,
+    artifact_kind: Option<BlockKind>,
 }
 
 impl FakeEngine {
@@ -33,7 +34,13 @@ impl FakeEngine {
             calls,
             failure,
             payload: payload.to_vec(),
+            artifact_kind: None,
         }
+    }
+
+    fn returning_kind(mut self, kind: BlockKind) -> Self {
+        self.artifact_kind = Some(kind);
+        self
     }
 }
 
@@ -51,7 +58,7 @@ impl RenderEngine for FakeEngine {
             request.preferred_format,
             self.payload.clone(),
             self.descriptor.identity.clone(),
-            request.block.kind(),
+            self.artifact_kind.unwrap_or_else(|| request.block.kind()),
             self.descriptor.layout_sensitivity,
         ))
     }
@@ -112,6 +119,71 @@ fn coordinator_selects_fallback_engine_then_caches_success() {
     assert_eq!(second.cache, CacheDisposition::Hit);
     assert_eq!(primary_calls.load(Ordering::SeqCst), 2);
     assert_eq!(fallback_calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn malformed_artifact_is_rejected_before_cache_admission() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut registry = EngineRegistry::new();
+    registry
+        .register(FakeEngine::new(
+            "math/malformed",
+            calls.clone(),
+            None,
+            b"not-an-svg",
+        ))
+        .expect("register");
+    let selector =
+        PolicyEngineSelector::new().with_candidates(BlockKind::Math, ["math/malformed"]);
+    let mut coordinator = RenderCoordinator::new(
+        registry,
+        selector,
+        MemoryArtifactCache::new(CachePolicy::default()),
+    );
+
+    let error = coordinator
+        .render(
+            &math(),
+            &RenderContext::default(),
+            &[ArtifactFormat::Svg],
+            "test/svg",
+            1,
+        )
+        .expect_err("malformed artifact must fail");
+    assert!(error.to_string().contains("invalid artifact"));
+    assert_eq!(coordinator.cache_stats().entries, 0);
+    assert_eq!(coordinator.stats().invalid_artifacts, 1);
+}
+
+#[test]
+fn wrong_semantic_kind_is_rejected_before_cache_admission() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut registry = EngineRegistry::new();
+    registry
+        .register(
+            FakeEngine::new("math/wrong-kind", calls, None, b"<svg/>")
+                .returning_kind(BlockKind::Mermaid),
+        )
+        .expect("register");
+    let selector =
+        PolicyEngineSelector::new().with_candidates(BlockKind::Math, ["math/wrong-kind"]);
+    let mut coordinator = RenderCoordinator::new(
+        registry,
+        selector,
+        MemoryArtifactCache::new(CachePolicy::default()),
+    );
+
+    let error = coordinator
+        .render(
+            &math(),
+            &RenderContext::default(),
+            &[ArtifactFormat::Svg],
+            "test/svg",
+            1,
+        )
+        .expect_err("wrong kind must fail");
+    assert!(error.to_string().contains("semantic kind"));
+    assert_eq!(coordinator.cache_stats().entries, 0);
 }
 
 #[test]
