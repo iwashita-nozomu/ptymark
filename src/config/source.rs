@@ -124,24 +124,26 @@ impl FilesystemConfigLocator {
         request.working_directory.join(".ptymark.toml")
     }
 
-    fn selected_path(
+    fn selected_sources(
         request: &ConfigRequest,
         environment: &ConfigEnvironment,
-    ) -> Option<(ConfigOrigin, ConfigTrust, PathBuf)> {
-        if let Some(path) = &request.explicit_path {
-            return Some((
-                ConfigOrigin::Explicit,
-                ConfigTrust::ExplicitlySelected,
-                path.clone(),
-            ));
+    ) -> Vec<ConfigSource> {
+        let mut sources = Vec::new();
+        if let Some(path) = &environment.config_path {
+            sources.push(ConfigSource {
+                origin: ConfigOrigin::Environment,
+                trust: ConfigTrust::ExplicitlySelected,
+                path: path.clone(),
+            });
         }
-        environment.config_path.as_ref().map(|path| {
-            (
-                ConfigOrigin::Environment,
-                ConfigTrust::ExplicitlySelected,
-                path.clone(),
-            )
-        })
+        if let Some(path) = &request.explicit_path {
+            sources.push(ConfigSource {
+                origin: ConfigOrigin::Explicit,
+                trust: ConfigTrust::ExplicitlySelected,
+                path: path.clone(),
+            });
+        }
+        sources
     }
 }
 
@@ -158,30 +160,31 @@ impl ConfigLocator for FilesystemConfigLocator {
         let mut sources = Vec::new();
         let mut seen = HashSet::new();
 
-        if let Some(path) = Self::user_path(environment)
-            && path.is_file()
-        {
-            seen.insert(path.clone());
-            sources.push(ConfigSource {
-                origin: ConfigOrigin::User,
-                trust: ConfigTrust::UserOwned,
-                path,
-            });
-        }
-
-        if let Some((origin, trust, path)) = Self::selected_path(request, environment) {
-            if !path.is_file() {
-                return Err(ConfigError::io(
-                    Some(path.clone()),
-                    "explicit configuration file does not exist",
-                ));
-            }
-            if seen.insert(path.clone()) {
+        if let Some(path) = Self::user_path(environment) {
+            if path.is_file() {
+                seen.insert(canonical_or_original(&path));
                 sources.push(ConfigSource {
-                    origin,
-                    trust,
+                    origin: ConfigOrigin::User,
+                    trust: ConfigTrust::UserOwned,
                     path,
                 });
+            }
+        }
+
+        for source in Self::selected_sources(request, environment) {
+            if !source.path.is_file() {
+                let label = match source.origin {
+                    ConfigOrigin::Environment => "PTYMARK_CONFIG file",
+                    ConfigOrigin::Explicit => "explicit configuration file",
+                    ConfigOrigin::User | ConfigOrigin::Project => "configuration file",
+                };
+                return Err(ConfigError::io(
+                    Some(source.path.clone()),
+                    format!("{label} does not exist"),
+                ));
+            }
+            if seen.insert(canonical_or_original(&source.path)) {
+                sources.push(source);
             }
         }
 
@@ -203,13 +206,7 @@ impl ConfigLocator for FilesystemConfigLocator {
                 path,
             });
         }
-        if let Some((origin, trust, path)) = Self::selected_path(request, environment) {
-            candidates.push(ConfigSource {
-                origin,
-                trust,
-                path,
-            });
-        }
+        candidates.extend(Self::selected_sources(request, environment));
         candidates.push(ConfigSource {
             origin: ConfigOrigin::Project,
             trust: ConfigTrust::UntrustedProject,
