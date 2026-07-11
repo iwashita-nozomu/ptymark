@@ -1,4 +1,13 @@
-use crate::model::SemanticBlock;
+use crate::artifact::{ArtifactFormat, RenderArtifact};
+use crate::cache::ArtifactCache;
+use crate::coordinator::{RenderCoordinator, RenderOutcome};
+use crate::engine::{
+    EngineDescriptor, EngineRegistry, ExecutionModel, PolicyEngineSelector, RenderEngine,
+    RenderRequest,
+};
+use crate::model::{BlockKind, SemanticBlock};
+use crate::presenter::{ArtifactPresenter, TerminalCapabilities, TerminalTextPresenter};
+use crate::ui::LayoutSensitivity;
 use std::error::Error;
 use std::ffi::OsString;
 use std::fmt;
@@ -13,6 +22,8 @@ const STDERR_LIMIT_BYTES: usize = 64 * 1024;
 pub struct RenderContext {
     pub color: bool,
     pub terminal_width: Option<usize>,
+    pub theme_fingerprint: u64,
+    pub options_fingerprint: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,6 +65,32 @@ impl<T: BlockRenderer + ?Sized> BlockRenderer for Box<T> {
     }
 }
 
+fn preview_bytes(block: &SemanticBlock, context: &RenderContext) -> Vec<u8> {
+    let mut output = Vec::new();
+    if context.color {
+        output.extend_from_slice(b"\x1b[1;36m");
+    }
+    output.extend_from_slice(format!("┌─ ptymark {} preview ─\n", block.kind()).as_bytes());
+    if context.color {
+        output.extend_from_slice(b"\x1b[0m");
+    }
+
+    let body = String::from_utf8_lossy(block.body());
+    if body.is_empty() {
+        output.extend_from_slice("│ <empty>\n".as_bytes());
+    } else {
+        for line in body.split_inclusive('\n') {
+            let line = line.strip_suffix('\n').unwrap_or(line);
+            let line = line.strip_suffix('\r').unwrap_or(line);
+            output.extend_from_slice("│ ".as_bytes());
+            output.extend_from_slice(line.as_bytes());
+            output.push(b'\n');
+        }
+    }
+    output.extend_from_slice("└─ end preview\n".as_bytes());
+    output
+}
+
 #[derive(Debug, Default)]
 pub struct PreviewRenderer;
 
@@ -63,29 +100,7 @@ impl BlockRenderer for PreviewRenderer {
         block: &SemanticBlock,
         context: &RenderContext,
     ) -> Result<Vec<u8>, RenderError> {
-        let mut output = Vec::new();
-        if context.color {
-            output.extend_from_slice(b"\x1b[1;36m");
-        }
-        output.extend_from_slice(format!("┌─ ptymark {} preview ─\n", block.kind()).as_bytes());
-        if context.color {
-            output.extend_from_slice(b"\x1b[0m");
-        }
-
-        let body = String::from_utf8_lossy(block.body());
-        if body.is_empty() {
-            output.extend_from_slice("│ <empty>\n".as_bytes());
-        } else {
-            for line in body.split_inclusive('\n') {
-                let line = line.strip_suffix('\n').unwrap_or(line);
-                let line = line.strip_suffix('\r').unwrap_or(line);
-                output.extend_from_slice("│ ".as_bytes());
-                output.extend_from_slice(line.as_bytes());
-                output.push(b'\n');
-            }
-        }
-        output.extend_from_slice("└─ end preview\n".as_bytes());
-        Ok(output)
+        Ok(preview_bytes(block, context))
     }
 }
 
@@ -102,23 +117,167 @@ impl BlockRenderer for SourceRenderer {
     }
 }
 
+#[derive(Debug)]
+pub struct PreviewEngine {
+    descriptor: EngineDescriptor,
+}
+
+impl Default for PreviewEngine {
+    fn default() -> Self {
+        Self {
+            descriptor: EngineDescriptor::new(
+                "builtin/preview",
+                env!("CARGO_PKG_VERSION"),
+                vec![BlockKind::Math, BlockKind::Mermaid],
+                vec![ArtifactFormat::TerminalText],
+                LayoutSensitivity::Columns,
+                ExecutionModel::InProcess,
+            ),
+        }
+    }
+}
+
+impl RenderEngine for PreviewEngine {
+    fn descriptor(&self) -> &EngineDescriptor {
+        &self.descriptor
+    }
+
+    fn render(&mut self, request: &RenderRequest<'_>) -> Result<RenderArtifact, RenderError> {
+        Ok(RenderArtifact::new(
+            ArtifactFormat::TerminalText,
+            preview_bytes(request.block, request.context),
+            self.descriptor.identity.clone(),
+            request.block.kind(),
+            self.descriptor.layout_sensitivity,
+        ))
+    }
+}
+
+#[derive(Debug)]
+pub struct SourceEngine {
+    descriptor: EngineDescriptor,
+}
+
+impl Default for SourceEngine {
+    fn default() -> Self {
+        Self {
+            descriptor: EngineDescriptor::new(
+                "builtin/source",
+                env!("CARGO_PKG_VERSION"),
+                vec![BlockKind::Math, BlockKind::Mermaid],
+                vec![ArtifactFormat::Source],
+                LayoutSensitivity::Independent,
+                ExecutionModel::InProcess,
+            ),
+        }
+    }
+}
+
+impl RenderEngine for SourceEngine {
+    fn descriptor(&self) -> &EngineDescriptor {
+        &self.descriptor
+    }
+
+    fn render(&mut self, request: &RenderRequest<'_>) -> Result<RenderArtifact, RenderError> {
+        Ok(RenderArtifact::new(
+            ArtifactFormat::Source,
+            request.block.source().to_vec(),
+            self.descriptor.identity.clone(),
+            request.block.kind(),
+            self.descriptor.layout_sensitivity,
+        ))
+    }
+}
+
+pub struct CoordinatedRenderer {
+    coordinator: RenderCoordinator,
+    presenter: Box<dyn ArtifactPresenter>,
+    capabilities: TerminalCapabilities,
+    last_outcome: Option<RenderOutcome>,
+}
+
+impl CoordinatedRenderer {
+    pub fn new(
+        coordinator: RenderCoordinator,
+        presenter: impl ArtifactPresenter + 'static,
+        capabilities: TerminalCapabilities,
+    ) -> Self {
+        Self {
+            coordinator,
+            presenter: Box::new(presenter),
+            capabilities,
+            last_outcome: None,
+        }
+    }
+
+    pub fn preview(cache: impl ArtifactCache + 'static) -> Result<Self, RenderError> {
+        let mut registry = EngineRegistry::new();
+        registry.register(PreviewEngine::default())?;
+        let selector = PolicyEngineSelector::new()
+            .with_candidates(BlockKind::Math, ["builtin/preview"])
+            .with_candidates(BlockKind::Mermaid, ["builtin/preview"]);
+        Ok(Self::new(
+            RenderCoordinator::new(registry, selector, cache),
+            TerminalTextPresenter::default(),
+            TerminalCapabilities::default(),
+        ))
+    }
+
+    pub fn coordinator(&self) -> &RenderCoordinator {
+        &self.coordinator
+    }
+
+    pub fn last_outcome(&self) -> Option<&RenderOutcome> {
+        self.last_outcome.as_ref()
+    }
+}
+
+impl BlockRenderer for CoordinatedRenderer {
+    fn render(
+        &mut self,
+        block: &SemanticBlock,
+        context: &RenderContext,
+    ) -> Result<Vec<u8>, RenderError> {
+        let outcome = self.coordinator.render(
+            block,
+            context,
+            self.presenter.accepted_formats(),
+            self.presenter.id(),
+            self.capabilities.fingerprint(),
+        )?;
+        let displayed = self
+            .presenter
+            .present(&outcome.artifact, block, self.capabilities)?;
+        self.last_outcome = Some(outcome);
+        Ok(displayed)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExternalRendererConfig {
     pub renderer_id: String,
+    pub renderer_version: String,
     pub program: OsString,
     pub arguments: Vec<OsString>,
     pub timeout: Duration,
     pub max_output_bytes: usize,
+    pub artifact_format: ArtifactFormat,
+    pub layout_sensitivity: LayoutSensitivity,
+    pub execution_model: ExecutionModel,
 }
 
 impl ExternalRendererConfig {
     pub fn new(renderer_id: impl Into<String>, program: impl Into<OsString>) -> Self {
         Self {
             renderer_id: renderer_id.into(),
+            renderer_version: "external".to_owned(),
             program: program.into(),
             arguments: Vec::new(),
             timeout: Duration::from_secs(5),
             max_output_bytes: 4 * 1024 * 1024,
+            artifact_format: ArtifactFormat::TerminalText,
+            layout_sensitivity: LayoutSensitivity::Independent,
+            execution_model: ExecutionModel::OneShotProcess,
         }
     }
 }
@@ -126,11 +285,20 @@ impl ExternalRendererConfig {
 #[derive(Debug)]
 pub struct ExternalRenderer {
     config: ExternalRendererConfig,
+    descriptor: EngineDescriptor,
 }
 
 impl ExternalRenderer {
     pub fn new(config: ExternalRendererConfig) -> Self {
-        Self { config }
+        let descriptor = EngineDescriptor::new(
+            config.renderer_id.clone(),
+            config.renderer_version.clone(),
+            vec![BlockKind::Math, BlockKind::Mermaid],
+            vec![config.artifact_format],
+            config.layout_sensitivity,
+            config.execution_model,
+        );
+        Self { config, descriptor }
     }
 
     fn run_engine(
@@ -264,6 +432,22 @@ impl BlockRenderer for ExternalRenderer {
     }
 }
 
+impl RenderEngine for ExternalRenderer {
+    fn descriptor(&self) -> &EngineDescriptor {
+        &self.descriptor
+    }
+
+    fn render(&mut self, request: &RenderRequest<'_>) -> Result<RenderArtifact, RenderError> {
+        Ok(RenderArtifact::new(
+            self.config.artifact_format,
+            self.run_engine(request.block, request.context)?,
+            self.descriptor.identity.clone(),
+            request.block.kind(),
+            self.config.layout_sensitivity,
+        ))
+    }
+}
+
 #[derive(Debug)]
 struct CappedRead {
     bytes: Vec<u8>,
@@ -370,8 +554,7 @@ mod tests {
         let mut config = ExternalRendererConfig::new("test/cat", "/bin/sh");
         config.arguments = vec![OsString::from("-c"), OsString::from("cat")];
         let mut renderer = ExternalRenderer::new(config);
-        let rendered = renderer
-            .render(&block(), &RenderContext::default())
+        let rendered = BlockRenderer::render(&mut renderer, &block(), &RenderContext::default())
             .expect("external render");
         assert_eq!(rendered, b"A --> B\n");
     }
@@ -383,8 +566,7 @@ mod tests {
         config.arguments = vec![OsString::from("-c"), OsString::from("sleep 1")];
         config.timeout = Duration::from_millis(20);
         let mut renderer = ExternalRenderer::new(config);
-        let error = renderer
-            .render(&block(), &RenderContext::default())
+        let error = BlockRenderer::render(&mut renderer, &block(), &RenderContext::default())
             .expect_err("timeout must fail");
         assert!(error.to_string().contains("timeout"));
     }
@@ -399,8 +581,7 @@ mod tests {
         ];
         config.max_output_bytes = 4;
         let mut renderer = ExternalRenderer::new(config);
-        let error = renderer
-            .render(&block(), &RenderContext::default())
+        let error = BlockRenderer::render(&mut renderer, &block(), &RenderContext::default())
             .expect_err("output limit must fail");
         assert!(error.to_string().contains("exceeded 4 bytes"));
     }
