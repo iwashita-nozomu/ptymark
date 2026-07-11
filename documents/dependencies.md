@@ -6,6 +6,17 @@
 既存の project-template / AgentCanon 用 Docker、Python、C++、実験環境は削除せず、
 ローカル作業基盤として維持します。
 
+`ptymark` は図や数式の組版エンジンを再実装しません。Rust コアが所有するのは
+表示前ストリーム、意味ブロック境界、既存エンジンの安全な起動、cache、fallback、
+端末への commit です。
+
+初期 backend 方針:
+
+- Mermaid: Mermaid CLI
+- Markdown / TeX block math: KaTeX
+- Typst-native math/document: Typst CLI（optional backend）
+- image placement: Kitty / iTerm2 / Sixel など既存 terminal protocol adapter
+
 Rust コアは初期段階では標準ライブラリだけで構成します。PTY、ANSI parser、
 外部 renderer adapter を追加するときは、公開境界、ライセンス、unsafe 使用、
 feature、transitive dependency を同じ変更で記録します。
@@ -28,10 +39,11 @@ feature、transitive dependency を同じ変更で記録します。
 | Dependency | Pin | Purpose |
 | --- | --- | --- |
 | Rust | 1.97.0 | edition 2024 core, tests, release build |
-| Node.js image | `node:24.18.0-bookworm` | Mermaid CLI runtime and Debian Chromium base |
-| Mermaid CLI | 11.16.0 | Mermaid source to SVG smoke/backend candidate |
-| Typst CLI | 0.15.0 | block math to SVG smoke/backend candidate |
-| Chromium | Debian bookworm package | headless Mermaid rendering |
+| Node.js image | `node:24.18.0-bookworm` | Mermaid / KaTeX runtime and Debian Chromium base |
+| Mermaid CLI | 11.16.0 | Mermaid source to SVG |
+| KaTeX | 0.17.0 | TeX block math to HTML / MathML |
+| Typst CLI | 0.15.0 | Typst-native source to SVG/PDF |
+| Chromium | Debian bookworm package | headless Mermaid and HTML image rendering |
 | Lua | 5.4 | WezTerm plugin syntax and API-shape smoke |
 | ShellCheck | Debian bookworm package | product shell scripts |
 | Noto fonts | Debian bookworm packages | Latin, CJK, emoji renderer coverage |
@@ -45,11 +57,16 @@ release candidate では、CI が解決した base image digest を `NODE_IMAGE`
 
 - `PreviewRenderer` と `SourceRenderer`: Rust binary だけで動作
 - Mermaid backend: 有効化する場合だけ `mmdc` と Chromium が必要
+- KaTeX backend: 有効化する場合だけ Node.js と `katex` が必要
 - Typst backend: 有効化する場合だけ `typst` が必要
 - WezTerm plugin: WezTerm とホスト OS 用 `ptymark` binary が必要
 
-外部 renderer は adapter を実装してから opt-in で有効化します。ツール不在、
-timeout、非ゼロ終了、出力上限超過の場合は既定で元ソースへ fallback します。
+`ExternalRenderer` は既存エンジン用の bounded stdio adapter です。body を stdin へ
+渡し、stdout を表示用 artifact として受け取ります。renderer ID、block kind、端末幅、
+色設定は環境変数でも渡します。
+
+外部 renderer の不在、timeout、非ゼロ終了、出力上限超過の場合は既定で元ソースへ
+fallback します。失敗した結果を cache しません。
 
 ## 更新手順
 
@@ -75,19 +92,20 @@ make ptymark-check
 `make ptymark-check` は Docker 内で次を確認します。
 
 - `rustc`、Cargo、toolchain file、package MSRV の一致
-- Node.js、Mermaid CLI、Typst、Lua、Chromium の起動
-- global npm package の Mermaid CLI version
+- Node.js、Mermaid CLI、KaTeX、Typst、Lua、Chromium の起動
+- global npm package の Mermaid CLI / KaTeX version
 - Dockerfile、Compose fallback、env file の一致
 - Rust format、Clippy、unit/integration tests
+- `ExternalRenderer` の stdio、timeout、出力上限
 - WezTerm plugin smoke
-- Mermaid SVG と Typst SVG の生成
+- Mermaid SVG、KaTeX MathML、Typst SVG の生成
 - release archive の作成
 
 ## ライセンスと配布
 
 - repository 本体: Apache-2.0
 - Rust dependency: `Cargo.lock` と release 前の license inventory で確認
-- npm dependency: Mermaid CLI と transitive package inventory を release evidence に保存
+- npm dependency: Mermaid CLI、KaTeX、transitive package inventory を release evidence に保存
 - apt dependency: base image/OS package manifest を release evidence に保存
 - renderer が生成物へ font を埋め込む場合は font license と attribution を確認
 
