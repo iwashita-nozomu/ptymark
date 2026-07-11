@@ -8,7 +8,8 @@ pub use detector::{DetectError, FencedDetector, PassthroughDetector, SemanticDet
 pub use model::{BlockKind, DisplayMode, SemanticBlock, StreamItem};
 pub use predisplay::{PreDisplayError, PreDisplayRenderer, PreDisplayReport};
 pub use renderer::{
-    BlockRenderer, PreviewRenderer, RenderContext, RenderError, SourceRenderer,
+    BlockRenderer, ExternalRenderer, ExternalRendererConfig, PreviewRenderer, RenderContext,
+    RenderError, SourceRenderer,
 };
 pub use ui::{
     resize_action, stable_fingerprint, CachePolicy, CacheStats, LayoutSensitivity, RenderCache,
