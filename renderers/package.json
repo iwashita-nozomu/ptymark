@@ -1,0 +1,17 @@
+{
+  "name": "ptymark-renderers",
+  "private": true,
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "dependencies": {
+    "@mathjax/mathjax-newcm-font": "4.1.3",
+    "@mathjax/src": "4.1.3",
+    "@mermaid-js/mermaid-cli": "11.16.0",
+    "katex": "0.17.0",
+    "mermaid": "11.16.0",
+    "puppeteer": "25.2.1"
+  }
+}

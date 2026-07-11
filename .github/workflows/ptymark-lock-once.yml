@@ -1,0 +1,60 @@
+# @dependency-start
+# contract workflow
+# responsibility Generates the exact npm lockfile for the selected ptymark renderer dependencies once.
+# upstream environment ../../renderers/package.json declares exact direct renderer versions.
+# downstream environment ../../renderers/package-lock.json becomes the canonical transitive resolution.
+# @dependency-end
+name: ptymark Renderer Lock Once
+
+on:
+  push:
+    branches:
+      - agent/initial-project-docs
+    paths:
+      - .github/workflows/ptymark-lock-once.yml
+
+permissions:
+  contents: read
+
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
+concurrency:
+  group: ptymark-renderer-lock-once-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: renderers/package.json
+
+      - name: Resolve exact renderer dependency graph
+        working-directory: renderers
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Upload package lock
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-renderer-package-lock
+          path: renderers/package-lock.json
+          if-no-files-found: error
+          retention-days: 3
