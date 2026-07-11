@@ -24,6 +24,18 @@ fn write_config(root: &Path, content: &str) -> PathBuf {
     path
 }
 
+fn isolated_command(root: &Path) -> Command {
+    let mut command = Command::new(binary());
+    command
+        .env("HOME", root)
+        .env("XDG_CONFIG_HOME", root.join("xdg"))
+        .env("APPDATA", root.join("appdata"))
+        .env_remove("PTYMARK_CONFIG")
+        .env_remove("PTYMARK_PROFILE")
+        .env_remove("PTYMARK_NO_CONFIG");
+    command
+}
+
 #[test]
 fn config_check_and_show_resolve_a_named_profile() {
     let root = temp_root("config-show");
@@ -46,23 +58,29 @@ max_bytes = 65536
 "#,
     );
 
-    let check = Command::new(binary())
+    let check = isolated_command(&root)
         .args(["config", "check", "--config"])
         .arg(&path)
-        .env("PTYMARK_NO_CONFIG", "1")
         .output()
         .expect("config check");
-    assert!(check.status.success(), "{}", String::from_utf8_lossy(&check.stderr));
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
     assert!(String::from_utf8_lossy(&check.stdout).contains("profile=compact"));
 
-    let show = Command::new(binary())
+    let show = isolated_command(&root)
         .args(["config", "show", "--config"])
         .arg(&path)
         .args(["--profile", "compact"])
-        .env("PTYMARK_NO_CONFIG", "1")
         .output()
         .expect("config show");
-    assert!(show.status.success(), "{}", String::from_utf8_lossy(&show.stderr));
+    assert!(
+        show.status.success(),
+        "{}",
+        String::from_utf8_lossy(&show.stderr)
+    );
     let stdout = String::from_utf8(show.stdout).expect("UTF-8 config");
     assert!(stdout.contains("profile = \"compact\""));
     assert!(stdout.contains("max_buffer_bytes = 4096"));
@@ -83,10 +101,9 @@ extends = "source"
 "#,
     );
     let source = b"before\n```mermaid\nA --> B\n```\nafter\n";
-    let mut child = Command::new(binary())
+    let mut child = isolated_command(&root)
         .args(["preview", "--config"])
         .arg(&path)
-        .env("PTYMARK_NO_CONFIG", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -99,7 +116,11 @@ extends = "source"
         .write_all(source)
         .expect("write source");
     let output = child.wait_with_output().expect("wait");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(output.stdout, source);
 }
 
@@ -119,11 +140,10 @@ mode = "off"
 "#,
     );
     let source = b"$$\nE = mc^2\n$$\n";
-    let mut child = Command::new(binary())
+    let mut child = isolated_command(&root)
         .args(["preview", "--config"])
         .arg(&path)
         .args(["--profile", "off"])
-        .env("PTYMARK_NO_CONFIG", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -136,18 +156,20 @@ mode = "off"
         .write_all(source)
         .expect("write source");
     let output = child.wait_with_output().expect("wait");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(output.stdout, source);
 }
 
 #[test]
 fn project_candidate_is_reported_but_not_implicitly_trusted() {
     let root = temp_root("paths");
-    let output = Command::new(binary())
+    let output = isolated_command(&root)
         .current_dir(&root)
         .args(["config", "paths", "--no-config"])
-        .env_remove("PTYMARK_CONFIG")
-        .env_remove("PTYMARK_PROFILE")
         .output()
         .expect("config paths");
     assert!(output.status.success());
@@ -165,11 +187,10 @@ fn invalid_configuration_prevents_child_launch() {
         "schema_version = 1\nthis_is_a_typo = true\n",
     );
     let marker = root.join("child-started");
-    let status = Command::new(binary())
+    let status = isolated_command(&root)
         .args(["--", "/bin/sh", "-c"])
         .arg(format!("touch '{}'", marker.display()))
         .env("PTYMARK_CONFIG", &path)
-        .env("PTYMARK_NO_CONFIG", "0")
         .status()
         .expect("run command mode");
     assert_eq!(status.code(), Some(2));
