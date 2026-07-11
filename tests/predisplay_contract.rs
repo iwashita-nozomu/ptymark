@@ -1,6 +1,6 @@
 use ptymark::{
-    BlockRenderer, DisplayMode, FencedDetector, PreDisplayRenderer, RenderContext, RenderError,
-    SemanticBlock, SourceRenderer,
+    BlockRenderer, DisplayInterceptor, DisplayMode, FencedDetector, PreDisplayRenderer,
+    RenderContext, RenderError, SemanticBlock, SourceRenderer, TerminalOutputGate,
 };
 
 #[derive(Debug, Default)]
@@ -34,7 +34,8 @@ fn run_in_chunks<R: BlockRenderer>(
     source: &[u8],
     chunk_size: usize,
 ) -> (Vec<u8>, ptymark::PreDisplayReport) {
-    let mut pipeline = PreDisplayRenderer::new(FencedDetector::new(1024), renderer);
+    let pre_display = PreDisplayRenderer::new(FencedDetector::new(1024), renderer);
+    let mut pipeline = DisplayInterceptor::new(TerminalOutputGate::default(), pre_display);
     let mut display = Vec::new();
     for chunk in source.chunks(chunk_size) {
         pipeline.feed(chunk, &mut display).expect("feed");
@@ -49,7 +50,7 @@ fn ordinary_output_reaches_display_byte_for_byte() {
     let (display, report) = run_in_chunks(MarkerRenderer, source, 3);
     assert_eq!(display, source);
     assert_eq!(report.semantic_blocks, 0);
-    assert_eq!(report.passthrough_bytes, source.len());
+    assert_eq!(report.input_bytes, source.len());
 }
 
 #[test]
