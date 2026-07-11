@@ -1,9 +1,9 @@
 # @dependency-start
 # contract workflow
-# responsibility Regenerates the ptymark Cargo lockfile once after adding configuration dependencies.
+# responsibility Regenerates the ptymark Cargo lockfile and canonical Rust formatting once after adding configuration dependencies.
 # upstream configuration ../../Cargo.toml declares the Rust dependency requirements.
 # upstream implementation ../../src/config.rs introduces serde and TOML configuration support.
-# downstream workflow ./ptymark-ci.yml validates the committed lockfile with --locked.
+# downstream workflow ./ptymark-ci.yml validates the committed lockfile and formatting with --locked.
 # @dependency-end
 name: ptymark Cargo Lock Once
 
@@ -44,27 +44,26 @@ jobs:
 
       - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
           rustup override set 1.97.0
 
-      - name: Resolve and verify Rust dependencies
+      - name: Resolve dependencies and format Rust sources
         run: |
           cargo generate-lockfile
-          cargo fmt --all -- --check
-          cargo check --locked --all-targets
-          cargo test --locked --lib config::
+          cargo fmt --all
+          cargo metadata --locked --format-version 1 >/dev/null
 
-      - name: Commit the exact lockfile
+      - name: Commit generated state
         env:
           PUSH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- Cargo.lock; then
-            echo "Cargo.lock is already current"
+          if git diff --quiet -- Cargo.lock src tests examples; then
+            echo "Cargo.lock and Rust formatting are already current"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.lock
-          git commit -m "Lock ptymark configuration dependencies"
+          git add Cargo.lock src tests examples
+          git commit -m "Lock and format ptymark configuration skeleton"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${GITHUB_REF_NAME}"
