@@ -76,8 +76,10 @@ fn help_and_version_are_stable_public_entrypoints() {
     let help = Command::new(binary()).arg("--help").output().expect("help");
     assert!(help.status.success());
     let help_text = String::from_utf8(help.stdout).expect("UTF-8 help");
-    assert!(help_text.contains("ptymark -- COMMAND"));
-    assert!(help_text.contains("ptymark preview"));
+    assert!(help_text.contains("ptymark [CONFIG OPTIONS] -- COMMAND"));
+    assert!(help_text.contains("ptymark [CONFIG OPTIONS] preview"));
+    assert!(help_text.contains("ptymark config check"));
+    assert!(help_text.contains("--private"));
     assert!(help_text.contains("--no-cache"));
 
     let version = Command::new(binary())
