@@ -8,9 +8,8 @@
 name: ptymark Rust Format Once
 
 on:
-  push:
-    branches:
-      - agent/initial-project-docs
+  pull_request:
+    branches: [main, master]
     paths:
       - .github/workflows/ptymark-format-once.yml
 
@@ -23,13 +22,14 @@ concurrency:
 
 jobs:
   format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Check out branch
+      - name: Check out PR head
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -54,4 +54,4 @@ jobs:
           git add -- '*.rs'
           git commit -m "Normalize runtime composition sources"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
