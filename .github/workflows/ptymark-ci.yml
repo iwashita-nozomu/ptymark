@@ -90,12 +90,56 @@ jobs:
           --file docker/ptymark-compose.yaml
           build --pull
 
-      - name: Run ptymark checks in canonical image
+      - name: Check Rust formatting in container
         run: >-
           docker compose
           --env-file docker/ptymark-versions.env
           --file docker/ptymark-compose.yaml
-          run --rm --no-TTY dev make ptymark-check-local
+          run --rm --no-TTY dev cargo fmt --all -- --check
+
+      - name: Run Clippy in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run Rust tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --all-targets
+
+      - name: Build release and smoke CLI in container
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev cargo build --locked --release
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'cargo run --quiet --locked -- demo > /tmp/ptymark-demo.txt && grep -F "ptymark mermaid preview" /tmp/ptymark-demo.txt >/dev/null'
+
+      - name: Check WezTerm plugin and product scripts
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/package-ptymark-release.sh && shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/package-ptymark-release.sh'
+
+      - name: Check pinned dependencies and existing engines
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev bash scripts/check-ptymark-dependencies.sh
+          "${compose[@]}" run --rm --no-TTY dev bash scripts/check-ptymark-renderers.sh
+
+      - name: Package release archive in container
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'rm -rf /tmp/ptymark-dist && bash scripts/package-ptymark-release.sh "$CARGO_TARGET_DIR/release/ptymark" /tmp/ptymark-dist && test -n "$(find /tmp/ptymark-dist -name "ptymark-*.tar.gz" -print -quit)"'
 
   native-smoke:
     name: Native Rust smoke (${{ matrix.os }})
@@ -126,13 +170,17 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Run native Rust checks
-        shell: bash
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked --all-targets
-          cargo build --locked --release
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo test --locked --all-targets
+
+      - name: Build release binary
+        run: cargo build --locked --release
 
       - name: Package native smoke artifact
         shell: bash
