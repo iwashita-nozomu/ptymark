@@ -104,12 +104,26 @@ jobs:
           --file docker/ptymark-compose.yaml
           run --rm --no-TTY dev cargo clippy --locked --all-targets -- -D warnings
 
-      - name: Run Rust tests in container
+      - name: Run library tests in container
         run: >-
           docker compose
           --env-file docker/ptymark-versions.env
           --file docker/ptymark-compose.yaml
-          run --rm --no-TTY dev cargo test --locked --all-targets
+          run --rm --no-TTY dev cargo test --locked --lib
+
+      - name: Run pre-display contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test predisplay_contract
+
+      - name: Run CLI contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test cli_contract
 
       - name: Build release and smoke CLI in container
         shell: bash
@@ -173,28 +187,17 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Generate rustfmt patch
-        if: failure()
-        shell: bash
-        run: |
-          cargo fmt --all
-          git diff -- src tests > rustfmt.patch
-          test -s rustfmt.patch
-
-      - name: Upload rustfmt patch
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ptymark-rustfmt-${{ matrix.os }}
-          path: rustfmt.patch
-          if-no-files-found: error
-          retention-days: 3
-
       - name: Run Clippy
         run: cargo clippy --locked --all-targets -- -D warnings
 
-      - name: Run Rust tests
-        run: cargo test --locked --all-targets
+      - name: Run library tests
+        run: cargo test --locked --lib
+
+      - name: Run pre-display contract tests
+        run: cargo test --locked --test predisplay_contract
+
+      - name: Run CLI contract tests
+        run: cargo test --locked --test cli_contract
 
       - name: Build release binary
         run: cargo build --locked --release
