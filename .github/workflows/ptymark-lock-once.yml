@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Generates the exact npm lockfile for the selected ptymark renderer dependencies once.
+# responsibility Generates and commits the exact npm lockfile for selected ptymark renderer dependencies once.
 # upstream environment ../../renderers/package.json declares exact direct renderer versions.
 # downstream environment ../../renderers/package-lock.json becomes the canonical transitive resolution.
 # @dependency-end
@@ -14,7 +14,7 @@ on:
       - .github/workflows/ptymark-lock-once.yml
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
@@ -34,6 +34,7 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Check out AgentCanon submodule
         env:
@@ -44,17 +45,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24.18.0
-          cache: npm
-          cache-dependency-path: renderers/package.json
 
       - name: Resolve exact renderer dependency graph
         working-directory: renderers
         run: npm install --package-lock-only --ignore-scripts
 
-      - name: Upload package lock
-        uses: actions/upload-artifact@v7
-        with:
-          name: ptymark-renderer-package-lock
-          path: renderers/package-lock.json
-          if-no-files-found: error
-          retention-days: 3
+      - name: Commit package lock
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add renderers/package-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Lock ptymark renderer dependencies"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
