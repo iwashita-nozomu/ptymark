@@ -30,7 +30,9 @@ pub use config::{
 pub use coordinator::{
     CacheDisposition, CoordinatorStats, EngineAttempt, RenderCoordinator, RenderOutcome,
 };
-pub use detector::{DetectError, FencedDetector, PassthroughDetector, SemanticDetector};
+pub use detector::{
+    DetectError, FencedDetector, FencedDetectorOptions, PassthroughDetector, SemanticDetector,
+};
 pub use engine::{
     EngineDescriptor, EngineRegistry, EngineSelector, ExecutionModel, PolicyEngineSelector,
     RenderEngine, RenderRequest,
