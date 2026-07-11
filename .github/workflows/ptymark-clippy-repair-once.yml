@@ -1,0 +1,118 @@
+# @dependency-start
+# contract workflow
+# responsibility Applies the three deterministic Clippy repairs identified by the diagnostic run and validates them once.
+# upstream workflow ./ptymark-clippy-diagnostic-once.yml captures the exact Rust 1.97.0 findings.
+# upstream implementation ../../src/cli.rs parses global configuration options.
+# upstream implementation ../../src/config/resolve.rs normalizes runtime definitions.
+# upstream implementation ../../src/config/source.rs discovers trusted configuration sources.
+# downstream workflow ./ptymark-ci.yml remains the canonical repeatable validation path.
+# @dependency-end
+name: ptymark Clippy Repair Once
+
+on:
+  push:
+    branches:
+      - agent/renderer-skeleton-staging
+    paths:
+      - .github/workflows/ptymark-clippy-repair-once.yml
+
+permissions:
+  contents: write
+
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
+concurrency:
+  group: ptymark-clippy-repair-once-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Apply deterministic Clippy repairs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("src/config/resolve.rs"): [
+                  (
+                      '.entry("chromium".to_owned())\n        .or_insert_with(RuntimeConfig::default);',
+                      '.entry("chromium".to_owned())\n        .or_default();',
+                  ),
+              ],
+              Path("src/config/source.rs"): [
+                  (
+                      '''        if ambient_enabled {
+              if let Some(path) = Self::user_path(environment) {
+                  if path.is_file() {
+                      seen.insert(canonical_or_original(&path));
+                      sources.push(ConfigSource {
+                          origin: ConfigOrigin::User,
+                          trust: ConfigTrust::UserOwned,
+                          path,
+                      });
+                  }
+              }
+              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '    '),
+                      '''        if ambient_enabled {
+              if let Some(path) = Self::user_path(environment)
+                  && path.is_file()
+              {
+                  seen.insert(canonical_or_original(&path));
+                  sources.push(ConfigSource {
+                      origin: ConfigOrigin::User,
+                      trust: ConfigTrust::UserOwned,
+                      path,
+                  });
+              }
+              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '    '),
+                  ),
+              ],
+          }
+
+          for path, changes in replacements.items():
+              text = path.read_text()
+              for old, new in changes:
+                  if old not in text:
+                      raise SystemExit(f"expected Clippy repair target not found in {path}: {old!r}")
+                  text = text.replace(old, new, 1)
+              path.write_text(text)
+          PY
+          cargo fmt --all
+
+      - name: Validate repaired tree
+        run: |
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+
+      - name: Commit repaired sources
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/config/resolve.rs src/config/source.rs
+          git commit -m "Satisfy Clippy in configuration skeleton"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
