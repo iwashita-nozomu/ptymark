@@ -2,6 +2,7 @@ use crate::artifact::{ArtifactFormat, RenderArtifact};
 use crate::model::SemanticBlock;
 use crate::renderer::RenderError;
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct TerminalCapabilities {
     pub inline_images: bool,
@@ -24,6 +25,25 @@ pub trait ArtifactPresenter: Send {
         source: &SemanticBlock,
         capabilities: TerminalCapabilities,
     ) -> Result<Vec<u8>, RenderError>;
+}
+
+impl<T: ArtifactPresenter + ?Sized> ArtifactPresenter for Box<T> {
+    fn id(&self) -> &str {
+        (**self).id()
+    }
+
+    fn accepted_formats(&self) -> &[ArtifactFormat] {
+        (**self).accepted_formats()
+    }
+
+    fn present(
+        &mut self,
+        artifact: &RenderArtifact,
+        source: &SemanticBlock,
+        capabilities: TerminalCapabilities,
+    ) -> Result<Vec<u8>, RenderError> {
+        (**self).present(artifact, source, capabilities)
+    }
 }
 
 #[derive(Debug)]
