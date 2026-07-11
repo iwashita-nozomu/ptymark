@@ -1,27 +1,35 @@
 # @dependency-start
 # contract workflow
-# responsibility Generates the Rust lockfile, formats the configuration skeleton, and verifies it once.
+# responsibility Generates the Rust lockfile and rustfmt-normalized configuration skeleton as one-time PR artifacts.
 # upstream implementation ../../Cargo.toml declares ptymark Rust dependencies.
 # upstream implementation ../../src/config.rs exposes the configuration service.
-# downstream workflow ./ptymark-ci.yml becomes the canonical repeatable validation path.
+# downstream workflow ./ptymark-ci.yml becomes the canonical repeatable validation path after artifacts are committed.
 # @dependency-end
 name: ptymark Config Bootstrap Once
 
 on:
-  push:
-    branches:
-      - agent/renderer-skeleton-staging
+  pull_request:
+    branches: [main, master]
     paths:
+      - Cargo.toml
+      - Cargo.lock
+      - src/config.rs
+      - src/config/**
+      - src/detector.rs
+      - src/lib.rs
+      - src/main.rs
+      - tests/config_contract.rs
       - .github/workflows/ptymark-config-bootstrap-once.yml
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
 
 concurrency:
-  group: ptymark-config-bootstrap-${{ github.ref }}
+  group: ptymark-config-bootstrap-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +43,6 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
-          fetch-depth: 0
 
       - name: Check out AgentCanon submodule
         env:
@@ -47,24 +54,36 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Resolve, format, and test configuration skeleton
+      - name: Resolve dependencies and normalize Rust sources
+        id: normalize
+        shell: bash
         run: |
+          set -euo pipefail
           cargo generate-lockfile
           cargo fmt --all
-          cargo clippy --all-targets -- -D warnings
-          cargo test --all-targets
+          git diff -- Cargo.lock src tests > ptymark-config-bootstrap.patch
+          {
+            echo "### Configuration bootstrap"
+            echo
+            echo "- Cargo.lock generated with Rust 1.97.0"
+            echo "- Rust sources normalized with rustfmt 1.97.0"
+            echo "- patch bytes: $(wc -c < ptymark-config-bootstrap.patch)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Commit generated lock and formatting
-        env:
-          PUSH_TOKEN: ${{ github.token }}
+      - name: Compile and test the normalized tree
         run: |
-          if git diff --quiet -- Cargo.lock src tests; then
-            echo "Configuration skeleton already normalized"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.lock src tests
-          git commit -m "Normalize configuration skeleton and lock dependencies"
-          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+
+      - name: Upload normalized configuration tree
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-config-bootstrap
+          path: |
+            Cargo.lock
+            src/**
+            tests/**
+            ptymark-config-bootstrap.patch
+          if-no-files-found: error
+          retention-days: 3
