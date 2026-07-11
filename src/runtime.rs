@@ -13,7 +13,7 @@ use crate::engine::{
     RenderRequest,
 };
 use crate::fingerprint::stable_fingerprint;
-use crate::model::{BlockKind, SemanticBlock};
+use crate::model::BlockKind;
 use crate::predisplay::{
     DisplayInterceptor, PreDisplayError, PreDisplayRenderer, PreDisplayReport,
 };
