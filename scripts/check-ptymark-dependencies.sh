@@ -12,22 +12,28 @@ fail() {
   exit 1
 }
 
+node_version="${NODE_IMAGE#node:}"
+node_version="${node_version%-bookworm}"
+
 rustc --version | grep -F "rustc ${RUST_VERSION} " >/dev/null
 cargo --version >/dev/null
-node --version | grep -F "v${NODE_IMAGE#node:}" | grep -Fv -- '-bookworm' >/dev/null || \
-  node --version | grep -F 'v24.18.0' >/dev/null
+node --version | grep -Fx "v${node_version}" >/dev/null
 mmdc --version | grep -F "${MERMAID_CLI_VERSION}" >/dev/null
+katex --version | grep -F "${KATEX_VERSION}" >/dev/null
 typst --version | grep -F "${TYPST_VERSION}" >/dev/null
 lua5.4 -v >/dev/null
 chromium --version >/dev/null
 
-npm list --global --depth=0 "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}" >/dev/null
+npm list --global --depth=0 \
+  "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}" \
+  "katex@${KATEX_VERSION}" >/dev/null
 
 grep -F "rust-version = \"${RUST_VERSION}\"" Cargo.toml >/dev/null
 grep -F "channel = \"${RUST_VERSION}\"" rust-toolchain.toml >/dev/null
 grep -F "ARG NODE_IMAGE=${NODE_IMAGE}" docker/ptymark.Dockerfile >/dev/null
 grep -F "ARG RUST_VERSION=${RUST_VERSION}" docker/ptymark.Dockerfile >/dev/null
 grep -F "ARG MERMAID_CLI_VERSION=${MERMAID_CLI_VERSION}" docker/ptymark.Dockerfile >/dev/null
+grep -F "ARG KATEX_VERSION=${KATEX_VERSION}" docker/ptymark.Dockerfile >/dev/null
 grep -F "ARG TYPST_VERSION=${TYPST_VERSION}" docker/ptymark.Dockerfile >/dev/null
 
 grep -F "NODE_IMAGE: \${NODE_IMAGE:-${NODE_IMAGE}}" docker/ptymark-compose.yaml >/dev/null || \
@@ -36,6 +42,8 @@ grep -F "RUST_VERSION: \${RUST_VERSION:-${RUST_VERSION}}" docker/ptymark-compose
   fail "Compose Rust fallback does not match docker/ptymark-versions.env"
 grep -F "MERMAID_CLI_VERSION: \${MERMAID_CLI_VERSION:-${MERMAID_CLI_VERSION}}" docker/ptymark-compose.yaml >/dev/null || \
   fail "Compose Mermaid fallback does not match docker/ptymark-versions.env"
+grep -F "KATEX_VERSION: \${KATEX_VERSION:-${KATEX_VERSION}}" docker/ptymark-compose.yaml >/dev/null || \
+  fail "Compose KaTeX fallback does not match docker/ptymark-versions.env"
 grep -F "TYPST_VERSION: \${TYPST_VERSION:-${TYPST_VERSION}}" docker/ptymark-compose.yaml >/dev/null || \
   fail "Compose Typst fallback does not match docker/ptymark-versions.env"
 
