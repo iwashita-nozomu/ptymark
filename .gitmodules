@@ -1,0 +1,10 @@
+# @dependency-start
+# contract configuration
+# responsibility Pins the shared AgentCanon runtime as a Git submodule.
+# upstream design vendor/agent-canon/documents/agent-canon-subtree-migration.md defines vendoring policy
+# downstream implementation vendor/agent-canon provides shared tools, workflows, skills, and runtime links
+# @dependency-end
+[submodule "vendor/agent-canon"]
+	path = vendor/agent-canon
+	url = https://github.com/iwashita-nozomu/agent-canon.git
+	branch = main

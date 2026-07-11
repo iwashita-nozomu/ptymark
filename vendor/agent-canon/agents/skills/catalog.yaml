@@ -1,0 +1,1253 @@
+version: 1
+# @dependency-start
+# contract registry
+# responsibility Catalogs canonical agent skills and their descriptions.
+# downstream design ../canonical/CODEX_WORKFLOW.md consumes the skill catalog during task routing
+# downstream implementation ../../tools/agent_tools/route.py consumes routing and related-skill metadata
+# downstream implementation ../../tools/agent_tools/skill_tool_commands.py prints skill command packets with related skills
+# downstream implementation ../../tools/agent_tools/check_agent_runtime_alignment.py validates public skill catalog consistency
+# @dependency-end
+
+skill_families:
+  # Public user-facing skill ids use plain hyphen-case. Runtime-internal skill
+  # shims use .agents/skills/_<name>/SKILL.md and stay owner-routed.
+  - id: agent-orchestration
+    purpose: Mandatory routing skill for repository tasks; selects workflow family, skills, review roles, and runtime entrypoints before execution.
+    canonical_doc: agents/skills/agent-orchestration.md
+    shim: .agents/skills/agent-orchestration/SKILL.md
+    related_skills:
+      - task-routing
+      - codex-task-workflow
+      - owner-bounded-routing
+      - subagent-bootstrap
+      - dependency-analysis
+    routing:
+      stage_policy: active
+      reason: workflow, skill, subagent, or stage routing is part of the request
+      triggers:
+        - ["どのスキル"]
+        - ["どのskill"]
+        - ["スキル選択"]
+        - ["skill selection"]
+        - ["routing", "skill"]
+        - ["ルーティング", "スキル"]
+        - ["マルチエージェント"]
+        - ["サブエージェント", "起動"]
+        - ["subagent", "routing"]
+        - ["workflow=", "skills="]
+        - ["根本", "設計", "見直"]
+  - id: repo-onboarding
+    purpose: Fast safe entry path for an unfamiliar repository or subdirectory.
+    canonical_doc: agents/skills/repo-onboarding.md
+    shim: .agents/skills/repo-onboarding/SKILL.md
+  - id: task-routing
+    purpose: Resolve long proposed tool or skill names into short routing areas and compact commands.
+    canonical_doc: agents/skills/task-routing.md
+    shim: .agents/skills/task-routing/SKILL.md
+    related_skills:
+      - agent-orchestration
+      - owner-bounded-routing
+      - structure-refactor
+      - agent-log-analysis
+      - issue-finding-report
+      - tool-finding-report
+      - result-artifact-writeout
+      - agent-learning
+    routing:
+      stage_policy: active
+      reason: skill/tool routing architecture or route contract design is in scope
+      triggers:
+        - ["ルーティング", "改善"]
+        - ["ルーティング", "リファクタ"]
+        - ["routing", "redesign"]
+        - ["routing", "architecture"]
+        - ["route", "contract"]
+        - ["skill", "tool", "routing"]
+        - ["skill", "走査"]
+        - ["skill", "scan"]
+        - ["スキル", "走査"]
+        - ["スキル", "動線"]
+        - ["スキル", "ツール", "欠落"]
+        - ["自作ツール"]
+        - ["repo", "tool", "routing"]
+        - ["repository", "tool", "routing"]
+        - ["tool", "automatic", "routing"]
+        - ["ツール", "自動", "ルーティング"]
+        - ["自動ルーティング"]
+        - ["ツール", "逐次"]
+        - ["逐次", "呼ぶ"]
+        - ["動的", "ルーティング"]
+        - ["動的", "スキル"]
+        - ["スキル内", "起動コマンド"]
+        - ["スキル", "起動コマンド"]
+        - ["tool", "command", "skill"]
+        - ["スキル", "一つずつ"]
+        - ["スキル選択", "ルーティング"]
+        - ["スキル", "ツール", "ルーティング"]
+        - ["スキル", "命名"]
+        - ["skill", "naming"]
+        - ["スキル", "細分化"]
+        - ["スキル", "分割"]
+        - ["スキル", "重い"]
+        - ["スキル", "二重管理"]
+        - ["設定", "スキル", "二重管理"]
+        - ["skill", "duplicate", "management"]
+        - ["settings", "skills", "duplicate"]
+        - ["skill", "catalog", "ownership"]
+        - [".agents", "skills"]
+        - ["関連スキル"]
+        - ["関連スキル", "狭"]
+        - ["スキル", "呼ばれ"]
+        - ["スキル", "呼ばれない"]
+        - ["スキル", "call"]
+        - ["skill", "called"]
+        - ["skill", "invoke"]
+        - ["skill", "invoked"]
+        - ["skill", "split"]
+        - ["skill", "granular"]
+        - ["related", "skill"]
+        - ["ハードコード", "スキル"]
+        - ["hardcode", "skill"]
+        - ["userfacing", "skill"]
+        - ["private", "skill"]
+        - ["公式", "スキル"]
+        - ["system", "skill"]
+        - ["official", "skill"]
+        - ["host-provided"]
+        - ["openai-docs"]
+        - ["skill-creator"]
+        - ["skill-installer"]
+        - ["imagegen"]
+        - ["plugin-creator"]
+        - ["公式", "委譲"]
+        - ["スキル", "委譲"]
+        - ["スキル", "移譲"]
+        - ["根本", "設計", "見直"]
+        - ["validation", "route"]
+        - ["check", "profile"]
+        - ["profile", "route"]
+        - ["closeout", "route"]
+        - ["evidence", "route"]
+        - ["長い", "候補名"]
+        - ["long", "candidate", "names"]
+  - id: start-repository
+    purpose: Start a new GitHub/submodule-first repository from the template clone.
+    canonical_doc: agents/skills/start-repository.md
+    shim: .agents/skills/start-repository/SKILL.md
+  - id: codex-task-workflow
+    purpose: Execute repository tasks with a context-independent Codex flow.
+    canonical_doc: agents/skills/codex-task-workflow.md
+    shim: .agents/skills/codex-task-workflow/SKILL.md
+    related_skills:
+      - agent-orchestration
+      - task-routing
+      - owner-bounded-routing
+      - result-artifact-writeout
+      - change-review
+  - id: owner-bounded-routing
+    purpose: Route owner-bounded repository edits through existing tool use, lightweight preflight, and targeted validation.
+    canonical_doc: agents/skills/owner-bounded-routing.md
+    shim: .agents/skills/owner-bounded-routing/SKILL.md
+    related_skills:
+      - task-routing
+      - md-style-check
+      - change-review
+    routing:
+      stage_policy: active
+      reason: owner-bounded repository edit needs an existing-tool route and targeted-validation evidence
+      triggers:
+        - ["owner-bounded"]
+        - ["bounded", "route"]
+        - ["bounded", "edit"]
+        - ["targeted", "validation"]
+        - ["Owner-Bounded Change"]
+        - ["コードファイル", "順序"]
+        - ["定義順"]
+        - ["コード", "順序", "わかりにく"]
+        - ["typo", "link"]
+        - ["format-only"]
+        - ["existing-tool", "route"]
+        - ["tool", "first"]
+  - id: subagent-bootstrap
+    purpose: Start the right specialist run bundle and make stage subagents explicit before implementation.
+    canonical_doc: agents/skills/subagent-bootstrap.md
+    shim: .agents/skills/subagent-bootstrap/SKILL.md
+    related_skills:
+      - agent-orchestration
+      - codex-task-workflow
+      - result-artifact-writeout
+    routing:
+      stage_policy: deferred
+      reason: repo-changing implementation, patch, doc-edit, or explicit subagent execution requires write-capable handoff routing
+      triggers:
+        - ["implementation"]
+        - ["implement"]
+        - ["実装"]
+        - ["patch"]
+        - ["パッチ"]
+        - ["doc-edit"]
+        - ["doc", "edit"]
+        - ["docs", "edit"]
+        - ["document", "edit"]
+        - ["ドキュメント", "編集"]
+        - ["文書", "編集"]
+        - ["文書", "修正"]
+        - ["マルチエージェント"]
+        - ["サブエージェント"]
+        - ["subagent"]
+        - ["multi-agent"]
+  - id: change-review
+    purpose: Review diffs for regressions, missing validation, and stale docs.
+    canonical_doc: agents/skills/change-review.md
+    shim: .agents/skills/change-review/SKILL.md
+    routing:
+      stage_policy: active
+      reason: review findings or implementation changes need findings-first review
+      triggers:
+        - ["レビューしてください"]
+        - ["変更レビュー"]
+        - ["全体", "レビュー"]
+        - ["review", "findings"]
+        - ["findings-first"]
+        - ["review-only"]
+        - ["do-not-edit-review"]
+        - ["change-review"]
+        - ["doc-review"]
+        - ["generated-diff-review"]
+        - ["diff", "review"]
+        - ["コード", "レビュー"]
+        - ["根本", "設計", "レビュー"]
+  - id: python-review
+    purpose: Review Python diffs with pyright, pytest, ruff, type-boundary awareness, API behavior, and OOP readability evidence when a Python diff already owns it.
+    canonical_doc: agents/skills/python-review.md
+    shim: .agents/skills/python-review/SKILL.md
+    routing:
+      stage_policy: deferred
+      reason: Python implementation review is in scope
+      triggers:
+        - ["Python", "review"]
+        - ["Python", "コードレビュー"]
+        - ["Python", "レビュー"]
+        - ["pyright"]
+        - ["ruff"]
+        - ["pytest", "Python"]
+        - ["コードファイル", "順序"]
+        - ["定義順"]
+        - ["関数", "順序"]
+        - ["class", "順序"]
+  - id: cpp-review
+    purpose: Review C and C++ diffs with build evidence, header-boundary awareness, and ownership checks.
+    canonical_doc: agents/skills/cpp-review.md
+    shim: .agents/skills/cpp-review/SKILL.md
+  - id: oop-readability-check
+    purpose: Run the OOP readability checker, produce mechanical SOLID/OOP report tables, and optionally add separate agent analysis.
+    canonical_doc: agents/skills/oop-readability-check.md
+    shim: .agents/skills/oop-readability-check/SKILL.md
+    routing:
+      stage_policy: active
+      reason: OOP readability or readability guard evidence is in scope
+      triggers:
+        - ["oop", "readability"]
+        - ["oop", "可読"]
+        - ["オブジェクト指向", "可読"]
+        - ["readability", "guard"]
+        - ["readability", "check"]
+        - ["可読性", "class"]
+        - ["可読性", "method"]
+        - ["SOLID"]
+        - ["SRP"]
+        - ["OCP"]
+        - ["LSP"]
+        - ["ISP"]
+        - ["DIP"]
+        - ["Single responsibility"]
+        - ["Open/closed"]
+        - ["Liskov"]
+        - ["Interface segregation"]
+        - ["Dependency inversion"]
+        - ["責務", "class"]
+        - ["Protocol", "境界"]
+  - id: result-artifact-writeout
+    purpose: Write tool, hook, eval, skill, and experiment results as durable raw artifacts, summaries, and manifests without accidental overwrite.
+    canonical_doc: agents/skills/result-artifact-writeout.md
+    shim: .agents/skills/result-artifact-writeout/SKILL.md
+    related_skills:
+      - tool-finding-report
+      - report-writing
+      - save-experiment-results
+    routing:
+      stage_policy: active
+      reason: raw results, reports, manifests, or accumulated evidence must be written out
+      triggers:
+        - ["save", "result"]
+        - ["export", "result"]
+        - ["durable", "artifact"]
+        - ["checker", "result"]
+        - ["raw", "summary"]
+        - ["結果保存"]
+        - ["結果書き出し"]
+        - ["結果を書き出"]
+        - ["result writeout"]
+        - ["artifact", "evidence"]
+        - ["artifact", "report"]
+        - ["run bundle", "evidence"]
+        - ["蓄積分析", "レポート"]
+        - ["ログ", "レポート", "残"]
+  - id: tool-finding-report
+    purpose: Run tools and checkers to discover findings, preserve raw and structured full artifacts, mechanically rank every finding, and produce complete finding packets for implementation or refactor planning; compare impact only when requested.
+    canonical_doc: agents/skills/tool-finding-report.md
+    shim: .agents/skills/tool-finding-report/SKILL.md
+    related_skills:
+      - result-artifact-writeout
+      - change-review
+      - dependency-analysis
+    routing:
+      stage_policy: active
+      reason: tool warning, checker finding, hardcoded guard, or static-analysis finding must become a typed finding packet
+      triggers:
+        - ["警告", "tool"]
+        - ["警告", "checker"]
+        - ["ad hoc", "warning"]
+        - ["adhoc", "warning"]
+        - ["ad hoc", "警告"]
+        - ["adhoc", "警告"]
+        - ["ハードコード", "警告"]
+        - ["hardcode", "warning"]
+        - ["checker", "finding"]
+        - ["tool", "finding"]
+        - ["static analysis", "finding"]
+        - ["finding", "packet"]
+        - ["complete", "report"]
+        - ["検出結果"]
+        - ["run_repo_dependency_review.sh", "dependency", "graph"]
+        - ["run_repo_dependency_review.sh", "修正先"]
+  - id: issue-finding-report
+    purpose: Convert accumulated prompt, run-bundle, hook, skill/tool/workflow routing, and eval evidence into durable AgentCanon skill issues by abstract cause with multi-agent review partitions.
+    canonical_doc: agents/skills/issue-finding-report.md
+    shim: .agents/skills/issue-finding-report/SKILL.md
+    related_skills:
+      - agent-log-analysis
+      - result-artifact-writeout
+      - report-writing
+    routing:
+      stage_policy: active
+      reason: accumulated runtime evidence should become durable skill or workflow issues
+      triggers:
+        - ["スキル", "issue"]
+        - ["skill", "issue"]
+        - ["ログ", "issue"]
+        - ["runbundle", "issue"]
+        - ["run bundle", "issue"]
+        - ["過去", "やり取り", "issue"]
+        - ["抽象原因"]
+        - ["原因", "抽象"]
+        - ["durable", "issue"]
+        - ["issue", "finding"]
+  - id: agent-log-analysis
+    purpose: Analyze accumulated skill, tool, workflow, hook, and eval logs through a compact generated summary before reading raw evidence.
+    canonical_doc: agents/skills/agent-log-analysis.md
+    shim: .agents/skills/agent-log-analysis/SKILL.md
+    related_skills:
+      - issue-finding-report
+      - result-artifact-writeout
+      - tool-finding-report
+      - agent-learning
+      - report-writing
+      - runtime-log-repair
+    routing:
+      stage_policy: active
+      reason: skill/tool/workflow routing misses or selection coverage require runtime log analysis
+      triggers:
+        - ["ログ", "すべて", "解析"]
+        - ["頻発", "作業", "スキル"]
+        - ["routing miss"]
+        - ["selection gap"]
+        - ["routing", "coverage"]
+        - ["toolcall", "skillcall", "coverage"]
+        - ["toolcall", "skillcall", "routing"]
+        - ["toolcall", "skillcall", "miss"]
+        - ["toolcall", "skillcall", "50"]
+        - ["toolcall", "skillcall", "されない"]
+        - ["ルーティング", "ログ"]
+        - ["ログ", "確認"]
+        - ["ログ", "スキル", "修正"]
+        - ["ログ", "弱い", "スキル"]
+        - ["ログ", "skill"]
+        - ["ログ", "tool"]
+        - ["log", "skill", "repair"]
+        - ["logs", "skill", "fix"]
+        - ["toolcall", "skillcall", "ルーティング"]
+        - ["スキル", "呼ばれ"]
+        - ["スキル", "呼ばれない"]
+        - ["適切", "スキル", "呼"]
+        - ["skill", "not", "called"]
+        - ["skill", "not", "invoked"]
+        - ["skill", "missed"]
+        - ["runbundle", "agent", "レポート"]
+        - ["run bundle", "agent", "report"]
+        - ["codex", "report"]
+        - ["codex", "レポとか"]
+        - ["runtime", "dashboard"]
+        - ["compact", "dashboard"]
+        - ["agent-runtime-dashboard"]
+        - ["runbundle", "ログ"]
+        - ["runbundle", "レポート"]
+        - ["過去", "agent", "レポート"]
+        - ["過去", "runbundle"]
+        - ["過去", "run bundle"]
+        - ["欠落", "スキル"]
+        - ["弱い", "動線"]
+        - ["エージェント", "成長"]
+  - id: runtime-log-repair
+    purpose: Turn AgentCanon runtime dashboard priority repair evidence into owner-routed Runtime Log Repair Packets and closeout verification.
+    canonical_doc: agents/skills/runtime-log-repair.md
+    shim: .agents/skills/runtime-log-repair/SKILL.md
+    related_skills:
+      - agent-log-analysis
+      - agent-eval-accumulation
+      - result-artifact-writeout
+      - issue-finding-report
+      - subagent-bootstrap
+      - task-routing
+      - agent-learning
+    routing:
+      stage_policy: active
+      reason: structured runtime dashboard evidence needs owner-routed repair work
+      triggers:
+        - ["runtime", "log", "repair"]
+        - ["runtime-log", "repair"]
+        - ["runtime", "dashboard", "next", "actions"]
+        - ["agent-runtime-dashboard"]
+        - ["dashboard", "repair", "failing", "hook", "evidence"]
+        - ["runtime", "log", "repair", "failing", "hook"]
+        - ["runtime", "dashboard", "hook", "entries", "status=fail"]
+        - ["runtime", "dashboard", "missing", "actual", "wave"]
+        - ["runtime", "dashboard", "workflow", "attribution"]
+        - ["runtime", "dashboard", "consulted", "source", "urls"]
+        - ["runtime", "dashboard", "reference", "missing", "urls"]
+        - ["AGENT_RUNTIME_DASHBOARD_WAVE_MISSING_ACTUAL"]
+        - ["AGENT_RUNTIME_DASHBOARD_HOOK_WORKFLOW_MISSING"]
+        - ["AGENT_RUNTIME_DASHBOARD_REFERENCE_MISSING_URLS"]
+  - id: agent-eval-accumulation
+    purpose: Repair missing, stale, or failing AgentCanon accumulated eval evidence by running registered producers, validating family accumulation, and archiving append-only reports.
+    canonical_doc: agents/skills/agent-eval-accumulation.md
+    shim: .agents/skills/agent-eval-accumulation/SKILL.md
+  - id: agent-canon-update
+    purpose: Update AgentCanon source, parent submodule pins, root runtime views, and parent update TODO state through the canonical high-level route.
+    canonical_doc: agents/skills/agent-canon-update.md
+    shim: .agents/skills/agent-canon-update/SKILL.md
+    related_skills:
+      - pr-processing
+      - agent-update-branch
+      - structure-refactor
+    routing:
+      stage_policy: active
+      reason: AgentCanon submodule, pin, checkout, or ensure-latest workflow is in scope
+      triggers:
+        - ["ensure-latest"]
+        - ["parent", "pin", "vendor"]
+        - ["submodule", "pin"]
+        - ["agentcanon", "update"]
+        - ["agent-canon", "update"]
+        - ["vendor/agent-canon", "update"]
+        - ["vendor/agent-canon", "sync"]
+        - ["vendor/agent-canon", "pin"]
+        - ["vendor/agent-canon", "root", "view"]
+        - ["vendor/agent-canon", "root-view"]
+        - ["root", "runtime", "view", "sync"]
+        - ["root", "view", "repair"]
+        - ["root-view", "repair"]
+        - ["agent-canon-ensure-latest"]
+        - ["agentcanon", "最新"]
+        - ["parent", "pin"]
+        - ["checkout", "drift"]
+        - ["sync_agent_canon.sh"]
+        - ["agent-canon", "pr"]
+        - ["agentcanon", "更新"]
+  - id: pr-processing
+    purpose: Process GitHub pull request and issue queues by inventorying state, preserving PR Essence in bodies and run bundles, checking mutation authority, resolving conflicts, ordering merges, validating gates, triaging issues, and syncing AgentCanon source PRs with parent pin PRs.
+    canonical_doc: agents/skills/pr-processing.md
+    shim: .agents/skills/pr-processing/SKILL.md
+    related_skills:
+      - agent-canon-update
+      - agent-update-branch
+      - result-artifact-writeout
+      - change-review
+    routing:
+      stage_policy: active
+      reason: pull request, merge queue, conflict repair, or issue triage processing is in scope
+      triggers:
+        - ["open", "prs"]
+        - ["open", "pr"]
+        - ["pr", "checks"]
+        - ["gh", "pr"]
+        - ["pr", "review", "comments"]
+        - ["requested", "changes"]
+        - ["queue", "cleanup"]
+        - ["ready", "pr"]
+        - ["stale", "pr"]
+        - ["PRを片付け"]
+        - ["PR", "片付け"]
+        - ["Local", "Main", "追従"]
+        - ["pr", "処理"]
+        - ["pr", "merge"]
+        - ["pr", "マージ"]
+        - ["pr", "取り込"]
+        - ["pr", "片づ"]
+        - ["pull request"]
+        - ["pull request", "merge"]
+        - ["PR Essence"]
+        - ["PR", "本質"]
+        - ["PR", "本文", "本質"]
+        - ["merge queue"]
+        - ["conflict", "解消"]
+        - ["コンフリクト", "解消"]
+        - ["issue", "triage"]
+        - ["issue", "処理"]
+        - ["branch protection"]
+        - ["required checks"]
+  - id: agent-update-branch
+    purpose: Isolate memory, eval result, AgentCanon pin, and other agent-runtime updates on template-derived update branches before controlled integration.
+    canonical_doc: agents/skills/agent-update-branch.md
+    shim: .agents/skills/agent-update-branch/SKILL.md
+  - id: report-writing
+    purpose: Draft reader-facing reports, experiment summaries, decision briefs, and presentation/PPT storyboards from evidence with explicit source packets, visual asset plans, limitations, actionability, and quality checklist gates.
+    canonical_doc: agents/skills/report-writing.md
+    shim: .agents/skills/report-writing/SKILL.md
+    related_skills:
+      - result-artifact-writeout
+      - structure-planning
+      - prose-reasoning-graph
+      - html-output
+      - change-review
+    routing:
+      stage_policy: active
+      reason: reader-facing report, decision brief, evaluation summary, or presentation narrative is in scope
+      triggers:
+        - ["reader-facing", "synthesis"]
+        - ["audit", "findings"]
+        - ["finding", "route", "packet"]
+        - ["implementation", "plan"]
+        - ["改善提案"]
+        - ["レポート"]
+        - ["報告書"]
+        - ["評価", "報告"]
+        - ["報告", "作"]
+        - ["レポート", "作"]
+        - ["report", "write"]
+        - ["report", "draft"]
+        - ["report", "quality"]
+        - ["decision", "brief"]
+        - ["audit", "report"]
+        - ["status", "report"]
+        - ["experiment", "report"]
+        - ["evaluation", "report"]
+        - ["reader-facing", "report"]
+        - ["presentation", "narrative"]
+        - ["ppt", "storyboard"]
+  - id: prose-reasoning-graph
+    purpose: Convert prose into a SQLite-backed structure graph, diagnose discourse/argument/evidence/experiment gaps, explain findings, and emit writing-skill handoff packets.
+    canonical_doc: agents/skills/prose-reasoning-graph.md
+    shim: .agents/skills/prose-reasoning-graph/SKILL.md
+    related_skills:
+      - structure-planning
+      - long-form-writing
+      - report-writing
+    routing:
+      stage_policy: deferred
+      reason: prose structure graphing, diagnostics, or rewrite handoff is in scope
+      triggers:
+        - ["文章構造", "graph"]
+        - ["文章構造", "グラフ"]
+        - ["段落", "接続"]
+        - ["段落", "統合"]
+        - ["dsl", "文章"]
+        - ["prose", "graph"]
+        - ["prose", "reasoning"]
+        - ["rewrite", "packet"]
+        - ["claim", "evidence", "graph"]
+  - id: structure-planning
+    purpose: Build structure contracts for reports, experiments, presentations/PPT decks, documents, papers, HTML views, and refactors before prose, rendering, interpretation, runs, or edits.
+    canonical_doc: agents/skills/structure-planning.md
+    shim: .agents/skills/structure-planning/SKILL.md
+    related_skills:
+      - prose-reasoning-graph
+      - report-writing
+      - refactor-loop
+    routing:
+      stage_policy: active
+      reason: nontrivial design or document structure must be fixed before edits
+      triggers:
+        - ["構造解析"]
+        - ["文書", "構造", "解析"]
+        - ["設計", "構造"]
+        - ["structure", "contract"]
+        - ["根本", "設計", "構造"]
+  - id: code-visualization
+    purpose: Infer the context question and embedding context, then select the appropriate diagram type, source evidence, owner skill or tool, and renderer for code, repository, or document-embedded visualization.
+    canonical_doc: agents/skills/code-visualization.md
+    shim: .agents/skills/code-visualization/SKILL.md
+    related_skills:
+      - dependency-analysis
+      - structure-planning
+      - structure-refactor
+      - algorithm-flowchart
+      - prose-reasoning-graph
+      - html-output
+      - md-style-check
+      - test-design
+      - oop-readability-check
+    routing:
+      stage_policy: active
+      reason: code, repository, or document-embedded visualization needs context-question and evidence-source selection before rendering
+      triggers:
+        - ["コード", "可視化"]
+        - ["コード", "図示"]
+        - ["文書", "図"]
+        - ["文書", "図示"]
+        - ["文書", "Mermaid"]
+        - ["文書", "visual_plan"]
+        - ["埋め込む", "図"]
+        - ["埋め込み", "図"]
+        - ["README", "図"]
+        - ["design doc", "diagram"]
+        - ["document", "diagram"]
+        - ["embedded", "diagram"]
+        - ["visual_plan", "diagram"]
+        - ["visual_plan", "Mermaid"]
+        - ["図示", "選択"]
+        - ["図", "選択"]
+        - ["図の", "種類"]
+        - ["フローチャート"]
+        - ["アクティビティ図"]
+        - ["コールグラフ"]
+        - ["制御フローグラフ"]
+        - ["シーケンス図"]
+        - ["状態遷移図"]
+        - ["データフロー図"]
+        - ["依存関係図"]
+        - ["依存グラフ"]
+        - ["依存", "グラフ"]
+        - ["タイミング図"]
+        - ["並行シーケンス図"]
+        - ["関数", "呼び出し関係"]
+        - ["実行経路", "分岐"]
+        - ["処理", "順番"]
+        - ["状態", "変化"]
+        - ["データ", "流れ"]
+        - ["モジュール間", "依存"]
+        - ["並行処理", "時間関係"]
+        - ["code", "visualization"]
+        - ["code", "diagram"]
+        - ["dependency", "graph"]
+        - ["call", "graph"]
+        - ["control-flow", "graph"]
+        - ["control", "flow", "graph"]
+        - ["sequence", "diagram"]
+        - ["state", "diagram"]
+        - ["data-flow", "diagram"]
+        - ["data", "flow", "diagram"]
+        - ["timing", "diagram"]
+        - ["concurrency", "diagram"]
+        - ["class", "diagram"]
+        - ["type", "diagram"]
+        - ["html", "dashboard", "コード"]
+        - ["html", "dashboard", "graph"]
+        - ["graph", "visualization"]
+  - id: html-output
+    purpose: Produce polished browser-readable HTML artifacts only when HTML is explicit, including layout gates, optional ImageGen assets, and local/external browser server publication.
+    canonical_doc: agents/skills/html-output.md
+    shim: .agents/skills/html-output/SKILL.md
+    routing:
+      stage_policy: active
+      reason: explicit HTML or browser-readable output is in scope
+      triggers:
+        - ["html", "output"]
+        - ["html", "report"]
+        - ["html", "eval", "report"]
+        - ["browser-readable"]
+        - ["browser", "readable"]
+        - ["ブラウザ"]
+  - id: html-experiment-report
+    purpose: Produce browser-readable HTML experiment or Eval reports by choosing the primary figure, planning from it, reusing existing artifacts, and rendering bounded evidence.
+    canonical_doc: agents/skills/html-experiment-report.md
+    shim: .agents/skills/html-experiment-report/SKILL.md
+  - id: test-design
+    purpose: Statically diagnose brittle tests and design resilient behavior contracts, oracles, property/metamorphic candidates, and adversarial cases before implementation.
+    canonical_doc: agents/skills/test-design.md
+    shim: .agents/skills/test-design/SKILL.md
+    related_skills:
+      - oop-readability-check
+      - change-review
+    routing:
+      stage_policy: active
+      reason: test strategy, brittle tests, contract-only wrappers, or unnecessary numerical tests are in scope
+      triggers:
+        - ["regression", "case"]
+        - ["既存テスト"]
+        - ["public", "behavior"]
+        - ["bounded", "behavior"]
+        - ["仕様解釈"]
+        - ["test-design"]
+        - ["test", "design"]
+        - ["テスト", "設計"]
+        - ["アルゴリズム", "テストから"]
+        - ["アルゴリズム", "テスト", "直し"]
+        - ["algorithm", "test", "first"]
+        - ["test", "first", "algorithm"]
+        - ["contract-only", "wrapper"]
+        - ["contract", "only", "wrapper"]
+        - ["契約だけ"]
+        - ["契約", "wrapper"]
+        - ["static", "contract", "validation"]
+        - ["pytest", "smoke"]
+        - ["execution-only", "test"]
+        - ["no-crash", "test"]
+        - ["不要", "テスト"]
+        - ["不要", "数値テスト"]
+        - ["数値テスト"]
+        - ["数値", "テスト"]
+        - ["numerical", "test"]
+        - ["numeric", "test"]
+        - ["unnecessary", "test"]
+        - ["heavy", "test"]
+        - ["brittle", "test"]
+        - ["test oracle"]
+        - ["oracle", "mismatch"]
+        - ["spec mismatch", "test"]
+        - ["tolerance", "test"]
+        - ["seed", "test"]
+  - id: refactor-loop
+    purpose: Run large refactors as behavior-preserving looped structural change with explicit safety contracts and repair slices.
+    canonical_doc: agents/skills/refactor-loop.md
+    shim: .agents/skills/refactor-loop/SKILL.md
+    related_skills:
+      - dependency-analysis
+      - structure-refactor
+      - change-review
+    routing:
+      stage_policy: active
+      reason: behavior-preserving refactor work needs an explicit loop and review gates
+      triggers:
+        - ["large", "refactor"]
+        - ["large", "refactoring"]
+        - ["large-delivery", "refactor"]
+        - ["looped", "refactor"]
+        - ["refactor", "loop"]
+        - ["refactor-loop"]
+        - ["staged", "refactor"]
+        - ["milestone", "refactor"]
+        - ["multi-surface", "refactor"]
+        - ["multiple", "chunk", "refactor"]
+        - ["all", "skills", "refactor"]
+        - ["skill", "scan", "refactor"]
+        - ["large", "リファクタ"]
+        - ["大規模", "リファクタ"]
+        - ["大規模", "構造変更"]
+        - ["複数", "chunk", "refactor"]
+        - ["一つずつ", "リファクタ"]
+        - ["すべて", "リファクタ"]
+        - ["behavior-preserving"]
+        - ["repair slice"]
+        - ["抽象化", "リファクタ"]
+  - id: structure-refactor
+    purpose: Refactor repository directory structure from recursive directory README responsibilities, dependency manifests, path mappings, and responsibility-scope validation.
+    canonical_doc: agents/skills/structure-refactor.md
+    shim: .agents/skills/structure-refactor/SKILL.md
+    related_skills:
+      - dependency-analysis
+      - document-canon-cleanup
+      - refactor-loop
+      - md-style-check
+    routing:
+      stage_policy: active
+      reason: repository structure, source ownership, path responsibility, or Codex runtime surface boundaries are in scope
+      triggers:
+        - ["レポ", "リファクタ"]
+        - ["レポ", "ルール", "読み込み"]
+        - ["レポ", "ルール", "構造"]
+        - ["repo", "refactor"]
+        - ["repository", "refactor"]
+        - ["repo", "structure"]
+        - ["repository", "structure"]
+        - ["repo", "optimization"]
+        - ["repository", "optimization"]
+        - ["レポの", "最適化"]
+        - ["root", "view"]
+        - ["codex", "読み込み", "優先"]
+        - ["codex", "読み込み", "プライオリティ"]
+        - ["codex", "loading", "priority"]
+        - ["agents.md", "読み込み"]
+        - ["agents.md", "priority"]
+        - ["responsibility-scope"]
+        - ["ディレクトリ", "構成"]
+        - ["directory", "structure"]
+        - ["directory", "layout"]
+        - ["directory", "readme"]
+        - ["path", "layout"]
+        - ["path", "responsibility"]
+        - ["source", "ownership"]
+        - ["structure", "drift"]
+        - ["構造", "レビュー"]
+        - ["構造", "review"]
+        - ["structure", "review"]
+        - ["structural", "review"]
+        - ["構造", "スキル", "弱"]
+        - ["構成", "考え直"]
+        - ["~/.codex"]
+        - [".codex", "config"]
+        - ["codex", "personal", "runtime"]
+        - ["personal", "runtime", "surface"]
+        - ["agents.md", "重複"]
+        - ["skill", "重複"]
+        - ["スキル", "二重管理"]
+        - ["設定", "スキル", "二重管理"]
+        - ["skill", "duplicate", "management"]
+        - ["settings", "skills", "duplicate"]
+        - ["skill", "catalog", "ownership"]
+        - [".codex", ".agents"]
+        - [".agents", "skills"]
+        - ["責務", "重複"]
+        - ["責務重複"]
+        - ["過剰", "分割"]
+        - ["過剰分割"]
+        - ["レポ全体", "責務"]
+        - ["repo-wide", "responsibility"]
+        - ["責務", "移行"]
+        - ["すべてのスキル", "修正"]
+        - ["全", "skill", "command"]
+  - id: user-guided-debugging
+    purpose: Debug or repair one issue at a time when the user explicitly asks for visible problem statements before each edit and the next issue after each fix.
+    canonical_doc: agents/skills/user-guided-debugging.md
+    shim: .agents/skills/user-guided-debugging/SKILL.md
+    routing:
+      stage_policy: active
+      reason: user explicitly asks for one-issue-at-a-time debugging or visible problem statements before each edit
+      triggers:
+        - ["repo-changing", "debugging"]
+        - ["one issue at a time"]
+        - ["user-guided debugging"]
+        - ["user-guided", "cadence"]
+        - ["refactor", "cadence", "one concrete issue"]
+        - ["問題ごと"]
+        - ["一件ずつ"]
+        - ["一つずつ"]
+        - ["原因説明"]
+        - ["visible problem statements"]
+        - ["problem statement", "before", "edit"]
+        - ["problem statement", "before", "patch"]
+        - ["next issue", "after", "fix"]
+        - ["scoped fix"]
+        - ["no", "validation", "unless", "asked"]
+        - ["1", "issue", "1", "fix"]
+        - ["1", "problem", "1", "patch"]
+        - ["1件", "ずつ"]
+        - ["1 件", "ずつ"]
+        - ["1個", "ずつ"]
+        - ["1 個", "ずつ"]
+        - ["一つずつ", "デバッグ"]
+        - ["一件", "ずつ", "修正"]
+        - ["問題", "提示", "修正"]
+        - ["問題点", "提示", "patch"]
+        - ["問題点", "出して", "直"]
+        - ["ユーザー主導", "デバッグ"]
+        - ["ユーザー主導", "リファクタ"]
+  - id: long-form-writing
+    purpose: Project graph/DSL structure into general explanatory repository prose for README, workflow, guide, migration, and specification responsibilities.
+    canonical_doc: agents/skills/long-form-writing.md
+    shim: .agents/skills/long-form-writing/SKILL.md
+  - id: academic-writing
+    purpose: Draft academic documents with explicit claim mapping and mandatory multi-agent review for notation and logic.
+    canonical_doc: agents/skills/academic-writing.md
+    shim: .agents/skills/academic-writing/SKILL.md
+    routing:
+      stage_policy: active
+      reason: academic or scholarly writing needs notation, logic, and evidence review
+      triggers:
+        - ["academic", "writing"]
+        - ["notation", "logic"]
+        - ["記法", "論理"]
+        - ["citation", "evidence"]
+        - ["logic", "gap"]
+        - ["scholarly", "note"]
+        - ["学術文章"]
+        - ["投稿論文"]
+        - ["thesis", "chapter"]
+        - ["paper", "draft"]
+  - id: paper-writing
+    purpose: Draft papers and thesis chapters with section contracts and mandatory citation/evidence review.
+    canonical_doc: agents/skills/paper-writing.md
+    shim: .agents/skills/paper-writing/SKILL.md
+  - id: md-style-check
+    purpose: Check Markdown formatting, heading structure, and link hygiene for format-only docs work; pair substantive document edits with prose-reasoning-graph and structure-planning.
+    canonical_doc: agents/skills/md-style-check.md
+    shim: .agents/skills/md-style-check/SKILL.md
+    related_skills:
+      - document-canon-cleanup
+      - prose-reasoning-graph
+    routing:
+      stage_policy: active
+      reason: Markdown style, links, headings, or docs lint are in scope
+      triggers:
+        - ["md-style"]
+        - ["docs-check"]
+        - ["docs", "check", "失敗"]
+        - ["docs check", "失敗"]
+        - ["docs check", "failed"]
+        - ["agent-canon", "docs"]
+        - ["docs", "format"]
+        - ["docs", "check"]
+        - ["markdownlint"]
+        - ["markdown", "lint"]
+        - ["markdown", "heading"]
+        - ["markdown", "link"]
+        - ["markdown", "formatter"]
+        - ["formatter", "adjacent"]
+        - ["フォーマッタ"]
+        - ["フォーマット", "周辺"]
+        - ["通してすらない"]
+        - ["マークダウン", "体裁"]
+        - ["マークダウン", "リンク"]
+  - id: mvp-skeleton
+    purpose: Keep MVP, prototype, v0, and thin-slice implementation skeletal by fixing one core loop, stubbing nonessential work, and reporting deferrals.
+    canonical_doc: agents/skills/mvp-skeleton.md
+    shim: .agents/skills/mvp-skeleton/SKILL.md
+  - id: document-canon-cleanup
+    purpose: Find non-canonical documents and route edits to source canon instead of mirrors, generated evidence, or stale copies.
+    canonical_doc: agents/skills/document-canon-cleanup.md
+    shim: .agents/skills/document-canon-cleanup/SKILL.md
+    related_skills:
+      - prose-reasoning-graph
+      - structure-planning
+      - md-style-check
+      - long-form-writing
+    routing:
+      stage_policy: active
+      reason: Document-canon cleanup, stale docs, old docs, or generated-report/document inventory cleanup is in scope
+      triggers:
+        - ["document-canon"]
+        - ["document", "cleanup"]
+        - ["docs", "cleanup"]
+        - ["stale", "docs"]
+        - ["old", "docs"]
+        - ["non-canonical", "document"]
+        - ["noncanonical", "document"]
+        - ["document", "inventory"]
+        - ["怪文書"]
+        - ["上位文書", "怪文書"]
+        - ["文書", "正本", "優先"]
+        - ["document", "canon", "priority"]
+        - ["文書", "掃除"]
+        - ["文書", "整理"]
+        - ["文書", "最適化"]
+        - ["文書", "棚卸"]
+        - ["docs", "inventory"]
+        - ["documents", "optimize"]
+        - ["古い", "文書"]
+        - ["古い", "ツール"]
+        - ["旧", "文書"]
+        - ["生成", "文書"]
+  - id: dependency-analysis
+    purpose: Run dependency manifest and code-dependency tools, then package change impact and repair-planning context for editing, review, or subagent handoff.
+    canonical_doc: agents/skills/dependency-analysis.md
+    shim: .agents/skills/dependency-analysis/SKILL.md
+  - id: worktree-start
+    purpose: Diagnose stale worktree, WORKTREE_SCOPE.md, and action-log state as legacy cleanup evidence; not for new worktree kickoff, recreation, or resume.
+    canonical_doc: agents/skills/worktree-start.md
+    shim: .agents/skills/worktree-start/SKILL.md
+  - id: worktree-health
+    purpose: Review worktree scope, drift, and cleanup readiness.
+    canonical_doc: agents/skills/worktree-health.md
+    shim: .agents/skills/worktree-health/SKILL.md
+  - id: experiment-lifecycle
+    purpose: Run a single experiment protocol, then branch through review, rewrite, extra validation, or rerun.
+    canonical_doc: agents/skills/experiment-lifecycle.md
+    shim: .agents/skills/experiment-lifecycle/SKILL.md
+    related_skills:
+      - result-artifact-writeout
+      - save-experiment-results
+      - structure-planning
+      - experiment-review
+      - test-design
+    routing:
+      stage_policy: active
+      reason: experiment run, lifecycle, artifacts, results, or rerun workflow is in scope
+      triggers:
+        - ["experiment run"]
+        - ["experiment lifecycle"]
+        - ["experiment artifacts"]
+        - ["experiment rerun"]
+        - ["experiment results"]
+        - ["experiment", "result"]
+        - ["experiment", "report"]
+        - ["experiment", "evidence"]
+        - ["比較実験"]
+        - ["実験実行"]
+        - ["実験", "実行"]
+        - ["実験結果"]
+        - ["実験", "結果"]
+  - id: save-experiment-results
+    purpose: Save experiment run results with raw artifacts, manifests, reports, and branch-safe publication to dedicated experiment result branches.
+    canonical_doc: agents/skills/save-experiment-results.md
+    shim: .agents/skills/save-experiment-results/SKILL.md
+    related_skills:
+      - experiment-lifecycle
+      - result-artifact-writeout
+      - report-writing
+      - experiment-review
+    routing:
+      stage_policy: active
+      reason: experiment result retention, manifest writeout, overwrite prevention, or result-branch publication is in scope
+      triggers:
+        - ["実験結果", "保存"]
+        - ["実験", "結果", "保存"]
+        - ["実験結果", "残"]
+        - ["実験", "result", "保存"]
+        - ["experiment", "result", "save"]
+        - ["experiment", "result", "publish"]
+        - ["experiment", "result", "branch"]
+        - ["publish", "result", "branch"]
+        - ["formal", "result", "retention"]
+        - ["run", "artifact", "preserve"]
+  - id: experiment-review
+    purpose: Review experiment topics for direct run.py execution, GPU/JAX environment ownership, artifact schemas, notebook explanations, and README run contracts.
+    canonical_doc: agents/skills/experiment-review.md
+    shim: .agents/skills/experiment-review/SKILL.md
+    routing:
+      stage_policy: active
+      reason: experiment topic review, direct run.py execution, environment ownership, artifact schema, or notebook readiness is in scope
+      triggers:
+        - ["実験", "レビュー"]
+        - ["実験", "review"]
+        - ["experiment", "review"]
+        - ["topic", "review"]
+        - ["ExperimentRunner"]
+        - ["run.py", "experiment"]
+        - ["先取無効"]
+        - ["preallocation", "experiment"]
+        - ["notebook", "artifact", "experiment"]
+  - id: gpu-execution
+    purpose: Route GPU/CUDA/JAX/XLA/IREE execution through managed ExperimentRunner-backed runs with preallocation disabled and GPU blocker evidence preserved.
+    canonical_doc: agents/skills/gpu-execution.md
+    shim: .agents/skills/gpu-execution/SKILL.md
+    related_skills:
+      - experiment-lifecycle
+      - computational-optimization
+      - result-artifact-writeout
+      - environment-maintenance
+      - test-design
+    routing:
+      stage_policy: active
+      reason: GPU/CUDA/JAX/XLA execution, ExperimentRunner Python execution, or preallocation-disabled validation is in scope
+      triggers:
+        - ["gpu", "実行"]
+        - ["gpu", "利用"]
+        - ["gpu", "検証"]
+        - ["cuda", "実行"]
+        - ["cuda", "backend"]
+        - ["jax", "gpu"]
+        - ["xla", "gpu"]
+        - ["iree", "gpu"]
+        - ["nvidia-smi"]
+        - ["cuda_visible_devices"]
+        - ["gpu_validation_blocker"]
+        - ["experimentrunner"]
+        - ["experiment_runner"]
+        - ["python", "experimentrunner"]
+        - ["python", "実行", "experimentrunner"]
+        - ["preallocation", "disable"]
+        - ["preallocate", "false"]
+        - ["xla_python_client_preallocate"]
+        - ["先取", "無効"]
+        - ["先取り", "無効"]
+  - id: computational-optimization
+    purpose: Fix mathematical and validation contracts for numerical optimization, solvers, preconditioners, convergence, derivatives, KKT conditions, tolerances, and optimization benchmarks.
+    canonical_doc: agents/skills/computational-optimization.md
+    shim: .agents/skills/computational-optimization/SKILL.md
+    routing:
+      stage_policy: active
+      reason: numerical optimization, solver, convergence, derivative, or KKT validation contract is in scope
+      triggers:
+        - ["computational optimization"]
+        - ["計算最適化"]
+        - ["数値最適化"]
+        - ["optimizer"]
+        - ["optimization", "solver"]
+        - ["preconditioner"]
+        - ["kkt"]
+        - ["gradient", "hessian"]
+        - ["jacobian"]
+        - ["convergence", "tolerance"]
+        - ["収束", "tolerance"]
+        - ["solver", "residual"]
+        - ["residual"]
+        - ["アルゴリズム", "修正"]
+        - ["アルゴリズム", "テストから"]
+        - ["algorithm", "repair"]
+        - ["algorithm", "test", "first"]
+    related_skills:
+      - test-design
+      - algorithm-proof-exploration
+  - id: adaptive-improvement-loop
+    purpose: Manage experiments, research, tuning, and iterative code changes as one backlog-driven outer loop.
+    canonical_doc: agents/skills/adaptive-improvement-loop.md
+    shim: .agents/skills/adaptive-improvement-loop/SKILL.md
+    related_skills:
+      - experiment-lifecycle
+      - research-workflow
+      - result-artifact-writeout
+    routing:
+      stage_policy: active
+      reason: backlog-driven iterative experiment, tuning, or code improvement loop is in scope
+      triggers:
+        - ["adaptive-improvement-loop"]
+        - ["goal.md"]
+        - ["next_action"]
+        - ["backlog"]
+        - ["iteration"]
+        - ["反復実行"]
+        - ["継続反復"]
+        - ["改善ループ"]
+        - ["改善", "backlog"]
+        - ["実験", "改善", "反復"]
+        - ["実験", "チューニング", "継続"]
+        - ["調査", "チューニング", "反復"]
+        - ["code change", "run", "継続反復"]
+        - ["iterative", "code improvement"]
+        - ["iterative", "tuning"]
+        - ["backlog-driven", "outer loop"]
+        - ["adaptive", "improvement", "loop"]
+        - ["experiment", "tuning", "loop"]
+        - ["research", "tuning", "improvement"]
+  - id: literature-survey
+    purpose: Search for primary sources, prior art, contradictory evidence, and reusable bibliography structure.
+    canonical_doc: agents/skills/literature-survey.md
+    shim: .agents/skills/literature-survey/SKILL.md
+  - id: formal-proof-workflow
+    purpose: Convert natural-language mathematical claims or JIT-canonical implementation claims into formal-proof obligations, existing-proof search packets, proof-assistant scaffolds, and checker-gated evidence.
+    canonical_doc: agents/skills/formal-proof-workflow.md
+    shim: .agents/skills/formal-proof-workflow/SKILL.md
+  - id: lean-algorithm-design
+    purpose: Design candidate algorithms directly in Lean before production implementation, prove or refute the mathematical design contract, and hand checked definitions to implementation.
+    canonical_doc: agents/skills/lean-algorithm-design.md
+    shim: .agents/skills/lean-algorithm-design/SKILL.md
+  - id: algorithm-proof-exploration
+    purpose: Explore algorithm choices under proof obligations by building JIT-canonical IR, theorem graphs, algorithmic blocker frontiers, and algorithm-change handoffs for formal-proof adoption.
+    canonical_doc: agents/skills/algorithm-proof-exploration.md
+    shim: .agents/skills/algorithm-proof-exploration/SKILL.md
+    related_skills:
+      - formal-proof-workflow
+      - computational-optimization
+      - test-design
+    routing:
+      stage_policy: active
+      reason: algorithm repair, proof obligations, theorem frontiers, or algorithm-change guidance are in scope
+      triggers:
+        - ["algorithm", "proof"]
+        - ["algorithm", "repair"]
+        - ["algorithm", "change"]
+        - ["アルゴリズム", "修正"]
+        - ["アルゴリズム", "証明"]
+        - ["アルゴリズム", "テストから"]
+  - id: algorithm-flowchart
+    purpose: Render JIT-canonical IR, generated Lean evidence modules, and theorem graph overlays into Mermaid block charts for algorithm/proof-state review.
+    canonical_doc: agents/skills/algorithm-flowchart.md
+    shim: .agents/skills/algorithm-flowchart/SKILL.md
+  - id: research-workflow
+    purpose: Manage the outer loop of question framing, external research, iterative changes, runs, and explicit review decisions.
+    canonical_doc: agents/skills/research-workflow.md
+    shim: .agents/skills/research-workflow/SKILL.md
+    related_skills:
+      - literature-survey
+      - experiment-lifecycle
+      - result-artifact-writeout
+    routing:
+      stage_policy: active
+      reason: research-backed, prior-art, benchmark, or external research workflow is in scope
+      triggers:
+        - ["external", "research"]
+        - ["research-backed"]
+        - ["research", "workflow"]
+        - ["research-driven-change"]
+        - ["benchmark", "compare"]
+        - ["benchmark", "result"]
+        - ["prior", "art"]
+        - ["先行研究"]
+        - ["比較実験"]
+        - ["外部調査"]
+  - id: comprehensive-development
+    purpose: Run repo-wide integrated delivery across code, docs, tools, workflows, and runtime with explicit subagent routing.
+    canonical_doc: agents/skills/comprehensive-development.md
+    shim: .agents/skills/comprehensive-development/SKILL.md
+    related_skills:
+      - agent-orchestration
+      - codex-task-workflow
+      - structure-refactor
+      - refactor-loop
+      - dependency-analysis
+      - change-review
+    routing:
+      stage_policy: deferred
+      reason: repo-wide architecture redesign spans workflow, tools, docs, runtime, or validation
+      triggers:
+        - ["根本", "設計", "ルーティング"]
+        - ["根本", "設計", "routing"]
+        - ["全体", "レビュー", "修正"]
+        - ["レポ全体", "レビュー"]
+        - ["repo-wide", "review"]
+        - ["architecture", "redesign"]
+        - ["workflow", "tools", "docs"]
+        - ["repo-wide", "routing"]
+        - ["スキル", "動線", "ツール"]
+        - ["エージェント", "成長"]
+        - ["agent", "growth"]
+        - ["すべてのスキル", "修正"]
+        - ["all", "skills", "command"]
+  - id: environment-maintenance
+    purpose: Update Docker, CI, dependencies, and runtime guidance coherently.
+    canonical_doc: agents/skills/environment-maintenance.md
+    shim: .agents/skills/environment-maintenance/SKILL.md
+    routing:
+      stage_policy: active
+      reason: Docker, CI, dependency, or runtime environment maintenance is in scope
+      triggers:
+        - ["docker"]
+        - ["devcontainer"]
+        - ["github", "actions"]
+        - ["ci"]
+        - ["lockfile"]
+        - ["dependency", "upgrade"]
+        - ["container", "runtime"]
+        - ["environment-maintenance"]
+        - ["環境メンテ"]
+  - id: user-preference-sync
+    purpose: Distill durable user preferences from notes into stable AGENTS.md guidance.
+    canonical_doc: agents/skills/user-preference-sync.md
+    shim: .agents/skills/user-preference-sync/SKILL.md
+  - id: agent-learning
+    purpose: Log agent-side working philosophy, interaction lessons, and task retrospectives with evidence.
+    canonical_doc: agents/skills/agent-learning.md
+    shim: .agents/skills/agent-learning/SKILL.md
+    routing:
+      stage_policy: deferred
+      reason: user feedback or recurrence prevention should become durable agent learning
+      triggers:
+        - ["人間からのフィードバック"]
+        - ["runtime feedback"]
+        - ["再発防止"]
+        - ["こういう止まり方"]
+        - ["フィードバック", "修正"]
+        - ["feedback", "repair"]
+        - ["アルゴリズム", "テストから"]
+        - ["アルゴリズム", "テスト", "やめ"]
+        - ["algorithm", "test", "first"]
+        - ["algorithm", "repair", "feedback"]
+        - ["memory", "feedback"]
+        - ["エージェント", "成長"]
+        - ["agent", "growth"]
+        - ["スキル", "呼ばれ"]
+        - ["スキル", "呼ばれない"]
+        - ["skill", "not", "called"]
+        - ["skill", "not", "invoked"]
+        - ["起動コマンド", "ミス"]
+        - ["ミス", "多発"]

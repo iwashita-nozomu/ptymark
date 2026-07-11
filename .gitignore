@@ -1,0 +1,60 @@
+# @dependency-start
+# contract configuration
+# responsibility Defines ignored generated, local, and cache artifacts for the template repository.
+# upstream design AGENTS.md repository closeout and artifact policy
+# upstream design vendor/agent-canon/documents/result-log-retention-and-visualization.md generated report retention policy
+# downstream implementation tools/agent_tools/bootstrap_agent_run.py writes ignored run bundles
+# downstream implementation tools/docs/audit_and_fix_links.py writes ignored link reports
+# @dependency-end
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual env
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# OS
+.DS_Store
+
+# Logs
+logs/
+tests/logs/
+
+# Local git worktrees
+.worktrees/
+
+# New experiment run artifact layout
+experiments/**/result/*
+!experiments/**/result/.gitkeep
+
+# Analysis reports and agent run artifacts
+reports/agents/
+reports/agent-improvement-guide/
+reports/agent-eval-runs/
+reports/agent-runtime-dashboard/
+reports/review/
+reports/hooks/
+reports/*.json
+reports/*.md
+reports/*.txt
+reports/*.patch
+
+# Repo-local active goal state
+goal.md
+
+# Generated devcontainer runtime file
+.devcontainer/docker-compose.generated.yml
+
+# Reusable local C++ artifacts
+.state/cpp-install/
+.state/agent-eval-runs/

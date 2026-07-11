@@ -1,0 +1,179 @@
+# Workflow Guide
+<!--
+@dependency-start
+contract workflow
+responsibility Documents Workflow Guide for this repository.
+upstream design ../TASK_WORKFLOWS.md workflow routing contract
+@dependency-end
+-->
+
+この文書は、`agents/workflows/` 配下の workflow catalog と routing guide の入口です。
+repo 利用者も `agent-canon` maintainer も、まずここで「今回どの workflow を
+primary にし、どの overlay を重ねるか」を決めます。workflow 読順の入口も
+この file に一本化し、後からこの file へ戻ってくる前提の read order にはしません。
+
+## この文書の読み方
+
+- この文書は、`agents/workflows/` 配下の workflow catalog、routing guide、read order を所有します。
+- 前半は使い方、quick routing、recommended read order を扱い、後半は implementation / research / writing / maintenance の workflow map と maintainer path を扱います。
+- task 開始時は `## Quick Routing` で primary workflow と overlay を選び、次に `## Recommended Read Order` で読む順序を固定します。
+- chunked reading では、この file を workflow 選択の入口に限定し、詳細手順は選んだ workflow 文書へ移動します。
+
+## 使い方
+
+- まず 1 つの primary workflow を選びます。
+- 一般説明 prose、学術文書、paper のように file / document responsibility が強い task では overlay workflow を追加します。
+- shared canon maintenance や `main` 統合のような特殊操作だけ、maintenance workflow を追加します。
+- 大規模 refactor では `comprehensive-refactoring-workflow.md` を overlay として追加し、設計見直し、OOP 境界、解析 score gate を固定します。
+- directory layout、directory README ownership、root view、または responsibility-scope map を変える refactor では `$structure-refactor` と `$refactor-loop` を併用し、recursive README graph、Directory Responsibility Map、`scope_delta`、reader / navigation delta を先に固定します。
+- 考察、原因仮説、修正箇所の妥当性検証が必要な task では `hypothesis-validation-workflow.md` を overlay として追加し、code dependency と header dependency を別々に抜いてから実装へ進みます。
+- workflow family の選択は `agents/TASK_WORKFLOWS.md`、Codex の標準実行順は `agents/canonical/CODEX_WORKFLOW.md` を正本にします。
+- Codex `goals` feature を使う task では `codex-goals-workflow.md` を overlay とし、`goal.md` を durable source of truth、Codex goals を session view、`goal_loop.py status` を機械 gate として扱います。
+- user が `/goal <objective>` または goal-driven task を指定した task では、同 overlay の Autonomous Goal Draft と Pre-Goal Subagent Authorization And Fan-Out に従い、必要なら parent が goal draft を作り、`/goal` 確定前に read-only subagent または許可待ち handoff plan で要求整理、repo survey、first-slice plan を固めます。`/goal` 設定後に `/plan` で Goal Contract、Exit Criteria Mapping、Source Packet、Reuse Survey、Execution Slices、Budget Policy を固定してから実装します。
+- token 消費を抑えたい task では `token-efficient-codex-workflow.md` を overlay とし、parent profile、subagent mode、context shaping、escalation trigger を先に決めます。
+
+## Quick Routing
+
+### Primary Workflow
+
+- repo に持ち帰る通常の code / docs / environment change
+  - `agents/workflows/implementation-waterfall-workflow.md`
+- 問い、比較設計、段階的改造、claim 更新を含む研究系変更
+  - `agents/workflows/research-workflow.md`
+- 実験実務、run layout、result/report 運用
+  - `agents/workflows/experiment-workflow.md`
+- tuning、比較改善、探索的改造を backlog 付きで反復する
+  - `agents/workflows/adaptive-improvement-workflow.md`
+- 大規模 repo の包括 refactor、OOP boundary 再設計、解析 score gate
+  - `agents/workflows/comprehensive-refactoring-workflow.md`
+- directory reorg、directory README ownership、root view、responsibility-scope map refactor
+  - `agents/workflows/implementation-waterfall-workflow.md` plus `$structure-refactor` and `$refactor-loop`
+
+### Overlay Workflow
+
+- 原因考察、仮説、修正箇所の妥当性検証を実装前に固定する
+  - `agents/workflows/hypothesis-validation-workflow.md`
+- Codex `goals` feature と repo-owned `goal.md` を同期して使う
+  - `agents/workflows/codex-goals-workflow.md`
+- token 消費を抑えつつ必要な gate を維持する
+  - `agents/workflows/token-efficient-codex-workflow.md`
+- README、guide、workflow、migration、specification など file responsibility が一般説明 prose の文書
+  - `agents/workflows/long-form-writing-workflow.md`
+- スライド、PPT、presentation のような固定テンプレート型の文書
+  - `agents/workflows/slide-production-workflow.md`
+- 論文、thesis chapter、scholarly note、claim-heavy document
+  - `agents/workflows/academic-writing-workflow.md`
+- 投稿論文や paper-like draft
+  - `agents/workflows/paper-writing-workflow.md`
+
+### Maintenance Workflow
+
+- branch 側の rename / move / delete / directory reorg を `main` に戻す
+  - `agents/workflows/main-integration-workflow.md`
+- shared canon 自体を更新して PR / upstream sync する
+  - `agents/workflows/agent-canon-pr-workflow.md`
+- open AgentCanon source PR と dependent template pin PR を順番に片付ける
+  - `agents/workflows/pr-queue-cleanup-workflow.md`
+- 派生 repo の `vendor/agent-canon/` 差分を proposal / shared canon main / 派生 repo snapshot の順で閉じる
+  - `agents/workflows/derived-agent-canon-diff-workflow.md`
+- task から agent philosophy や durable observation を昇格する
+  - `agents/workflows/agent-learning-workflow.md`
+
+## Recommended Read Order
+
+1. `agents/workflows/README.md`
+1. `agents/TASK_WORKFLOWS.md`
+1. `agents/canonical/CODEX_WORKFLOW.md`
+1. 選んだ primary workflow
+1. 必要な overlay workflow
+1. task に当たる maintenance workflow
+
+## Workflow Map
+
+### Implementation And Delivery
+
+- `implementation-waterfall-workflow.md`
+  - repo に持ち帰る change 全般の共通実装パス
+- `main-integration-workflow.md`
+  - file 構成変更を含む branch を `main` に戻す手順
+- `comprehensive-refactoring-workflow.md`
+  - 大規模 refactor の設計見直し、OOP 的な責務境界方針、静的解析 score gate
+- `hypothesis-validation-workflow.md`
+  - code dependency と header dependency を別々に抽出し、仮説と修正箇所妥当性を検証してから実装する overlay
+- `codex-goals-workflow.md`
+  - Codex goals feature、top-level `goal.md`、Plan-mode entry、`goal_loop.py status` の責務境界と同期手順
+- `token-efficient-codex-workflow.md`
+  - Codex parent profile、agent mode、context shaping、token-saving escalation trigger
+
+### Research And Experiment
+
+- `research-workflow.md`
+  - research-driven change の問い、比較設計、claim 更新
+- `experiment-workflow.md`
+  - run 実務、artifact layout、result/report 運用
+- `adaptive-improvement-workflow.md`
+  - backlog-driven outer loop と waterfall inner pass
+
+### Writing Overlay
+
+- `long-form-writing-workflow.md`
+  - README、guide、workflow、migration 文書
+- `slide-production-workflow.md`
+  - 固定 PPT template を使う slide / presentation production
+- `academic-writing-workflow.md`
+  - notation / logic を強く扱う scholarly writing
+- `paper-writing-workflow.md`
+  - citation / evidence trace を含む paper overlay
+
+### Canon And Learning
+
+- `agent-canon-pr-workflow.md`
+  - shared canon change の branch、PR、upstream sync
+- `pr-queue-cleanup-workflow.md`
+  - AgentCanon source PR と template / derived pin PR が同時に開いているとき、source merge、template pin realignment、dependent PR validation、ready / merge 判断を順番に閉じる手順
+- `derived-agent-canon-diff-workflow.md`
+  - 派生 repo の agent-canon 差分を AgentCanon branch / PR、shared canon main、派生 repo submodule pin へ順に反映する手順
+- `agent-learning-workflow.md`
+  - `memory/` と guardrail への learning promotion
+- `workflow-references.md`
+  - workflow 設計の外部根拠索引
+
+## Maintainer Path
+
+`agent-canon` 自体を保守する場合は、次を追加で見ます。
+
+- `ROOT_AGENTS.md`
+- `documents/SHARED_RUNTIME_SURFACES.md`
+- `documents/agent-canon-subtree-migration.md`
+- `agents/workflows/agent-canon-pr-workflow.md`
+- `agents/workflows/pr-queue-cleanup-workflow.md`
+- `agents/workflows/derived-agent-canon-diff-workflow.md`
+
+基本手順:
+
+1. upstream `agent-canon` を最新化する
+1. `vendor/agent-canon/` を source of truth として編集する
+1. root surface を再同期する
+1. shared canon 用 check を流す
+1. AgentCanon source PR を merge する
+1. template / derived repo 側で `make agent-canon-ensure-latest` を再実行して pin を持ち帰る
+1. template 側 pin PR を閉じる
+
+```bash
+make agent-canon-ensure-latest
+bash tools/sync_agent_canon.sh link-root
+bash tools/sync_agent_canon.sh check
+make agent-canon-pr-check
+```
+
+derived repo から shared canon だけ更新するときは、必要に応じて次を使います。
+
+```bash
+bash tools/update_agent_canon.sh plan
+bash tools/update_agent_canon.sh merge-main-into-current-preserve-dirty
+git -C vendor/agent-canon push origin HEAD
+```
+
+## Convention Compliance Gate
+
+Before closeout or handoff, run `python3 tools/agent_tools/check_convention_compliance.py` and fix any `CONVENTION_COMPLIANCE=fail` finding. This keeps workflow prohibitions, convention tool gates, and skill-routing hooks mechanically checked instead of relying on prompt memory.

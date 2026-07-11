@@ -1,0 +1,1 @@
+../../vendor/agent-canon/tests/agent_tools/test_parent_repo_readiness.py

@@ -1,0 +1,1 @@
+../../vendor/agent-canon/notes/themes/THEME_NOTE_TEMPLATE.md

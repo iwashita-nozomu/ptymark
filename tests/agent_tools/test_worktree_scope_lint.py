@@ -1,0 +1,1 @@
+../../vendor/agent-canon/tests/agent_tools/test_worktree_scope_lint.py

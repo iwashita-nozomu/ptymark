@@ -1,0 +1,27 @@
+# @dependency-start
+# contract environment
+# responsibility Defines Codex container runtime profiles.
+# upstream environment README.md docker runtime guidance
+# downstream implementation ../tools/ci/container_runtime.py consumes container profiles
+# @dependency-end
+[defaults]
+container_home_root = "/workspace/.state/nested-codex"
+use_host_user = true
+tty = true
+share_host_codex_home = true
+seed_host_codex = false
+mount_host_gitconfig = true
+mount_host_git_credentials = true
+mount_host_ssh_dir = false
+forward_ssh_auth_sock = true
+forward_env = ["OPENAI_API_KEY", "OPENAI_BASE_URL", "GH_TOKEN", "GITHUB_TOKEN"]
+
+[[profile]]
+name = "default"
+pack = "docker/packs/default.toml"
+description = "Default nested Codex session for docs, Python, and CI work."
+
+[[profile]]
+name = "host-docker"
+pack = "docker/packs/default-host-docker.toml"
+description = "Nested Codex session with host Docker socket access for Docker-heavy work."

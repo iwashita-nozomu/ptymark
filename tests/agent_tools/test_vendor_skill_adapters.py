@@ -1,0 +1,1 @@
+../../vendor/agent-canon/tests/agent_tools/test_vendor_skill_adapters.py

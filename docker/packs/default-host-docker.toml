@@ -1,0 +1,26 @@
+# @dependency-start
+# contract environment
+# responsibility Defines the host Docker container pack configuration.
+# upstream environment ../README.md docker runtime guidance
+# upstream environment ../Dockerfile default runtime image
+# @dependency-end
+[pack]
+name = "default-host-docker"
+dockerfile = "docker/Dockerfile"
+context = "."
+image_tag = "project-template:default-runtime-pack-host-docker"
+
+[smoke]
+shell = "/bin/bash"
+commands = [
+  "python3 --version",
+  "docker version",
+]
+
+[runtime]
+shell = "/bin/bash"
+workdir = "/workspace"
+workspace_mount = "/workspace"
+mounts = [
+  "/var/run/docker.sock:/var/run/docker.sock",
+]

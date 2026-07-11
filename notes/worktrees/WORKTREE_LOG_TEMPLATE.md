@@ -1,0 +1,1 @@
+../../vendor/agent-canon/notes/worktrees/WORKTREE_LOG_TEMPLATE.md

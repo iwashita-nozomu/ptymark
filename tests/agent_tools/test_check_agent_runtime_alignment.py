@@ -1,0 +1,1 @@
+../../vendor/agent-canon/tests/agent_tools/test_check_agent_runtime_alignment.py

@@ -1,0 +1,28 @@
+# @dependency-start
+# contract registry
+# responsibility Registers experiment metadata for template experiment workflows.
+# upstream design ../vendor/agent-canon/documents/experiment-registry.md experiment registry contract
+# downstream implementation ../tools/experiments/run_managed_experiment.py consumes registry
+# @dependency-end
+schema_version = 1
+
+[defaults]
+managed_runner = "tools/experiments/run_managed_experiment.py"
+report_root = "experiments/report"
+integration_branch = "main"
+topic_template_dir = "experiments/_template"
+required_eval_artifacts = ["summary.json", "cases.jsonl", "config.json"]
+optional_eval_artifacts = ["logs/*.log", "logs/*.txt", "logs/*.jsonl"]
+
+[[topics]]
+name = "_template"
+status = "template"
+topic_dir = "experiments/_template"
+topic_readme = "experiments/_template/README.md"
+canonical_entrypoint = "experiments/_template/run.py"
+result_root = "experiments/_template/result"
+report_root = "experiments/report"
+default_variant = "formal"
+smoke_inner_command = "python3 experiments/_template/run.py --run-dir {run_dir} --config {config_path} --limit 4"
+formal_inner_command = "python3 experiments/_template/run.py --run-dir {run_dir} --config {config_path} --limit 32"
+active_branch = "main"

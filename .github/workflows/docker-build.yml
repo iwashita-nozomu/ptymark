@@ -1,0 +1,56 @@
+# @dependency-start
+# contract workflow
+# responsibility Defines docker build YAML configuration.
+# upstream environment ../../docker/README.md docker runtime contract
+# upstream implementation ../../docker/check_build.sh submodule-aware docker build validation
+# upstream implementation ../scripts/checkout_agent_canon_submodule.sh private AgentCanon checkout gate
+# @dependency-end
+name: Docker Build
+
+on:
+  pull_request:
+    paths:
+      - "docker/**"
+      - ".dockerignore"
+      - ".devcontainer/**"
+      - ".github/workflows/docker-build.yml"
+      - "Makefile"
+  push:
+    branches: [ main, master ]
+    paths:
+      - "docker/**"
+      - ".dockerignore"
+      - ".devcontainer/**"
+      - ".github/workflows/docker-build.yml"
+      - "Makefile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Docker Pack Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Checkout AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Run default Docker pack check
+        run: bash docker/check_build.sh --pack docker/packs/default.toml --pull --tag project-template:ci-default
+
+      - name: Run host-docker Docker pack check
+        run: bash docker/check_build.sh --pack docker/packs/default-host-docker.toml --pull --tag project-template:ci-host-docker

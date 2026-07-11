@@ -1,0 +1,1 @@
+../../vendor/agent-canon/notes/knowledge/KNOWLEDGE_NOTE_TEMPLATE.md

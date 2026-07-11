@@ -1,0 +1,102 @@
+# @dependency-start
+# contract configuration
+# responsibility Defines Python packaging, dependency, and tool configuration.
+# upstream design LICENSE repository license text
+# upstream design documents/licensing-policy.md repository license ownership
+# upstream design vendor/agent-canon/documents/coding-conventions-python.md Python convention contract
+# downstream implementation tests/tools/test_python_env_policy.py validates Python environment policy
+# downstream implementation tests/tools/test_update_latest_result.py imports shared tools in pyright
+# @dependency-end
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-template"
+version = "0.1.0"
+description = "Template repository for implementation, experiments, and agent workflows"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.5",
+  "scipy-stubs",
+  "pydocstyle>=6.3",
+  "pyyaml>=6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D", "UP"]
+ignore = ["E501"]
+# D: docstring チェック
+# UP: Python 最新構文への自動升格
+# E501: 行長は固定文字数で fail させず、可読性と project-local formatter に委ねる
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.pyright]
+# 型検査は strict を基本方針とします。
+typeCheckingMode = "strict"
+
+# この template では `python/` 全体を baseline として扱います。
+include = ["./python", "./tests"]
+exclude = [
+  "**/.*",
+  "**/node_modules",
+  "**/__pycache__",
+  "**/build",
+  "**/dist",
+  "**/reports",
+  "**/experiments",
+  "**/*.egg-info",
+  "./references",
+  "./notes",
+  "./diary",
+  "./includes",
+  "./lib",
+  "./src",
+  "./scripts",
+  "./.worktrees",
+]
+
+# ローカルパッケージと shared tool surface 解決のため、python、repo root、
+# AgentCanon submodule root、root shared tool view を追加します。
+extraPaths = ["./python", ".", "./vendor/agent-canon", "./tools/agent_tools"]
+stubPath = "./python/typings"
+
+
+reportUnusedVariable = "warning"
+reportConstantRedefinition = "warning"
+reportMissingTypeStubs = "warning"
+
+[tool.pydocstyle]
+# Docstring 規約の設定
+# D100: モジュール docstring 必須
+# D101: クラス docstring 必須
+# D102: パブリックメソッド docstring 必須
+# D103: 関数 docstring 必須
+# D104-D105: パッケージ/Magic method は除外
+match = ".*\\.py"
+match_dir = ".*"
+# プライベート関数 (_prefix) の docstring チェックは除外
+ignore = ["D104", "D105", "D107", "D203"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

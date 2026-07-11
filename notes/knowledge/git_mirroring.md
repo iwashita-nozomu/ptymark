@@ -1,0 +1,1 @@
+../../vendor/agent-canon/notes/knowledge/git_mirroring.md

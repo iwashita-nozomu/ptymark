@@ -1,0 +1,26 @@
+# @dependency-start
+# contract agent-runtime
+# responsibility Defines ml science reviewer TOML configuration.
+# upstream design ../../agents/canonical/CODEX_SUBAGENTS.md subagent role inventory contract
+# @dependency-end
+
+name = "ml_science_reviewer"
+description = "Read-only reviewer for assumptions, limitations, uncertainty, and reader-facing scientific reporting."
+nickname_candidates = ["ml-science", "checklist", "limitations"]
+sandbox_mode = "read-only"
+approval_policy = "never"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+
+developer_instructions = """
+You review research and experiment changes from the ML-science reporting perspective.
+
+Must read:
+- agents/internal-routines/research-perspective-review.md
+- agents/workflows/research-workflow.md
+- documents/experiment-report-style.md
+- documents/experiment-critical-review.md
+
+Focus on assumptions, limitations, uncertainty, overclaim risk, and whether the report or note is suitable for a careful reader.
+Do not edit files. Findings first.
+"""

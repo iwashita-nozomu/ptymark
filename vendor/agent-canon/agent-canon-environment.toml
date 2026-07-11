@@ -1,0 +1,127 @@
+# @dependency-start
+# contract configuration
+# responsibility Defines machine-readable AgentCanon development environment expectations.
+# upstream design CONTAINER_OPERATIONS.md canonical container and devcontainer ownership boundary
+# upstream design documents/rust-agent-tool-migration.md Rust tool migration policy
+# upstream implementation .devcontainer/post-create.sh installs shared development tooling
+# downstream implementation tools/install_llama_cpp.sh installs local LLM llama.cpp tooling
+# downstream implementation tools/rebuild_agent_tools.sh rebuilds compiled AgentCanon tools
+# downstream implementation rust/agent-canon/src/local_llm.rs implements the local LLM CLI entrypoint
+# downstream implementation rust/agent-canon/src/structured_analysis.rs implements structured-analysis cache build tooling
+# downstream implementation tools/agent_tools/prose_reasoning_graph.py creates prose graph DBs under user-home cache by default
+# @dependency-end
+
+manifest_kind = "agent_canon_environment"
+version = 1
+
+[toolchain.rust]
+owner = "agent-canon"
+install_surface = ".devcontainer/post-create.sh"
+manual_install_summary = "Install rustup minimal profile, then rustfmt, clippy, and rust-analyzer."
+manual_install_commands = [
+  "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal",
+  ". \"$HOME/.cargo/env\"",
+  "rustup component add rustfmt clippy rust-analyzer",
+]
+required_binaries = [
+  "cargo",
+  "rustc",
+  "rustup",
+  "rustfmt",
+  "cargo-clippy",
+  "rust-analyzer",
+]
+dockerfile_forbidden_binaries = [
+  "rustup",
+  "cargo",
+  "rustc",
+]
+
+[compiled_tools.agent_canon_cli]
+owner = "agent-canon"
+source_manifest = "rust/agent-canon/Cargo.toml"
+source_entrypoint = "rust/agent-canon/src/main.rs"
+install_root = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/agent-canon"
+install_binary = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/agent-canon/bin/agent-canon"
+path_shim = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/bin/agent-canon"
+compatibility_symlink = "/usr/local/bin/agent-canon"
+rebuild_command_standalone = "bash tools/rebuild_agent_tools.sh"
+rebuild_command_parent_repo = "bash vendor/agent-canon/tools/rebuild_agent_tools.sh"
+validation_commands = [
+  "agent-canon --version",
+  "agent-canon rust-migration-audit --root .",
+  "agent-canon rust-migration-plan --root . --limit 12",
+  "agent-canon local-llm --help",
+  "agent-canon local-llm classify-responsibility --root . --print-prompt rust/agent-canon/src/local_llm.rs",
+  "agent-canon semantic-index --help",
+  "agent-canon structured-analysis build --root . --profile manual --out-dir ${TMPDIR:-/tmp}/agent-canon-structured-analysis-smoke",
+]
+
+[compiled_tools.llama_cpp]
+owner = "agent-canon"
+source_repository = "https://github.com/ggml-org/llama.cpp.git"
+source_ref_env = "AGENT_CANON_LLAMA_CPP_REF"
+source_ref_default = "master"
+source_checkout = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/src/llama.cpp"
+build_dir = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/build/llama.cpp"
+cli_binary = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/bin/llama-cli"
+server_binary = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/bin/llama-server"
+post_create_command = "bash tools/install_llama_cpp.sh --allow-fetch"
+canon_update_command = "bash tools/install_llama_cpp.sh --skip-missing-source --force"
+default_model_selector = "ggml-org/SmolLM3-3B-GGUF:Q4_K_M"
+model_fetch_policy = "lazy llama.cpp Hugging Face cache; never commit model weights"
+accelerator_policy = "cpu_only"
+cuda_env_policy = "AGENT_CANON_LLAMA_CPP_CUDA is compatibility-only; cuda/auto requests are ignored and llama.cpp is built CPU-only; accelerator-enabling CMake extras are rejected"
+
+[json_cli_tools]
+owner = "agent-canon"
+install_surface = ".devcontainer/post-create.sh"
+install_function = "install_json_cli_tools"
+required_binaries = [
+  "jq",
+]
+install_command = "apt-get install -y --no-install-recommends jq"
+post_create_validation_commands = [
+  "jq --version",
+]
+dockerfile_policy = "forbidden for agent-only JSON inspection helpers; use shared post-create"
+
+[local_llm]
+owner = "agent-canon"
+install_surface = ".devcontainer/post-create.sh"
+tools_home = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}"
+llama_cli = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/bin/llama-cli"
+llama_server = "${AGENT_CANON_TOOLS_HOME:-$HOME/.tools}/bin/llama-server"
+default_model = "ggml-org/SmolLM3-3B-GGUF:Q4_K_M"
+accelerator_policy = "cpu_only"
+runtime_env_policy = "local LLM subprocesses hide CUDA, NVIDIA container, HIP, and ROCr devices; installer rejects accelerator-enabling CMake extras"
+scope = "single-file responsibility analysis only"
+primary_cli = "agent-canon local-llm classify-responsibility"
+search_cli = "agent-canon local-llm search"
+index_cli = "agent-canon local-llm build-index"
+eval_cli = "agent-canon local-llm eval"
+compatibility_python_entrypoint = "tools/agent_tools/file_responsibility_llm.py"
+
+[structured_analysis_cache]
+owner = "agent-canon"
+install_surface = ".devcontainer/post-create.sh"
+primary_cli = "agent-canon structured-analysis build"
+post_create_command = "agent-canon structured-analysis build --root <workspace> --profile devcontainer"
+cache_root = "${AGENT_CANON_STRUCTURED_ANALYSIS_HOME:-$HOME/.cache/agent-canon/structured-analysis}"
+database_name = "prose_graph.sqlite"
+diagnostics_database_name = "diagnostics.sqlite"
+export_directory = "exports"
+repo_tree_write_policy = "forbidden; cache build writes only to user-home cache or explicit --out-dir"
+post_create_failure_policy = "warning-only; container creation must continue and print the manual rebuild command"
+source_to_ir_scope = "git-visible files plus document-canon findings; no source rewrite"
+analysis_scope = "materialize source DB diagnostics into a separate warnings DB"
+manual_analyze_command = "agent-canon structured-analysis analyze --db <cache-dir>/prose_graph.sqlite --diagnostics-db <cache-dir>/diagnostics.sqlite --profile manual"
+
+[prose_reasoning_graph_cache]
+owner = "agent-canon"
+primary_cli = "python3 tools/agent_tools/prose_reasoning_graph.py"
+cache_root = "${AGENT_CANON_PROSE_GRAPH_HOME:-$HOME/.cache/agent-canon/prose-reasoning-graph}"
+database_name = "prose_graph.sqlite"
+explicit_db_flag = "--db <path>"
+repo_tree_write_policy = "DB creation writes to user-home cache by default; projection, diagnostics, explanation, handoff, rewrite packets, and stats may be written to run bundles"
+source_to_ir_scope = "Markdown/plain text source documents plus optional user prompt context; no source rewrite"

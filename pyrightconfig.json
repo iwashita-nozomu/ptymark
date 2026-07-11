@@ -1,0 +1,9 @@
+// @dependency-start
+// contract configuration
+// responsibility Delegates Pyright configuration to the Python project config.
+// upstream implementation pyproject.toml Python project configuration
+// downstream implementation tests/tools/test_python_env_policy.py Python environment test coverage
+// @dependency-end
+{
+  "extends": "./pyproject.toml"
+}

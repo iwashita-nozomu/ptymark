@@ -1,0 +1,43 @@
+# @dependency-start
+# contract environment
+# responsibility Defines the default container pack configuration.
+# upstream environment ../README.md docker runtime guidance
+# upstream environment ../Dockerfile default runtime image
+# @dependency-end
+[pack]
+name = "default"
+dockerfile = "docker/Dockerfile"
+context = "."
+image_tag = "project-template:default-runtime-pack"
+
+[smoke]
+shell = "/bin/bash"
+commands = [
+  "python3 --version",
+  "python3 -m pip --version",
+  "cmake --version",
+  "ninja --version",
+  "bash .devcontainer/post-create.sh /workspace",
+  "node --version",
+  "npm --version",
+  "codex --version",
+  "gh --version",
+  "jupyter --version",
+  "jupyter lab --version",
+  "ssh -V",
+  "docker --version",
+  "dot -V",
+  "python3 -c \"import jax; print(jax.__version__)\"",
+  "cmake -S . -B build/cpp/docker-smoke",
+  "cmake --build build/cpp/docker-smoke",
+  "ctest --test-dir build/cpp/docker-smoke --output-on-failure",
+  "bash docker/register_safe_directories.sh /workspace",
+  "safe_dirs=\"$(git config --get-all safe.directory || true)\"",
+  "printf '%s\\n' \"$safe_dirs\" | grep -Fx /workspace >/dev/null",
+  "if [ -d vendor ]; then for vendor_dir in vendor/*; do [ -d \"$vendor_dir\" ] || continue; printf '%s\\n' \"$safe_dirs\" | grep -Fx \"/workspace/${vendor_dir}\" >/dev/null; done; fi",
+]
+
+[runtime]
+shell = "/bin/bash"
+workdir = "/workspace"
+workspace_mount = "/workspace"

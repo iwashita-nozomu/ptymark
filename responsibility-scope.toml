@@ -1,0 +1,127 @@
+# @dependency-start
+# contract registry
+# responsibility Defines top-level responsibility scopes and protecting tools for this repository.
+# upstream design AGENTS.md parent repository runtime entrypoint
+# upstream design vendor/agent-canon/documents/responsibility-scope-management.md responsibility scope policy
+# upstream design vendor/agent-canon/documents/templates/responsibility-scope.template.toml starter manifest for template-derived repositories
+# downstream implementation tools/agent_tools/responsibility_scope.py validates this manifest
+# downstream implementation tools/sync_agent_canon.sh repairs AgentCanon root views
+# @dependency-end
+
+catalog_kind = "agent_canon_responsibility_scope"
+version = 1
+
+owner_values = [
+  "agent-canon",
+  "template",
+  "derived-project",
+  "github",
+  "external-vendor",
+]
+
+class_values = [
+  "shared_runtime",
+  "shared_policy",
+  "active_contract",
+  "durable_state",
+  "evidence",
+  "tooling",
+  "github_surface",
+  "external_dependency",
+]
+
+required_coverage = [
+  ".codex",
+  ".devcontainer",
+  ".github",
+  ".vscode",
+  ".agents",
+  "documents",
+  "docker",
+  "evidence",
+  "experiments",
+  "python",
+  "scripts",
+  "tests",
+  "vendor/agent-canon",
+  "README.md",
+  "QUICK_START.md",
+  "responsibility-scope.toml",
+]
+
+[[scope]]
+id = "agent-canon-runtime-view"
+owner = "agent-canon"
+class = "shared_runtime"
+description = "AgentCanon submodule pin and root runtime views into that pin."
+paths = [
+  "vendor/agent-canon/**",
+  "agents",
+  ".agents",
+  ".codex/**",
+  ".devcontainer",
+  ".vscode",
+  "tools",
+  "AGENTS.md",
+  "evidence",
+  "memory/**",
+]
+protecting_tools = [
+  "tools/agent_tools/responsibility_scope.py",
+  "tools/sync_agent_canon.sh",
+]
+issues = []
+
+[[scope]]
+id = "template-active-contract"
+owner = "template"
+class = "active_contract"
+description = "Template-owned entrypoints, bootstrap contracts, Docker runtime, implementation skeleton, tests, and durable docs."
+paths = [
+  "README.md",
+  "QUICK_START.md",
+  "responsibility-scope.toml",
+  "documents/**",
+  "docker/**",
+  "scripts/**",
+  "python/**",
+  "src/**",
+  "include/**",
+  "lib/**",
+  "cmake/**",
+  "tests/**",
+]
+protecting_tools = [
+  "tools/agent_tools/responsibility_scope.py",
+  "tools/agent_tools/run_repo_dependency_review.sh",
+  "tools/ci/container_config.py",
+]
+issues = []
+
+[[scope]]
+id = "github-automation"
+owner = "github"
+class = "github_surface"
+description = "Repository-local GitHub Actions, PR templates, and GitHub-facing automation."
+paths = [
+  ".github/**",
+]
+protecting_tools = [
+  "tools/ci/check_github_workflows.py",
+]
+issues = []
+
+[[scope]]
+id = "project-durable-state"
+owner = "derived-project"
+class = "durable_state"
+description = "Project-specific checked-in notes, experiments, references, and runtime state."
+paths = [
+  "experiments/**",
+  "notes/**",
+  "references/**",
+]
+protecting_tools = [
+  "tools/agent_tools/responsibility_scope.py",
+]
+issues = []

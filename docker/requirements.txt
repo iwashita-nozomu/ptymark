@@ -1,0 +1,45 @@
+# @dependency-start
+# contract environment
+# responsibility Pins Python packages installed in the container runtime.
+# upstream environment README.md docker runtime guidance
+# upstream environment Dockerfile installs Python dependencies
+# @dependency-end
+# Core numerical computing
+jax
+jaxtyping
+typeguard
+equinox
+optax
+scipy
+scipy-stubs
+
+# Testing
+pytest>=8
+
+# Development & Analysis
+pyright
+pydeps
+pipdeptree
+deptry
+snakeviz
+psutil
+pydocstyle
+ruff
+
+# Notebook Runtime
+jupyterlab
+notebook
+ipykernel
+
+# Documentation & Formatting
+mdformat
+mdformat-myst
+pyyaml>=6
+tomli>=2.0.1
+
+# Security & Audit
+jsonschema>=4.0.0
+cryptography>=41.0.0
+
+# Data validation
+pydantic>=2.0.0
