@@ -1,0 +1,104 @@
+# @dependency-start
+# contract configuration
+# responsibility Provides the canonical user-facing ptymark configuration example.
+# upstream design ../documents/configuration.md configuration ownership and precedence contract
+# downstream test ../tests/config_contract.rs parses and resolves this example
+# @dependency-end
+
+schema_version = 1
+default_profile = "interactive"
+
+[profiles.interactive]
+mode = "transform"
+fallback = "source"
+
+[profiles.interactive.detection]
+mode = "explicit-blocks"
+mermaid = true
+block_math = true
+max_buffer_bytes = 1048576
+max_line_bytes = 65536
+
+[profiles.interactive.detection.fences]
+mermaid = ["mermaid"]
+math = ["math", "latex", "tex"]
+
+[profiles.interactive.render]
+soft_latency_budget_ms = 250
+hard_timeout_ms = 1500
+max_in_flight = 1
+ordering = "strict"
+prewarm = true
+worker_idle_ms = 300000
+worker_max_requests = 1000
+
+[profiles.interactive.engines.mermaid]
+candidates = ["mermaid-worker", "mermaid-cli", "source"]
+preferred_artifacts = ["image/svg+xml", "text/plain"]
+
+[profiles.interactive.engines.math]
+candidates = ["mathjax-worker", "katex", "source"]
+preferred_artifacts = ["image/svg+xml", "application/mathml+xml", "text/plain"]
+
+[profiles.interactive.presentation]
+mode = "auto"
+prefer = ["image/svg+xml", "text/plain"]
+image_protocols = ["kitty", "iterm2", "sixel"]
+unsupported = "source"
+transparent_background = true
+max_columns = 120
+max_rows = 40
+preserve_aspect_ratio = true
+
+[profiles.interactive.cache]
+backend = "memory"
+max_entries = 128
+max_bytes = 33554432
+private = false
+
+[profiles.interactive.diagnostics]
+level = "warn"
+format = "text"
+sink = "stderr"
+include_source = false
+metrics = true
+
+[profiles.private]
+extends = "interactive"
+
+[profiles.private.cache]
+backend = "none"
+private = true
+
+[profiles.private.diagnostics]
+include_source = false
+metrics = false
+
+[profiles.ci]
+extends = "interactive"
+mode = "source"
+
+[profiles.ci.presentation]
+mode = "source"
+image_protocols = []
+unsupported = "source"
+
+[profiles.ci.cache]
+backend = "none"
+
+[runtimes.node]
+required_version = ">=24.18.0 <25"
+args = []
+
+[runtimes.chromium]
+args = []
+
+[renderer_bundle]
+require_lock_match = true
+
+[diagnostics]
+level = "warn"
+format = "text"
+sink = "stderr"
+include_source = false
+metrics = true
