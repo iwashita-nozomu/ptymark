@@ -26,7 +26,6 @@ impl Error for DetectError {}
 
 pub trait SemanticDetector: Send {
     fn feed(&mut self, input: &[u8]) -> Result<Vec<StreamItem>, DetectError>;
-
     fn finish(&mut self) -> Result<Vec<StreamItem>, DetectError>;
 }
 
@@ -41,165 +40,217 @@ impl<T: SemanticDetector + ?Sized> SemanticDetector for Box<T> {
 }
 
 #[derive(Debug)]
-enum FenceState {
-    Passthrough,
+enum DetectorState {
+    LineStart {
+        candidate: Vec<u8>,
+    },
+    PassthroughLine,
     Buffering {
         kind: BlockKind,
         source: Vec<u8>,
         body: Vec<u8>,
+        pending_line: Vec<u8>,
     },
 }
 
 #[derive(Debug)]
 pub struct FencedDetector {
-    pending_line: Vec<u8>,
-    state: FenceState,
+    state: DetectorState,
     max_buffer_bytes: usize,
-    passthrough_until_newline: bool,
 }
 
 impl FencedDetector {
     pub fn new(max_buffer_bytes: usize) -> Self {
         Self {
-            pending_line: Vec::new(),
-            state: FenceState::Passthrough,
+            state: DetectorState::LineStart {
+                candidate: Vec::new(),
+            },
             max_buffer_bytes: max_buffer_bytes.max(1),
-            passthrough_until_newline: false,
         }
     }
+}
 
-    fn process_line(&mut self, line: Vec<u8>, output: &mut Vec<StreamItem>) {
-        let trimmed = trim_ascii_line(&line);
-        let current = mem::replace(&mut self.state, FenceState::Passthrough);
+const OPENERS: &[(&[u8], BlockKind)] = &[
+    (b"$$\n", BlockKind::Math),
+    (b"$$\r\n", BlockKind::Math),
+    (b" $$\n", BlockKind::Math),
+    (b" $$\r\n", BlockKind::Math),
+    (b"  $$\n", BlockKind::Math),
+    (b"  $$\r\n", BlockKind::Math),
+    (b"   $$\n", BlockKind::Math),
+    (b"   $$\r\n", BlockKind::Math),
+    (b"```mermaid\n", BlockKind::Mermaid),
+    (b"```mermaid\r\n", BlockKind::Mermaid),
+    (b" ```mermaid\n", BlockKind::Mermaid),
+    (b" ```mermaid\r\n", BlockKind::Mermaid),
+    (b"  ```mermaid\n", BlockKind::Mermaid),
+    (b"  ```mermaid\r\n", BlockKind::Mermaid),
+    (b"   ```mermaid\n", BlockKind::Mermaid),
+    (b"   ```mermaid\r\n", BlockKind::Mermaid),
+];
 
-        match current {
-            FenceState::Passthrough => {
-                if trimmed == b"```mermaid" {
-                    self.state = FenceState::Buffering {
-                        kind: BlockKind::Mermaid,
-                        source: line,
-                        body: Vec::new(),
-                    };
-                } else if trimmed == b"$$" {
-                    self.state = FenceState::Buffering {
-                        kind: BlockKind::Math,
-                        source: line,
-                        body: Vec::new(),
-                    };
-                } else {
-                    output.push(StreamItem::Passthrough(line));
-                }
-            }
-            FenceState::Buffering {
-                kind,
-                mut source,
-                mut body,
-            } => {
-                if source.len().saturating_add(line.len()) > self.max_buffer_bytes {
-                    source.extend_from_slice(&line);
-                    output.push(StreamItem::Passthrough(source));
-                    return;
-                }
+fn opener_kind(candidate: &[u8]) -> Option<BlockKind> {
+    OPENERS
+        .iter()
+        .find_map(|(pattern, kind)| (*pattern == candidate).then_some(*kind))
+}
 
-                let closes_block = match kind {
-                    BlockKind::Mermaid => trimmed == b"```",
-                    BlockKind::Math => trimmed == b"$$",
-                };
+fn opener_is_still_possible(candidate: &[u8]) -> bool {
+    OPENERS
+        .iter()
+        .any(|(pattern, _)| pattern.starts_with(candidate))
+}
 
-                source.extend_from_slice(&line);
-                if closes_block {
-                    output.push(StreamItem::Semantic(SemanticBlock::new(kind, source, body)));
-                } else {
-                    body.extend_from_slice(&line);
-                    self.state = FenceState::Buffering { kind, source, body };
-                }
-            }
-        }
+fn closing_line(kind: BlockKind, line: &[u8]) -> bool {
+    let mut line = line;
+    if let Some(stripped) = line.strip_suffix(b"\n") {
+        line = stripped;
     }
+    if let Some(stripped) = line.strip_suffix(b"\r") {
+        line = stripped;
+    }
+    let leading_spaces = line.iter().take_while(|byte| **byte == b' ').count();
+    if leading_spaces > 3 {
+        return false;
+    }
+    let line = &line[leading_spaces..];
+    match kind {
+        BlockKind::Math => line == b"$$",
+        BlockKind::Mermaid => line == b"```",
+    }
+}
 
-    fn flush_overlong_fragment(
-        &mut self,
-        fragment: &[u8],
-        fragment_ends_line: bool,
-        output: &mut Vec<StreamItem>,
-    ) {
-        let pending = mem::take(&mut self.pending_line);
-        let current = mem::replace(&mut self.state, FenceState::Passthrough);
-        let mut original = match current {
-            FenceState::Passthrough => pending,
-            FenceState::Buffering { mut source, .. } => {
-                source.extend_from_slice(&pending);
-                source
-            }
-        };
-        original.extend_from_slice(fragment);
-        if !original.is_empty() {
-            output.push(StreamItem::Passthrough(original));
-        }
-        self.passthrough_until_newline = !fragment_ends_line;
+fn push_passthrough(output: &mut Vec<StreamItem>, bytes: &[u8]) {
+    if bytes.is_empty() {
+        return;
+    }
+    match output.last_mut() {
+        Some(StreamItem::Passthrough(existing)) => existing.extend_from_slice(bytes),
+        _ => output.push(StreamItem::Passthrough(bytes.to_vec())),
     }
 }
 
 impl SemanticDetector for FencedDetector {
     fn feed(&mut self, input: &[u8]) -> Result<Vec<StreamItem>, DetectError> {
         let mut output = Vec::new();
-        let mut cursor = 0;
 
-        while cursor < input.len() {
-            if self.passthrough_until_newline {
-                let remaining = &input[cursor..];
-                if let Some(relative_newline) = remaining.iter().position(|byte| *byte == b'\n') {
-                    let end = cursor + relative_newline + 1;
-                    output.push(StreamItem::Passthrough(input[cursor..end].to_vec()));
-                    cursor = end;
-                    self.passthrough_until_newline = false;
-                } else {
-                    output.push(StreamItem::Passthrough(remaining.to_vec()));
-                    break;
-                }
-                continue;
-            }
+        for &byte in input {
+            let state = mem::replace(
+                &mut self.state,
+                DetectorState::LineStart {
+                    candidate: Vec::new(),
+                },
+            );
 
-            let remaining = &input[cursor..];
-            if let Some(relative_newline) = remaining.iter().position(|byte| *byte == b'\n') {
-                let end = cursor + relative_newline + 1;
-                let fragment = &input[cursor..end];
-                if self.pending_line.len().saturating_add(fragment.len()) > self.max_buffer_bytes {
-                    self.flush_overlong_fragment(fragment, true, &mut output);
-                } else {
-                    self.pending_line.extend_from_slice(fragment);
-                    let line = mem::take(&mut self.pending_line);
-                    self.process_line(line, &mut output);
+            self.state = match state {
+                DetectorState::LineStart { mut candidate } => {
+                    candidate.push(byte);
+                    if candidate.len() > self.max_buffer_bytes {
+                        push_passthrough(&mut output, &candidate);
+                        if byte == b'\n' {
+                            DetectorState::LineStart {
+                                candidate: Vec::new(),
+                            }
+                        } else {
+                            DetectorState::PassthroughLine
+                        }
+                    } else if let Some(kind) = opener_kind(&candidate) {
+                        DetectorState::Buffering {
+                            kind,
+                            source: candidate,
+                            body: Vec::new(),
+                            pending_line: Vec::new(),
+                        }
+                    } else if opener_is_still_possible(&candidate) {
+                        DetectorState::LineStart { candidate }
+                    } else {
+                        push_passthrough(&mut output, &candidate);
+                        if byte == b'\n' {
+                            DetectorState::LineStart {
+                                candidate: Vec::new(),
+                            }
+                        } else {
+                            DetectorState::PassthroughLine
+                        }
+                    }
                 }
-                cursor = end;
-            } else {
-                if self.pending_line.len().saturating_add(remaining.len()) > self.max_buffer_bytes {
-                    self.flush_overlong_fragment(remaining, false, &mut output);
-                } else {
-                    self.pending_line.extend_from_slice(remaining);
+                DetectorState::PassthroughLine => {
+                    push_passthrough(&mut output, &[byte]);
+                    if byte == b'\n' {
+                        DetectorState::LineStart {
+                            candidate: Vec::new(),
+                        }
+                    } else {
+                        DetectorState::PassthroughLine
+                    }
                 }
-                break;
-            }
+                DetectorState::Buffering {
+                    kind,
+                    mut source,
+                    mut body,
+                    mut pending_line,
+                } => {
+                    source.push(byte);
+                    pending_line.push(byte);
+
+                    if source.len() > self.max_buffer_bytes {
+                        push_passthrough(&mut output, &source);
+                        if byte == b'\n' {
+                            DetectorState::LineStart {
+                                candidate: Vec::new(),
+                            }
+                        } else {
+                            DetectorState::PassthroughLine
+                        }
+                    } else if byte == b'\n' {
+                        if closing_line(kind, &pending_line) {
+                            output
+                                .push(StreamItem::Semantic(SemanticBlock::new(kind, source, body)));
+                            DetectorState::LineStart {
+                                candidate: Vec::new(),
+                            }
+                        } else {
+                            body.extend_from_slice(&pending_line);
+                            pending_line.clear();
+                            DetectorState::Buffering {
+                                kind,
+                                source,
+                                body,
+                                pending_line,
+                            }
+                        }
+                    } else {
+                        DetectorState::Buffering {
+                            kind,
+                            source,
+                            body,
+                            pending_line,
+                        }
+                    }
+                }
+            };
         }
 
         Ok(output)
     }
 
     fn finish(&mut self) -> Result<Vec<StreamItem>, DetectError> {
+        let state = mem::replace(
+            &mut self.state,
+            DetectorState::LineStart {
+                candidate: Vec::new(),
+            },
+        );
         let mut output = Vec::new();
-
-        if !self.pending_line.is_empty() {
-            let line = mem::take(&mut self.pending_line);
-            self.process_line(line, &mut output);
+        match state {
+            DetectorState::LineStart { candidate } => {
+                push_passthrough(&mut output, &candidate);
+            }
+            DetectorState::PassthroughLine => {}
+            DetectorState::Buffering { source, .. } => {
+                push_passthrough(&mut output, &source);
+            }
         }
-
-        if let FenceState::Buffering { source, .. } =
-            mem::replace(&mut self.state, FenceState::Passthrough)
-        {
-            output.push(StreamItem::Passthrough(source));
-        }
-
-        self.passthrough_until_newline = false;
         Ok(output)
     }
 }
@@ -215,22 +266,6 @@ impl SemanticDetector for PassthroughDetector {
     fn finish(&mut self) -> Result<Vec<StreamItem>, DetectError> {
         Ok(Vec::new())
     }
-}
-
-fn trim_ascii_line(mut line: &[u8]) -> &[u8] {
-    while matches!(line.last(), Some(b'\n') | Some(b'\r')) {
-        line = &line[..line.len() - 1];
-    }
-
-    while matches!(line.first(), Some(byte) if byte.is_ascii_whitespace()) {
-        line = &line[1..];
-    }
-
-    while matches!(line.last(), Some(byte) if byte.is_ascii_whitespace()) {
-        line = &line[..line.len() - 1];
-    }
-
-    line
 }
 
 #[cfg(test)]
@@ -257,6 +292,23 @@ mod tests {
                 if block.kind() == BlockKind::Mermaid && block.body() == b"A --> B\n"
         ));
         assert!(matches!(&items[2], StreamItem::Passthrough(bytes) if bytes == b"after\n"));
+    }
+
+    #[test]
+    fn ordinary_prompt_without_newline_is_forwarded_immediately() {
+        let mut detector = FencedDetector::new(1024);
+        let items = detector.feed(b"prompt> ").expect("feed");
+        assert_eq!(items, vec![StreamItem::Passthrough(b"prompt> ".to_vec())]);
+    }
+
+    #[test]
+    fn possible_fence_prefix_is_bounded_then_released() {
+        let mut detector = FencedDetector::new(1024);
+        assert!(detector.feed(b"$").expect("prefix").is_empty());
+        assert_eq!(
+            detector.feed(b" ").expect("release"),
+            vec![StreamItem::Passthrough(b"$ ".to_vec())]
+        );
     }
 
     #[test]
