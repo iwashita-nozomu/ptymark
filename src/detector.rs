@@ -108,9 +108,7 @@ impl FencedDetector {
 
                 source.extend_from_slice(&line);
                 if closes_block {
-                    output.push(StreamItem::Semantic(SemanticBlock::new(
-                        kind, source, body,
-                    )));
+                    output.push(StreamItem::Semantic(SemanticBlock::new(kind, source, body)));
                 } else {
                     body.extend_from_slice(&line);
                     self.state = FenceState::Buffering { kind, source, body };
@@ -166,9 +164,7 @@ impl SemanticDetector for FencedDetector {
             if let Some(relative_newline) = remaining.iter().position(|byte| *byte == b'\n') {
                 let end = cursor + relative_newline + 1;
                 let fragment = &input[cursor..end];
-                if self.pending_line.len().saturating_add(fragment.len())
-                    > self.max_buffer_bytes
-                {
+                if self.pending_line.len().saturating_add(fragment.len()) > self.max_buffer_bytes {
                     self.flush_overlong_fragment(fragment, true, &mut output);
                 } else {
                     self.pending_line.extend_from_slice(fragment);
@@ -177,9 +173,7 @@ impl SemanticDetector for FencedDetector {
                 }
                 cursor = end;
             } else {
-                if self.pending_line.len().saturating_add(remaining.len())
-                    > self.max_buffer_bytes
-                {
+                if self.pending_line.len().saturating_add(remaining.len()) > self.max_buffer_bytes {
                     self.flush_overlong_fragment(remaining, false, &mut output);
                 } else {
                     self.pending_line.extend_from_slice(remaining);

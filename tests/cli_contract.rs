@@ -65,7 +65,9 @@ fn help_and_version_are_stable_public_entrypoints() {
         .expect("version");
     assert!(version.status.success());
     assert_eq!(
-        String::from_utf8(version.stdout).expect("UTF-8 version").trim(),
+        String::from_utf8(version.stdout)
+            .expect("UTF-8 version")
+            .trim(),
         concat!("ptymark ", env!("CARGO_PKG_VERSION"))
     );
 }

@@ -100,11 +100,7 @@ impl<D: SemanticDetector, R: BlockRenderer> PreDisplayRenderer<D, R> {
         &self.report
     }
 
-    pub fn feed(
-        &mut self,
-        input: &[u8],
-        display: &mut dyn Write,
-    ) -> Result<(), PreDisplayError> {
+    pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PreDisplayError> {
         self.report.input_bytes = self.report.input_bytes.saturating_add(input.len());
 
         if self.mode == DisplayMode::Bypass {
@@ -224,7 +220,9 @@ mod tests {
         renderer
             .set_mode(DisplayMode::Bypass, &mut display)
             .expect("mode switch");
-        renderer.feed(b" B\n```\n", &mut display).expect("bypass feed");
+        renderer
+            .feed(b" B\n```\n", &mut display)
+            .expect("bypass feed");
         renderer.finish(&mut display).expect("finish");
 
         assert_eq!(display, b"```mermaid\nA --> B\n```\n");

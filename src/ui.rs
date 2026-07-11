@@ -19,12 +19,7 @@ impl Viewport {
         }
     }
 
-    pub const fn with_pixels(
-        columns: u16,
-        rows: u16,
-        pixel_width: u32,
-        pixel_height: u32,
-    ) -> Self {
+    pub const fn with_pixels(columns: u16, rows: u16, pixel_width: u32, pixel_height: u32) -> Self {
         Self {
             columns,
             rows,
@@ -341,8 +336,8 @@ impl RenderCache {
 #[cfg(test)]
 mod tests {
     use super::{
-        resize_action, CachePolicy, LayoutSensitivity, RenderCache, RenderKey, ResizeAction,
-        Viewport,
+        CachePolicy, LayoutSensitivity, RenderCache, RenderKey, ResizeAction, Viewport,
+        resize_action,
     };
     use crate::model::{BlockKind, SemanticBlock};
 

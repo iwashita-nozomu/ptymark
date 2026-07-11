@@ -283,9 +283,9 @@ fn run_command(mut arguments: Vec<OsString>) -> Result<i32, String> {
 
     #[cfg(not(unix))]
     {
-        let status = command.status().map_err(|error| {
-            format!("cannot execute `{}`: {error}", program.to_string_lossy())
-        })?;
+        let status = command
+            .status()
+            .map_err(|error| format!("cannot execute `{}`: {error}", program.to_string_lossy()))?;
         Ok(status.code().unwrap_or(1))
     }
 }

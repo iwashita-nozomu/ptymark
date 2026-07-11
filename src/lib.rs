@@ -12,6 +12,6 @@ pub use renderer::{
     RenderError, SourceRenderer,
 };
 pub use ui::{
-    resize_action, stable_fingerprint, CachePolicy, CacheStats, LayoutSensitivity, RenderCache,
-    RenderKey, ResizeAction, Viewport,
+    CachePolicy, CacheStats, LayoutSensitivity, RenderCache, RenderKey, ResizeAction, Viewport,
+    resize_action, stable_fingerprint,
 };

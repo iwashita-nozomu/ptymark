@@ -82,7 +82,8 @@ fn renderer_failure_restores_original_source_by_default() {
 
 #[test]
 fn strict_mode_surfaces_renderer_error() {
-    let mut pipeline = PreDisplayRenderer::new(FencedDetector::new(1024), FailingRenderer).strict(true);
+    let mut pipeline =
+        PreDisplayRenderer::new(FencedDetector::new(1024), FailingRenderer).strict(true);
     let mut display = Vec::new();
     let error = pipeline
         .feed(b"$$\nE = mc^2\n$$\n", &mut display)

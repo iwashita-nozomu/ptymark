@@ -225,7 +225,9 @@ impl ExternalRenderer {
         let stderr_result = stderr_reader
             .join()
             .map_err(|_| RenderError::new("renderer stderr reader panicked"))?
-            .map_err(|error| RenderError::new(format!("renderer diagnostic read failed: {error}")))?;
+            .map_err(|error| {
+                RenderError::new(format!("renderer diagnostic read failed: {error}"))
+            })?;
 
         if stdout_result.overflowed {
             return Err(RenderError::new(format!(
