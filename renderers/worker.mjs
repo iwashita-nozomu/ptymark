@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 
 import MathJax from "@mathjax/src/source";
 import { renderMermaid } from "@mermaid-js/mermaid-cli";
+import katex from "katex";
 import puppeteer from "puppeteer";
 
 let browserPromise;
@@ -29,10 +30,21 @@ async function mathJax() {
   return MathJax;
 }
 
-async function renderMath(source) {
+async function renderMathJax(source) {
   const engine = await mathJax();
   const node = engine.tex2svg(source, { display: true });
-  return engine.startup.adaptor.serializeXML(node);
+  return Buffer.from(engine.startup.adaptor.serializeXML(node), "utf8");
+}
+
+function renderKatex(source) {
+  return Buffer.from(
+    katex.renderToString(source, {
+      displayMode: true,
+      output: "mathml",
+      throwOnError: true,
+    }),
+    "utf8",
+  );
 }
 
 async function renderDiagram(request) {
@@ -56,16 +68,29 @@ export async function renderRequest(request) {
     throw new Error("request.source must be a string");
   }
 
+  const variant =
+    typeof request.engine === "string" && request.engine.length > 0
+      ? request.engine
+      : undefined;
   let bytes;
   let mediaType;
+  let engine;
   switch (request.kind) {
     case "math":
-      bytes = Buffer.from(await renderMath(request.source), "utf8");
-      mediaType = "image/svg+xml";
+      if (variant === "katex") {
+        bytes = renderKatex(request.source);
+        mediaType = "application/mathml+xml";
+        engine = "katex/0.17.0";
+      } else {
+        bytes = await renderMathJax(request.source);
+        mediaType = "image/svg+xml";
+        engine = "mathjax/4.1.3";
+      }
       break;
     case "mermaid":
       bytes = await renderDiagram(request);
       mediaType = "image/svg+xml";
+      engine = "mermaid-cli/11.16.0";
       break;
     default:
       throw new Error(`unsupported renderer kind: ${request.kind}`);
@@ -74,10 +99,7 @@ export async function renderRequest(request) {
   return {
     id: request.id ?? null,
     ok: true,
-    engine:
-      request.kind === "math"
-        ? "mathjax/4.1.3"
-        : "mermaid-cli/11.16.0-persistent",
+    engine,
     mediaType,
     dataBase64: bytes.toString("base64"),
     bytes: bytes.byteLength,
@@ -104,13 +126,47 @@ function responseForError(request, error) {
   };
 }
 
-async function runOnce() {
+async function readStandardInput() {
   let input = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => {
     input += chunk;
   });
   await once(process.stdin, "end");
+  return input;
+}
+
+function optionalInteger(value) {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+async function runStdio() {
+  const source = await readStandardInput();
+  const request = {
+    kind: process.env.PTYMARK_BLOCK_KIND,
+    source,
+    engine: process.env.PTYMARK_ENGINE_VARIANT,
+    width: optionalInteger(process.env.PTYMARK_TERMINAL_WIDTH),
+    height: optionalInteger(process.env.PTYMARK_TERMINAL_HEIGHT),
+    theme: process.env.PTYMARK_THEME || "default",
+  };
+  try {
+    const response = await renderRequest(request);
+    process.stdout.write(Buffer.from(response.dataBase64, "base64"));
+  } catch (error) {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    process.exitCode = 1;
+  } finally {
+    await shutdown();
+  }
+}
+
+async function runOnce() {
+  const input = await readStandardInput();
   const request = JSON.parse(input);
   try {
     process.stdout.write(`${JSON.stringify(await renderRequest(request))}\n`);
@@ -143,12 +199,18 @@ async function runWorker() {
 const invokedDirectly =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  const onceMode = process.argv.includes("--once");
   const shutdownOnSignal = async () => {
     await shutdown();
     process.exit(0);
   };
   process.once("SIGINT", shutdownOnSignal);
   process.once("SIGTERM", shutdownOnSignal);
-  await (onceMode ? runOnce() : runWorker());
+
+  if (process.argv.includes("--stdio-v1")) {
+    await runStdio();
+  } else if (process.argv.includes("--once")) {
+    await runOnce();
+  } else {
+    await runWorker();
+  }
 }
