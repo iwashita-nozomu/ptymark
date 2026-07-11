@@ -1,6 +1,6 @@
 use ptymark::{
-    BlockRenderer, FencedDetector, PreDisplayRenderer, PreviewRenderer, RenderContext,
-    SourceRenderer,
+    BlockRenderer, CachePolicy, CoordinatedRenderer, DisplayInterceptor, FencedDetector,
+    MemoryArtifactCache, PreDisplayRenderer, RenderContext, SourceRenderer, TerminalOutputGate,
 };
 use std::env;
 use std::ffi::OsString;
@@ -27,6 +27,7 @@ PREVIEW OPTIONS:
     --color                  emit ANSI color in compatible renderers
     --max-buffer-bytes N     semantic buffer limit (default: 1048576)
     --terminal-width N       width hint for renderer backends
+    --no-cache               disable the in-process render cache
     -h, --help               print this help
 
 GLOBAL OPTIONS:
@@ -58,6 +59,7 @@ struct PreviewOptions {
     source_renderer: bool,
     strict: bool,
     color: bool,
+    cache: bool,
     max_buffer_bytes: usize,
     terminal_width: Option<usize>,
     input: PreviewInput,
@@ -148,6 +150,7 @@ fn parse_preview(
         source_renderer: false,
         strict: false,
         color: false,
+        cache: true,
         max_buffer_bytes: 1024 * 1024,
         terminal_width: None,
         input: default_input,
@@ -163,6 +166,7 @@ fn parse_preview(
             "--source" => options.source_renderer = true,
             "--strict" => options.strict = true,
             "--color" => options.color = true,
+            "--no-cache" => options.cache = false,
             "--max-buffer-bytes" => {
                 options.max_buffer_bytes =
                     next_positive_usize(&mut iterator, "--max-buffer-bytes")?;
@@ -221,17 +225,28 @@ fn next_positive_usize(
 fn run_preview(options: PreviewOptions) -> Result<i32, String> {
     let renderer: Box<dyn BlockRenderer> = if options.source_renderer {
         Box::new(SourceRenderer)
+    } else if options.cache {
+        Box::new(
+            CoordinatedRenderer::preview(MemoryArtifactCache::new(CachePolicy::default()))
+                .map_err(|error| error.to_string())?,
+        )
     } else {
-        Box::new(PreviewRenderer)
+        Box::new(
+            CoordinatedRenderer::preview(ptymark::NoopArtifactCache::default())
+                .map_err(|error| error.to_string())?,
+        )
     };
     let detector = FencedDetector::new(options.max_buffer_bytes);
     let context = RenderContext {
         color: options.color,
         terminal_width: options.terminal_width,
+        theme_fingerprint: 0,
+        options_fingerprint: 0,
     };
-    let mut pre_display = PreDisplayRenderer::new(detector, renderer)
+    let pre_display = PreDisplayRenderer::new(detector, renderer)
         .with_context(context)
         .strict(options.strict);
+    let mut interceptor = DisplayInterceptor::new(TerminalOutputGate::default(), pre_display);
 
     let mut input: Box<dyn Read> = match options.input {
         PreviewInput::Stdin => Box::new(io::stdin()),
@@ -252,11 +267,11 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
         if count == 0 {
             break;
         }
-        pre_display
+        interceptor
             .feed(&chunk[..count], &mut display)
             .map_err(|error| error.to_string())?;
     }
-    pre_display
+    interceptor
         .finish(&mut display)
         .map_err(|error| error.to_string())?;
     display.flush().map_err(|error| error.to_string())?;
