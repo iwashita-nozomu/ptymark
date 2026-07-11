@@ -45,7 +45,7 @@ GLOBAL OPTIONS:
 
 EXAMPLES:
     ptymark --profile interactive -- zsh -l
-    printf '$$\\nE = mc^2\\n$$\\n' | ptymark preview
+    printf '$$\nE = mc^2\n$$\n' | ptymark preview
     ptymark --profile private preview --no-cache
     ptymark config check --config ./ptymark.toml
     ptymark config show --profile interactive --provenance
@@ -155,10 +155,7 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
 
 fn parse_leading_config_options(arguments: &mut Vec<OsString>) -> Result<ConfigOptions, String> {
     let mut options = ConfigOptions::default();
-    loop {
-        let Some(option) = arguments.first().and_then(|value| value.to_str()) else {
-            break;
-        };
+    while let Some(option) = arguments.first().and_then(|value| value.to_str()) {
         match option {
             "--config" => {
                 arguments.remove(0);
