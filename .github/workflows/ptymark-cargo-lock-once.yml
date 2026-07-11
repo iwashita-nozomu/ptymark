@@ -1,0 +1,70 @@
+# @dependency-start
+# contract workflow
+# responsibility Regenerates the ptymark Cargo lockfile once after adding configuration dependencies.
+# upstream configuration ../../Cargo.toml declares the Rust dependency requirements.
+# upstream implementation ../../src/config.rs introduces serde and TOML configuration support.
+# downstream workflow ./ptymark-ci.yml validates the committed lockfile with --locked.
+# @dependency-end
+name: ptymark Cargo Lock Once
+
+on:
+  push:
+    branches:
+      - agent/renderer-skeleton-staging
+    paths:
+      - .github/workflows/ptymark-cargo-lock-once.yml
+
+permissions:
+  contents: write
+
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
+concurrency:
+  group: ptymark-cargo-lock-once-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Resolve and verify Rust dependencies
+        run: |
+          cargo generate-lockfile
+          cargo fmt --all -- --check
+          cargo check --locked --all-targets
+          cargo test --locked --lib config::
+
+      - name: Commit the exact lockfile
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- Cargo.lock; then
+            echo "Cargo.lock is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git commit -m "Lock ptymark configuration dependencies"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
