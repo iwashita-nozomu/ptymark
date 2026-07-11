@@ -1,6 +1,7 @@
 use crate::detector::{DetectError, SemanticDetector};
 use crate::model::{DisplayMode, StreamItem};
 use crate::renderer::{BlockRenderer, RenderContext, RenderError};
+use crate::terminal::{DisplayOutputGate, OutputSegment};
 use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
@@ -175,12 +176,59 @@ impl<D: SemanticDetector, R: BlockRenderer> PreDisplayRenderer<D, R> {
     }
 }
 
+pub struct DisplayInterceptor<G, D, R> {
+    gate: G,
+    pre_display: PreDisplayRenderer<D, R>,
+}
+
+impl<G: DisplayOutputGate, D: SemanticDetector, R: BlockRenderer> DisplayInterceptor<G, D, R> {
+    pub fn new(gate: G, pre_display: PreDisplayRenderer<D, R>) -> Self {
+        Self { gate, pre_display }
+    }
+
+    pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PreDisplayError> {
+        let segments = self.gate.feed(input);
+        self.emit_segments(segments, display)
+    }
+
+    pub fn finish(&mut self, display: &mut dyn Write) -> Result<(), PreDisplayError> {
+        let segments = self.gate.finish();
+        self.emit_segments(segments, display)?;
+        self.pre_display.finish(display)
+    }
+
+    pub fn report(&self) -> &PreDisplayReport {
+        self.pre_display.report()
+    }
+
+    fn emit_segments(
+        &mut self,
+        segments: Vec<OutputSegment>,
+        display: &mut dyn Write,
+    ) -> Result<(), PreDisplayError> {
+        for segment in segments {
+            match segment {
+                OutputSegment::SafeText(bytes) => {
+                    self.pre_display.set_mode(DisplayMode::Transform, display)?;
+                    self.pre_display.feed(&bytes, display)?;
+                }
+                OutputSegment::RawTerminalBytes(bytes) => {
+                    self.pre_display.set_mode(DisplayMode::Bypass, display)?;
+                    self.pre_display.feed(&bytes, display)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::PreDisplayRenderer;
+    use super::{DisplayInterceptor, PreDisplayRenderer};
     use crate::detector::FencedDetector;
     use crate::model::{DisplayMode, SemanticBlock};
     use crate::renderer::{BlockRenderer, RenderContext, RenderError};
+    use crate::terminal::TerminalOutputGate;
 
     #[derive(Debug, Default)]
     struct KindRenderer;
@@ -227,5 +275,19 @@ mod tests {
 
         assert_eq!(display, b"```mermaid\nA --> B\n```\n");
         assert_eq!(renderer.report().rendered_blocks, 0);
+    }
+
+    #[test]
+    fn terminal_control_forces_lossless_display_bypass() {
+        let source = b"before\n\x1b[?1049h$$\nE = mc^2\n$$\n\x1b[?1049lafter\n";
+        let pre_display = PreDisplayRenderer::new(FencedDetector::new(1024), KindRenderer);
+        let mut interceptor = DisplayInterceptor::new(TerminalOutputGate::default(), pre_display);
+        let mut display = Vec::new();
+        for chunk in source.chunks(1) {
+            interceptor.feed(chunk, &mut display).expect("feed");
+        }
+        interceptor.finish(&mut display).expect("finish");
+        assert_eq!(display, source);
+        assert_eq!(interceptor.report().rendered_blocks, 0);
     }
 }
