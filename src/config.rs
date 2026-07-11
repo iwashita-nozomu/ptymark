@@ -1,0 +1,124 @@
+mod model;
+mod resolve;
+mod source;
+
+pub use model::{
+    CONFIG_SCHEMA_VERSION, CacheBackend, CacheConfig, CachePolicyConfig, ConfigFile,
+    ConfiguredExecutionModel, ConfiguredLayout, DetectionConfig, DetectionMode, DetectionPolicy,
+    DiagnosticFormat, DiagnosticLevel, DiagnosticSink, DiagnosticsConfig, DiagnosticsPolicy,
+    EngineSelectionConfig, EngineSelectionPolicy, EngineType, ExternalEngineConfig, FallbackPolicy,
+    FenceConfig, PresentationConfig, PresentationMode, PresentationPolicy, ProfileConfig,
+    RenderConfig, RenderOrdering, RenderPolicy, RendererBundleConfig, ResolvedConfig, RuntimeConfig,
+    SessionMode, UnsupportedPresentation,
+};
+pub use resolve::ConfigManager;
+pub use source::{
+    ConfigEnvironment, ConfigLocator, ConfigOrigin, ConfigRequest, ConfigSource, ConfigTrust,
+    FilesystemConfigLocator,
+};
+
+use serde::Serialize;
+use std::error::Error;
+use std::fmt;
+use std::path::PathBuf;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigErrorKind {
+    Discovery,
+    Io,
+    Parse,
+    Schema,
+    Profile,
+    Validation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConfigError {
+    kind: ConfigErrorKind,
+    path: Option<PathBuf>,
+    message: String,
+}
+
+impl ConfigError {
+    pub fn new(
+        kind: ConfigErrorKind,
+        path: Option<PathBuf>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind,
+            path,
+            message: message.into(),
+        }
+    }
+
+    pub fn discovery(message: impl Into<String>) -> Self {
+        Self::new(ConfigErrorKind::Discovery, None, message)
+    }
+
+    pub fn io(path: Option<PathBuf>, message: impl Into<String>) -> Self {
+        Self::new(ConfigErrorKind::Io, path, message)
+    }
+
+    pub fn parse(path: Option<PathBuf>, message: impl Into<String>) -> Self {
+        Self::new(ConfigErrorKind::Parse, path, message)
+    }
+
+    pub fn schema(path: Option<PathBuf>, message: impl Into<String>) -> Self {
+        Self::new(ConfigErrorKind::Schema, path, message)
+    }
+
+    pub fn profile(message: impl Into<String>) -> Self {
+        Self::new(ConfigErrorKind::Profile, None, message)
+    }
+
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self::new(ConfigErrorKind::Validation, None, message)
+    }
+
+    pub const fn kind(&self) -> ConfigErrorKind {
+        self.kind
+    }
+
+    pub fn path(&self) -> Option<&std::path::Path> {
+        self.path.as_deref()
+    }
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(path) = &self.path {
+            write!(formatter, "{}: {}", path.display(), self.message)
+        } else {
+            formatter.write_str(&self.message)
+        }
+    }
+}
+
+impl Error for ConfigError {}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ConfigProvenance {
+    pub selected_profile: String,
+    pub sources: Vec<ConfigSource>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoadedConfig {
+    pub config: ResolvedConfig,
+    pub provenance: ConfigProvenance,
+}
+
+impl LoadedConfig {
+    pub fn effective_toml(&self) -> Result<String, ConfigError> {
+        toml::to_string_pretty(&self.config)
+            .map_err(|error| ConfigError::validation(format!("cannot serialize config: {error}")))
+    }
+
+    pub fn provenance_toml(&self) -> Result<String, ConfigError> {
+        toml::to_string_pretty(&self.provenance).map_err(|error| {
+            ConfigError::validation(format!("cannot serialize config provenance: {error}"))
+        })
+    }
+}
