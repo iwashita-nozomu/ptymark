@@ -1,6 +1,6 @@
 PTYMARK_COMPOSE = docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml
 
-.PHONY: ptymark-docker-build ptymark-check ptymark-check-local ptymark-dev ptymark-clean
+.PHONY: ptymark-docker-build ptymark-check ptymark-check-local ptymark-benchmark ptymark-dev ptymark-clean
 
 ptymark-docker-build:
 	$(PTYMARK_COMPOSE) build --pull
@@ -17,16 +17,20 @@ ptymark-check-local:
 	cargo run --quiet --locked -- demo > /tmp/ptymark-demo.txt
 	grep -F "ptymark mermaid preview" /tmp/ptymark-demo.txt >/dev/null
 	lua5.4 tests/plugin_smoke.lua
-	bash -n scripts/ptymark-dev-container.sh
-	bash -n scripts/check-ptymark-dependencies.sh
-	bash -n scripts/check-ptymark-renderers.sh
-	bash -n scripts/package-ptymark-release.sh
-	shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/package-ptymark-release.sh
+	bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh
+	shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh
+	python3 -m py_compile scripts/check-ptymark-benchmarks.py
+	node --check "$$PTYMARK_RENDERER_ROOT/worker.mjs"
+	node --check "$$PTYMARK_RENDERER_ROOT/check.mjs"
+	node --check "$$PTYMARK_RENDERER_ROOT/benchmark.mjs"
 	bash scripts/check-ptymark-dependencies.sh
 	bash scripts/check-ptymark-renderers.sh
 	rm -rf /tmp/ptymark-dist
 	bash scripts/package-ptymark-release.sh target/release/ptymark /tmp/ptymark-dist
 	test -n "$$(find /tmp/ptymark-dist -name 'ptymark-*.tar.gz' -print -quit)"
+
+ptymark-benchmark:
+	$(PTYMARK_COMPOSE) run --rm --no-TTY dev bash scripts/benchmark-ptymark-renderers.sh
 
 ptymark-dev:
 	$(PTYMARK_COMPOSE) run --rm dev bash
