@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @dependency-start
 # contract distribution
-# responsibility Builds a native ptymark archive with the binary, launcher, validated configuration examples, user/design documents, and checksum.
+# responsibility Builds and verifies a native ptymark archive with the binary, launcher, validated configuration examples, user/design documents, and checksum.
 # upstream implementation ../Cargo.toml supplies the package version.
 # upstream implementation ../plugin/init.lua supplies the WezTerm launcher.
 # upstream configuration ../examples/ptymark.example.toml supplies the canonical complete configuration.
@@ -26,6 +26,7 @@ host="$(rustc -vV | sed -n 's/^host: //p')"
 [[ -n "$version" && -n "$host" ]]
 
 archive_root="ptymark-v${version}-${host}"
+archive_path="$out_dir/$archive_root.tar.gz"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 mkdir -p \
@@ -57,7 +58,30 @@ for document in \
   cp "documents/$document" "$work_dir/$archive_root/documents/$document"
 done
 
-tar -C "$work_dir" -czf "$out_dir/$archive_root.tar.gz" "$archive_root"
+tar -C "$work_dir" -czf "$archive_path" "$archive_root"
+
+archive_entries="$(tar -tzf "$archive_path")"
+for required in \
+  ptymark \
+  README.md \
+  LICENSE \
+  plugin/init.lua \
+  examples/ptymark.example.toml \
+  examples/config/minimal.toml \
+  examples/config/private.toml \
+  examples/config/ci.toml \
+  examples/config/wezterm-interactive.toml \
+  examples/config/custom-process.toml \
+  documents/system-design.md \
+  documents/design-review.md \
+  documents/extension-guide.md \
+  documents/configuration.md \
+  documents/usage.md; do
+  grep -Fx "$archive_root/$required" <<<"$archive_entries" >/dev/null || {
+    printf 'release archive is missing required entry: %s\n' "$required" >&2
+    exit 1
+  }
+done
 
 if command -v sha256sum >/dev/null 2>&1; then
   (cd "$out_dir" && sha256sum "$archive_root.tar.gz" >"$archive_root.tar.gz.sha256")
@@ -65,4 +89,4 @@ else
   (cd "$out_dir" && shasum -a 256 "$archive_root.tar.gz" >"$archive_root.tar.gz.sha256")
 fi
 
-printf '%s\n' "$out_dir/$archive_root.tar.gz"
+printf '%s\n' "$archive_path"
