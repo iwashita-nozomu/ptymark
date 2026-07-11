@@ -67,34 +67,25 @@ jobs:
           resolve.write_text(text.replace(old, new, 1))
 
           source = Path("src/config/source.rs")
-          text = source.read_text()
-          old = '''        if ambient_enabled {
-              if let Some(path) = Self::user_path(environment) {
-                  if path.is_file() {
-                      seen.insert(canonical_or_original(&path));
-                      sources.push(ConfigSource {
-                          origin: ConfigOrigin::User,
-                          trust: ConfigTrust::UserOwned,
-                          path,
-                      });
-                  }
-              }
-              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '            ')
-          new = '''        if ambient_enabled {
-              if let Some(path) = Self::user_path(environment)
-                  && path.is_file()
-              {
-                  seen.insert(canonical_or_original(&path));
-                  sources.push(ConfigSource {
-                      origin: ConfigOrigin::User,
-                      trust: ConfigTrust::UserOwned,
-                      path,
-                  });
-              }
-              if let Some(source) = Self::environment_source(environment) {'''.replace('              ', '            ')
-          if old not in text:
-              raise SystemExit("expected nested user-config condition was not found")
-          source.write_text(text.replace(old, new, 1))
+          lines = source.read_text().splitlines()
+          start = lines.index("            if let Some(path) = Self::user_path(environment) {")
+          if lines[start + 1] != "                if path.is_file() {":
+              raise SystemExit("unexpected user-config condition shape")
+          lines[start : start + 2] = [
+              "            if let Some(path) = Self::user_path(environment)",
+              "                && path.is_file()",
+              "            {",
+          ]
+          environment_source = lines.index(
+              "            if let Some(source) = Self::environment_source(environment) {",
+              start,
+          )
+          if lines[environment_source - 2] != "                }":
+              raise SystemExit("expected inner user-config closing brace was not found")
+          if lines[environment_source - 1] != "            }":
+              raise SystemExit("expected outer user-config closing brace was not found")
+          del lines[environment_source - 2]
+          source.write_text("\n".join(lines) + "\n")
           PY
           cargo fmt --all
 
