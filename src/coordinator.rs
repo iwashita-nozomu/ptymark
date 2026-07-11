@@ -1,5 +1,7 @@
-use crate::artifact::{ArtifactFormat, RenderArtifact};
-use crate::cache::{ArtifactCache, ArtifactCacheKey, CacheAdmission, CacheStats};
+use crate::artifact::{ArtifactExpectation, ArtifactFormat, RenderArtifact};
+use crate::cache::{
+    ArtifactCache, ArtifactCacheKey, CacheAdmission, CacheStats, InvalidationScope,
+};
 use crate::engine::{EngineRegistry, EngineSelector, RenderRequest};
 use crate::model::SemanticBlock;
 use crate::renderer::{RenderContext, RenderError};
@@ -35,6 +37,7 @@ pub struct CoordinatorStats {
     pub successful_renders: u64,
     pub fallback_attempts: u64,
     pub failures: u64,
+    pub invalid_artifacts: u64,
     pub engine_time: Duration,
 }
 
@@ -125,6 +128,12 @@ impl RenderCoordinator {
                 });
                 continue;
             };
+            let expectation = ArtifactExpectation {
+                engine: &descriptor.identity,
+                block_kind: block.kind(),
+                format,
+                layout_sensitivity: descriptor.layout_sensitivity,
+            };
 
             let key = ArtifactCacheKey::new(
                 block,
@@ -140,12 +149,29 @@ impl RenderCoordinator {
             );
 
             if let Some(artifact) = self.cache.get(&key) {
-                self.stats.cache_hits = self.stats.cache_hits.saturating_add(1);
-                return Ok(RenderOutcome {
-                    artifact,
-                    cache: CacheDisposition::Hit,
-                    attempts,
-                });
+                match artifact.validate(&expectation) {
+                    Ok(()) => {
+                        self.stats.cache_hits = self.stats.cache_hits.saturating_add(1);
+                        return Ok(RenderOutcome {
+                            artifact,
+                            cache: CacheDisposition::Hit,
+                            attempts,
+                        });
+                    }
+                    Err(error) => {
+                        self.stats.invalid_artifacts =
+                            self.stats.invalid_artifacts.saturating_add(1);
+                        self.cache.invalidate(&InvalidationScope::EngineVersion {
+                            id: descriptor.identity.id.clone(),
+                            version: descriptor.identity.version.clone(),
+                        });
+                        attempts.push(EngineAttempt {
+                            engine_id: descriptor.identity.id.clone(),
+                            duration: Duration::ZERO,
+                            error: Some(format!("cached artifact is invalid: {error}")),
+                        });
+                    }
+                }
             }
 
             if index > 0 {
@@ -162,26 +188,13 @@ impl RenderCoordinator {
                 Ok(artifact) => {
                     let duration = started.elapsed();
                     self.stats.engine_time = self.stats.engine_time.saturating_add(duration);
-                    if artifact.engine != descriptor.identity {
-                        let message = format!(
-                            "engine `{}` returned an artifact owned by `{}@{}`",
-                            descriptor.identity.id, artifact.engine.id, artifact.engine.version
-                        );
+                    if let Err(error) = artifact.validate(&expectation) {
+                        self.stats.invalid_artifacts =
+                            self.stats.invalid_artifacts.saturating_add(1);
                         attempts.push(EngineAttempt {
-                            engine_id: descriptor.identity.id,
+                            engine_id: descriptor.identity.id.clone(),
                             duration,
-                            error: Some(message),
-                        });
-                        continue;
-                    }
-                    if !accepted_formats.contains(&artifact.format) {
-                        attempts.push(EngineAttempt {
-                            engine_id: descriptor.identity.id,
-                            duration,
-                            error: Some(format!(
-                                "engine returned unsupported artifact format `{}`",
-                                artifact.format.as_str()
-                            )),
+                            error: Some(format!("engine returned an invalid artifact: {error}")),
                         });
                         continue;
                     }
