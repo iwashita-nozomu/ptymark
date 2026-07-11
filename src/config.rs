@@ -122,3 +122,18 @@ impl LoadedConfig {
         })
     }
 }
+
+impl ResolvedConfig {
+    /// Apply the process-local private-session override without weakening terminal safety.
+    ///
+    /// The override affects only pre-display services. It never changes input, termios,
+    /// signal forwarding, resize forwarding, child environment, or exit-status behavior.
+    pub fn apply_private_override(&mut self) {
+        self.cache.backend = CacheBackend::None;
+        self.cache.private = true;
+        self.diagnostics.sink = DiagnosticSink::Stderr;
+        self.diagnostics.path = None;
+        self.diagnostics.include_source = false;
+        self.diagnostics.metrics = false;
+    }
+}
