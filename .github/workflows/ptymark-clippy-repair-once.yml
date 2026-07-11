@@ -1,7 +1,7 @@
 # @dependency-start
 # contract workflow
-# responsibility Applies the three deterministic Clippy repairs identified by the diagnostic run and validates them once.
-# upstream workflow ./ptymark-clippy-diagnostic-once.yml captures the exact Rust 1.97.0 findings.
+# responsibility Applies the deterministic Clippy repairs, captures validation diagnostics, and commits only a passing tree once.
+# upstream workflow ./ptymark-clippy-diagnostic-once.yml captures the initial Rust 1.97.0 findings.
 # upstream implementation ../../src/cli.rs parses global configuration options.
 # upstream implementation ../../src/config/resolve.rs normalizes runtime definitions.
 # upstream implementation ../../src/config/source.rs discovers trusted configuration sources.
@@ -89,10 +89,37 @@ jobs:
           PY
           cargo fmt --all
 
-      - name: Validate repaired tree
+      - name: Capture repaired-tree validation
+        shell: bash
         run: |
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked --all-targets
+          set +e
+          cargo clippy --locked --all-targets -- -D warnings > repair-clippy.log 2>&1
+          clippy_status=$?
+          cargo test --locked --all-targets > repair-test.log 2>&1
+          test_status=$?
+          printf '%s\n' "$clippy_status" > repair-clippy.exit
+          printf '%s\n' "$test_status" > repair-test.exit
+          cat repair-clippy.log
+          cat repair-test.log
+          exit 0
+
+      - name: Upload repaired-tree diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-repaired-tree-diagnostics
+          path: |
+            repair-clippy.log
+            repair-clippy.exit
+            repair-test.log
+            repair-test.exit
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Require repaired tree to pass
+        run: |
+          test "$(cat repair-clippy.exit)" = 0
+          test "$(cat repair-test.exit)" = 0
 
       - name: Commit repaired sources
         env:
