@@ -1,0 +1,82 @@
+name: ptymark Template Gate Diagnostics Once
+
+on:
+  push:
+    branches:
+      - agent/initial-project-docs
+    paths:
+      - .github/workflows/ptymark-template-diagnostics-once.yml
+
+permissions:
+  contents: read
+
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
+concurrency:
+  group: ptymark-template-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docker/requirements.txt
+
+      - name: Install system and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes graphviz ripgrep
+          PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps \
+            bash docker/install_python_dependencies.sh "$PWD"
+
+      - name: Capture template gate logs
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          make agent-canon-pr-check 2>&1 | tee agent-canon-pr-check.log
+          agent_canon_status=${PIPESTATUS[0]}
+          printf '%s\n' "$agent_canon_status" > agent-canon-pr-check.status
+
+          make fresh-clone-check 2>&1 | tee fresh-clone-check.log
+          fresh_clone_status=${PIPESTATUS[0]}
+          printf '%s\n' "$fresh_clone_status" > fresh-clone-check.status
+
+          printf 'agent-canon-pr-check=%s\nfresh-clone-check=%s\n' \
+            "$agent_canon_status" "$fresh_clone_status" \
+            | tee diagnostic-summary.txt
+
+          exit 0
+
+      - name: Upload diagnostic logs
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-template-gate-diagnostics
+          path: |
+            agent-canon-pr-check.log
+            agent-canon-pr-check.status
+            fresh-clone-check.log
+            fresh-clone-check.status
+            diagnostic-summary.txt
+          if-no-files-found: error
+          retention-days: 3
