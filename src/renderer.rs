@@ -298,6 +298,7 @@ fn terminate_child(child: &mut Child) {
         let process_group = format!("-{}", child.id());
         let _ = Command::new("/bin/kill")
             .arg("-KILL")
+            .arg("--")
             .arg(process_group)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -392,7 +393,10 @@ mod tests {
     #[test]
     fn external_renderer_enforces_output_limit() {
         let mut config = ExternalRendererConfig::new("test/output", "/bin/sh");
-        config.arguments = vec![OsString::from("-c"), OsString::from("printf 12345")];
+        config.arguments = vec![
+            OsString::from("-c"),
+            OsString::from("cat >/dev/null; printf 12345"),
+        ];
         config.max_output_bytes = 4;
         let mut renderer = ExternalRenderer::new(config);
         let error = renderer
