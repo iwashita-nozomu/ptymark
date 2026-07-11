@@ -1,7 +1,7 @@
 # @dependency-start
 # contract workflow
-# responsibility Applies current machine-applicable Rust 1.97 Clippy fixes and commits only a fully passing tree once.
-# upstream workflow ./ptymark-clippy-diagnostic-once.yml captures the current exact findings.
+# responsibility Applies current Rust 1.97 machine fixes plus the explicit detector initializer cleanup and commits only a fully passing tree once.
+# upstream workflow ./ptymark-normalized-diagnostic-once.yml captures the normalized patch and residual findings.
 # upstream implementation ../../src/config/resolve.rs resolves configuration.
 # upstream implementation ../../src/config/source.rs discovers configuration.
 # upstream implementation ../../src/detector.rs detects explicit semantic fences.
@@ -54,9 +54,75 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Apply machine-applicable fixes
+      - name: Apply machine-applicable configuration fixes
+        run: cargo clippy --fix --locked --all-targets --allow-dirty --allow-staged -- -D warnings
+
+      - name: Normalize detector option initializers
         run: |
-          cargo clippy --fix --locked --all-targets --allow-dirty --allow-staged -- -D warnings
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/detector.rs")
+          text = path.read_text()
+          replacements = [
+              (
+                  """        let mut options = FencedDetectorOptions::default();
+          options.max_buffer_bytes = max_buffer_bytes;
+          options.max_line_bytes = (64 * 1024).min(max_buffer_bytes);
+          Self::with_options(options)""".replace("          ", "        "),
+                  """        Self::with_options(FencedDetectorOptions {
+          max_buffer_bytes,
+          max_line_bytes: (64 * 1024).min(max_buffer_bytes),
+          ..FencedDetectorOptions::default()
+      })""".replace("          ", "        ").replace("      })", "        })"),
+              ),
+              (
+                  """        let mut options = FencedDetectorOptions::default();
+          options.math_fences = vec![\"latex\".to_owned()];""".replace("          ", "        "),
+                  """        let options = FencedDetectorOptions {
+          math_fences: vec![\"latex\".to_owned()],
+          ..FencedDetectorOptions::default()
+      };""".replace("          ", "        ").replace("      };", "        };"),
+              ),
+              (
+                  """        let mut options = FencedDetectorOptions::default();
+          options.mermaid_fences = vec![\"diagram\".to_owned()];
+          options.math_fences = vec![\"diagram\".to_owned()];""".replace("          ", "        "),
+                  """        let options = FencedDetectorOptions {
+          mermaid_fences: vec![\"diagram\".to_owned()],
+          math_fences: vec![\"diagram\".to_owned()],
+          ..FencedDetectorOptions::default()
+      };""".replace("          ", "        ").replace("      };", "        };"),
+              ),
+              (
+                  """        let mut options = FencedDetectorOptions::default();
+          options.max_buffer_bytes = 1024;
+          options.max_line_bytes = 128;
+          options.mermaid = false;""".replace("          ", "        "),
+                  """        let options = FencedDetectorOptions {
+          max_buffer_bytes: 1024,
+          max_line_bytes: 128,
+          mermaid: false,
+          ..FencedDetectorOptions::default()
+      };""".replace("          ", "        ").replace("      };", "        };"),
+              ),
+              (
+                  """        let mut options = FencedDetectorOptions::default();
+          options.max_buffer_bytes = 1024;
+          options.max_line_bytes = 4;""".replace("          ", "        "),
+                  """        let options = FencedDetectorOptions {
+          max_buffer_bytes: 1024,
+          max_line_bytes: 4,
+          ..FencedDetectorOptions::default()
+      };""".replace("          ", "        ").replace("      };", "        };"),
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"expected detector initializer was not found: {old!r}")
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
           cargo fmt --all
 
       - name: Validate normalized tree
