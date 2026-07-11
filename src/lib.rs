@@ -1,5 +1,6 @@
 pub mod artifact;
 pub mod cache;
+pub mod cli;
 pub mod config;
 pub mod coordinator;
 pub mod detector;
