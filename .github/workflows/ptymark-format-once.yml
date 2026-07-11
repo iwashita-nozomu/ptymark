@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Applies pinned Rust formatting once after introducing the runtime composition root.
+# responsibility Applies the final pinned Rust lint cleanup and formatting once after introducing the runtime composition root.
 # upstream implementation ../../src/runtime.rs adds provider and runtime composition APIs.
 # upstream implementation ../../src/process_engine.rs adds strict process adapters.
 # downstream workflow ./ptymark-ci.yml verifies the committed normalized sources.
@@ -38,20 +38,28 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal --component rustfmt
           rustup override set 1.97.0
 
-      - name: Normalize Rust sources
-        run: cargo fmt --all
+      - name: Apply final lint cleanup and normalize Rust sources
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - name: Commit formatting
+          path = Path("src/runtime.rs")
+          text = path.read_text()
+          old = "use crate::model::{BlockKind, SemanticBlock};"
+          new = "use crate::model::BlockKind;"
+          if old not in text:
+              raise SystemExit("expected runtime import was not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cargo fmt --all
+
+      - name: Commit normalized sources
         env:
           PUSH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- '*.rs'; then
-            echo "Rust sources were already normalized"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- '*.rs'
-          git commit -m "Normalize runtime composition sources"
+          git add src tests examples
+          git commit -m "Satisfy runtime composition lint contracts"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${GITHUB_HEAD_REF}"
