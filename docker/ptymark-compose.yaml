@@ -1,0 +1,28 @@
+name: ptymark
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/ptymark.Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm}
+        RUST_VERSION: ${RUST_VERSION:-1.85.0}
+        MERMAID_CLI_VERSION: ${MERMAID_CLI_VERSION:-11.4.2}
+        TYPST_VERSION: ${TYPST_VERSION:-0.13.1}
+    image: ptymark-dev:${PTYMARK_IMAGE_TAG:-local}
+    init: true
+    working_dir: /workspace
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: "1"
+    volumes:
+      - ..:/workspace
+      - ptymark-cargo-registry:/home/node/.cargo/registry
+      - ptymark-cargo-git:/home/node/.cargo/git
+      - ptymark-target:/home/node/.cache/ptymark-target
+
+volumes:
+  ptymark-cargo-registry:
+  ptymark-cargo-git:
+  ptymark-target:
