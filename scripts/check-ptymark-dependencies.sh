@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # @dependency-start
 # contract test
-# responsibility Verifies the canonical ptymark compiler and existing-renderer dependency graph.
+# responsibility Verifies the canonical ptymark compiler, Rust config libraries, and existing-renderer dependency graph.
 # upstream environment ../docker/ptymark-versions.env declares expected versions.
+# upstream environment ../Cargo.lock declares exact Rust resolution.
 # upstream environment ../renderers/package-lock.json declares exact JavaScript resolution.
 # downstream workflow ../.github/workflows/ptymark-ci.yml runs the check in Docker.
 # @dependency-end
@@ -32,6 +33,14 @@ katex --version | grep -F "${KATEX_VERSION}" >/dev/null
 typst --version | grep -F "${TYPST_VERSION}" >/dev/null
 lua5.4 -v >/dev/null
 chromium --version >/dev/null
+
+cargo metadata --locked --format-version 1 > /tmp/ptymark-cargo-metadata.json
+jq -e '.packages | any(.name == "serde")' /tmp/ptymark-cargo-metadata.json >/dev/null || \
+  fail "serde is missing from the locked Rust dependency graph"
+jq -e '.packages | any(.name == "toml")' /tmp/ptymark-cargo-metadata.json >/dev/null || \
+  fail "toml is missing from the locked Rust dependency graph"
+grep -F 'serde = { version = "1", features = ["derive"] }' Cargo.toml >/dev/null
+grep -F 'toml = "0.9"' Cargo.toml >/dev/null
 
 node --input-type=module <<'NODE'
 import fs from 'node:fs';
