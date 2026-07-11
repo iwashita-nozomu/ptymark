@@ -11,6 +11,29 @@ pub struct TerminalCapabilities {
 }
 
 impl TerminalCapabilities {
+    pub const fn new() -> Self {
+        Self {
+            inline_images: false,
+            sixel: false,
+            color: false,
+        }
+    }
+
+    pub const fn with_inline_images(mut self, enabled: bool) -> Self {
+        self.inline_images = enabled;
+        self
+    }
+
+    pub const fn with_sixel(mut self, enabled: bool) -> Self {
+        self.sixel = enabled;
+        self
+    }
+
+    pub const fn with_color(mut self, enabled: bool) -> Self {
+        self.color = enabled;
+        self
+    }
+
     pub const fn fingerprint(self) -> u64 {
         (self.inline_images as u64) | ((self.sixel as u64) << 1) | ((self.color as u64) << 2)
     }
