@@ -1,8 +1,21 @@
+# @dependency-start
+# contract workflow
+# responsibility Runs canonical ptymark product, configuration, terminal-compatibility, renderer, and performance checks.
+# upstream environment ../../docker/ptymark.Dockerfile builds the pinned product environment.
+# upstream implementation ../../src/config.rs exposes immutable session configuration.
+# upstream implementation ../../src/terminal.rs preserves terminal control output.
+# upstream test ../../tests/config_contract.rs verifies user-facing configuration behavior.
+# upstream test ../../scripts/benchmark-ptymark-renderers.sh produces performance evidence.
+# downstream workflow ./ptymark-release.yml consumes the same native test and package contracts.
+# @dependency-end
 name: ptymark CI
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
+      - "agent/**"
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
@@ -11,14 +24,17 @@ on:
       - "ptymark.mk"
       - "src/**"
       - "plugin/**"
-      - "tests/predisplay_contract.rs"
-      - "tests/cli_contract.rs"
-      - "tests/plugin_smoke.lua"
+      - "tests/**"
+      - "examples/**"
+      - "renderers/**"
       - "docker/ptymark*"
       - "scripts/ptymark-*"
+      - "scripts/benchmark-ptymark-*"
       - "scripts/check-ptymark-*"
       - "scripts/package-ptymark-release.sh"
       - "documents/architecture.md"
+      - "documents/renderer-architecture.md"
+      - "documents/configuration.md"
       - "documents/ui-design.md"
       - "documents/dependencies.md"
       - "documents/development-environment.md"
@@ -37,14 +53,17 @@ on:
       - "ptymark.mk"
       - "src/**"
       - "plugin/**"
-      - "tests/predisplay_contract.rs"
-      - "tests/cli_contract.rs"
-      - "tests/plugin_smoke.lua"
+      - "tests/**"
+      - "examples/**"
+      - "renderers/**"
       - "docker/ptymark*"
       - "scripts/ptymark-*"
+      - "scripts/benchmark-ptymark-*"
       - "scripts/check-ptymark-*"
       - "scripts/package-ptymark-release.sh"
       - "documents/architecture.md"
+      - "documents/renderer-architecture.md"
+      - "documents/configuration.md"
       - "documents/ui-design.md"
       - "documents/dependencies.md"
       - "documents/development-environment.md"
@@ -67,9 +86,9 @@ concurrency:
 
 jobs:
   canonical-container:
-    name: Canonical Docker product checks
+    name: Canonical Docker product and performance checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Check out repository
@@ -118,6 +137,27 @@ jobs:
           --file docker/ptymark-compose.yaml
           run --rm --no-TTY dev cargo test --locked --test predisplay_contract
 
+      - name: Run coordinator and cache contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test coordinator_contract
+
+      - name: Run terminal compatibility tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test terminal_compat
+
+      - name: Run configuration contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test config_contract
+
       - name: Run CLI contract tests in container
         run: >-
           docker compose
@@ -125,13 +165,17 @@ jobs:
           --file docker/ptymark-compose.yaml
           run --rm --no-TTY dev cargo test --locked --test cli_contract
 
-      - name: Build release and smoke CLI in container
+      - name: Build release and smoke CLI/configuration in container
         shell: bash
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev cargo build --locked --release
           "${compose[@]}" run --rm --no-TTY dev bash -lc \
             'cargo run --quiet --locked -- demo > /tmp/ptymark-demo.txt && grep -F "ptymark mermaid preview" /tmp/ptymark-demo.txt >/dev/null'
+          "${compose[@]}" run --rm --no-TTY dev \
+            cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private | grep -F "private = true" >/dev/null'
 
       - name: Check WezTerm plugin and product scripts
         shell: bash
@@ -139,14 +183,44 @@ jobs:
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
           "${compose[@]}" run --rm --no-TTY dev bash -lc \
-            'bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/package-ptymark-release.sh && shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/package-ptymark-release.sh'
+            'bash -n scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh && shellcheck scripts/ptymark-dev-container.sh scripts/check-ptymark-dependencies.sh scripts/check-ptymark-renderers.sh scripts/benchmark-ptymark-renderers.sh scripts/package-ptymark-release.sh'
+          "${compose[@]}" run --rm --no-TTY dev \
+            python3 -m py_compile scripts/check-ptymark-benchmarks.py
 
-      - name: Check pinned dependencies and existing engines
+      - name: Check pinned dependencies and selected engines
         shell: bash
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev bash scripts/check-ptymark-dependencies.sh
           "${compose[@]}" run --rm --no-TTY dev bash scripts/check-ptymark-renderers.sh
+
+      - name: Measure real-time renderer and cache latency
+        shell: bash
+        run: |
+          mkdir -p reports/benchmarks
+          chmod 0777 reports/benchmarks
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev \
+            bash scripts/benchmark-ptymark-renderers.sh reports/benchmarks
+          {
+            echo "### ptymark renderer benchmark"
+            echo
+            echo '```text'
+            cat reports/benchmarks/budget.txt
+            echo '```'
+            echo
+            echo "Artifacts: renderer.json, core.json, budget.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload renderer benchmark evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-renderer-benchmarks
+          path: reports/benchmarks/*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Package release archive in container
         shell: bash
@@ -158,7 +232,7 @@ jobs:
   native-smoke:
     name: Native Rust smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -195,6 +269,15 @@ jobs:
 
       - name: Run pre-display contract tests
         run: cargo test --locked --test predisplay_contract
+
+      - name: Run coordinator and cache contract tests
+        run: cargo test --locked --test coordinator_contract
+
+      - name: Run terminal compatibility tests
+        run: cargo test --locked --test terminal_compat
+
+      - name: Run configuration contract tests
+        run: cargo test --locked --test config_contract
 
       - name: Run CLI contract tests
         run: cargo test --locked --test cli_contract
