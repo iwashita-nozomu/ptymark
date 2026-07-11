@@ -85,7 +85,9 @@ fn run() -> Result<i32, String> {
     let first = arguments
         .first()
         .and_then(|argument| argument.to_str())
-        .ok_or_else(|| "missing command; use `ptymark -- COMMAND` or `ptymark preview`".to_owned())?;
+        .ok_or_else(|| {
+            "missing command; use `ptymark -- COMMAND` or `ptymark preview`".to_owned()
+        })?;
 
     match first {
         "-h" | "--help" => {
@@ -98,10 +100,18 @@ fn run() -> Result<i32, String> {
         }
         "preview" => {
             arguments.remove(0);
+            if subcommand_help_requested(&arguments)? {
+                print!("{HELP}");
+                return Ok(0);
+            }
             run_preview(parse_preview(arguments, PreviewInput::Stdin)?)
         }
         "demo" => {
             arguments.remove(0);
+            if subcommand_help_requested(&arguments)? {
+                print!("{HELP}");
+                return Ok(0);
+            }
             run_preview(parse_preview(arguments, PreviewInput::Demo)?)
         }
         "--" => {
@@ -113,7 +123,26 @@ fn run() -> Result<i32, String> {
     }
 }
 
-fn parse_preview(arguments: Vec<OsString>, default_input: PreviewInput) -> Result<PreviewOptions, String> {
+fn subcommand_help_requested(arguments: &[OsString]) -> Result<bool, String> {
+    let help_count = arguments
+        .iter()
+        .filter(|argument| matches!(argument.to_str(), Some("-h" | "--help")))
+        .count();
+
+    if help_count == 0 {
+        return Ok(false);
+    }
+    if arguments.len() == 1 {
+        return Ok(true);
+    }
+
+    Err("`--help` cannot be combined with preview options or an input file".to_owned())
+}
+
+fn parse_preview(
+    arguments: Vec<OsString>,
+    default_input: PreviewInput,
+) -> Result<PreviewOptions, String> {
     let is_demo = matches!(default_input, PreviewInput::Demo);
     let mut options = PreviewOptions {
         source_renderer: false,
@@ -131,18 +160,16 @@ fn parse_preview(arguments: Vec<OsString>, default_input: PreviewInput) -> Resul
             .to_str()
             .ok_or_else(|| "preview options must be valid UTF-8".to_owned())?;
         match text {
-            "-h" | "--help" => {
-                print!("{HELP}");
-                return Err("help requested".to_owned());
-            }
             "--source" => options.source_renderer = true,
             "--strict" => options.strict = true,
             "--color" => options.color = true,
             "--max-buffer-bytes" => {
-                options.max_buffer_bytes = next_positive_usize(&mut iterator, "--max-buffer-bytes")?;
+                options.max_buffer_bytes =
+                    next_positive_usize(&mut iterator, "--max-buffer-bytes")?;
             }
             "--terminal-width" => {
-                options.terminal_width = Some(next_positive_usize(&mut iterator, "--terminal-width")?);
+                options.terminal_width =
+                    Some(next_positive_usize(&mut iterator, "--terminal-width")?);
             }
             "-" => {
                 if is_demo {
@@ -248,14 +275,17 @@ fn run_command(mut arguments: Vec<OsString>) -> Result<i32, String> {
     {
         use std::os::unix::process::CommandExt;
         let error = command.exec();
-        Err(format!("cannot execute `{}`: {error}", program.to_string_lossy()))
+        Err(format!(
+            "cannot execute `{}`: {error}",
+            program.to_string_lossy()
+        ))
     }
 
     #[cfg(not(unix))]
     {
-        let status = command
-            .status()
-            .map_err(|error| format!("cannot execute `{}`: {error}", program.to_string_lossy()))?;
+        let status = command.status().map_err(|error| {
+            format!("cannot execute `{}`: {error}", program.to_string_lossy())
+        })?;
         Ok(status.code().unwrap_or(1))
     }
 }
