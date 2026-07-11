@@ -1,10 +1,5 @@
 use super::{ConfigOptions, load_config, next_path, next_positive_usize, next_string};
-use crate::{
-    BlockRenderer, CacheBackend, CachePolicy, CoordinatedRenderer, DetectionMode,
-    DisplayInterceptor, FallbackPolicy, FencedDetector, FencedDetectorOptions, MemoryArtifactCache,
-    PassthroughDetector, PreDisplayRenderer, PresentationMode, RenderContext, SemanticDetector,
-    SessionMode, SourceRenderer, TerminalOutputGate, stable_fingerprint,
-};
+use crate::{RuntimeBuilder, RuntimeRequest, Viewport};
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -128,72 +123,26 @@ fn parse(
 }
 
 fn run_preview(options: PreviewOptions) -> Result<i32, String> {
-    let loaded = load_config(&options.config)?;
-    let session = &loaded.config;
-
-    let source_renderer = options.source_renderer
-        || session.mode == SessionMode::Source
-        || session.presentation.mode == PresentationMode::Source;
-    let cache_forced_off = options.cache == Some(false) || source_renderer;
-    let cache_enabled = match session.cache.backend {
-        CacheBackend::None => false,
-        CacheBackend::Memory => !cache_forced_off && !session.cache.private,
-        CacheBackend::Disk | CacheBackend::Tiered if cache_forced_off => false,
-        CacheBackend::Disk | CacheBackend::Tiered => {
-            return Err(format!(
-                "cache backend `{:?}` is configured but not implemented in the preview runtime; use `--no-cache` or backend = \"memory\"",
-                session.cache.backend
-            ));
-        }
-    };
-
-    let renderer: Box<dyn BlockRenderer> = if source_renderer {
-        Box::new(SourceRenderer)
-    } else if cache_enabled {
-        Box::new(
-            CoordinatedRenderer::preview(MemoryArtifactCache::new(CachePolicy::new(
-                session.cache.max_entries,
-                session.cache.max_bytes,
-            )))
-            .map_err(|error| error.to_string())?,
-        )
-    } else {
-        Box::new(
-            CoordinatedRenderer::preview(crate::NoopArtifactCache::default())
-                .map_err(|error| error.to_string())?,
-        )
-    };
-
-    let detection_enabled =
-        session.mode != SessionMode::Bypass && session.detection.mode != DetectionMode::Off;
-    let detector: Box<dyn SemanticDetector> = if detection_enabled {
-        Box::new(FencedDetector::with_options(FencedDetectorOptions {
-            max_buffer_bytes: options
-                .max_buffer_bytes
-                .unwrap_or(session.detection.max_buffer_bytes),
-            max_line_bytes: session.detection.max_line_bytes,
-            mermaid: session.detection.mermaid,
-            block_math: session.detection.block_math,
-            mermaid_fences: session.detection.mermaid_fences.clone(),
-            math_fences: session.detection.math_fences.clone(),
-        }))
-    } else {
-        Box::new(PassthroughDetector)
-    };
-
-    let identity = loaded
-        .fingerprint_material()
+    let snapshot = load_config(&options.config)?
+        .into_snapshot(1)
         .map_err(|error| error.to_string())?;
-    let context = RenderContext {
-        color: options.color,
-        terminal_width: options.terminal_width,
-        theme_fingerprint: 0,
-        options_fingerprint: stable_fingerprint(&identity),
+    let columns = match options.terminal_width {
+        Some(width) => u16::try_from(width)
+            .map_err(|_| "`--terminal-width` cannot exceed 65535".to_owned())?,
+        None => 80,
     };
-    let pre_display = PreDisplayRenderer::new(detector, renderer)
-        .with_context(context)
-        .strict(options.strict || session.fallback == FallbackPolicy::Error);
-    let mut interceptor = DisplayInterceptor::new(TerminalOutputGate::default(), pre_display);
+    let mut request = RuntimeRequest::preview();
+    request.source_only = options.source_renderer;
+    request.strict = options.strict;
+    request.disable_cache = options.cache == Some(false);
+    request.color = options.color;
+    request.viewport = Viewport::cells(columns, 24);
+    request.terminal_capabilities.color = options.color;
+    request.max_buffer_bytes = options.max_buffer_bytes;
+
+    let mut runtime = RuntimeBuilder::default()
+        .build(snapshot, request)
+        .map_err(|error| error.to_string())?;
 
     let mut input: Box<dyn Read> = match options.input {
         PreviewInput::Stdin => Box::new(io::stdin()),
@@ -214,11 +163,11 @@ fn run_preview(options: PreviewOptions) -> Result<i32, String> {
         if count == 0 {
             break;
         }
-        interceptor
+        runtime
             .feed(&chunk[..count], &mut display)
             .map_err(|error| error.to_string())?;
     }
-    interceptor
+    runtime
         .finish(&mut display)
         .map_err(|error| error.to_string())?;
     display.flush().map_err(|error| error.to_string())?;
