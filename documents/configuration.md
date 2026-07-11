@@ -1,96 +1,164 @@
 <!--
 @dependency-start
 contract design
-responsibility Defines ptymark configuration discovery, schema, profile, and typed policy boundaries.
-upstream design ../documents/architecture.md pre-display renderer ownership boundary
-upstream design ../documents/renderer-architecture.md renderer coordinator and cache abstractions
-downstream implementation ../src/config.rs high-level configuration service
+responsibility Defines ptymark configuration discovery, schema, profiles, immutable snapshots, custom process trust, and typed runtime policy boundaries.
+upstream design ./system-design.md control-plane and runtime composition model
+upstream design ./renderer-architecture.md renderer coordinator and cache abstractions
+upstream design ./design-review.md reviewed configuration and process-security findings
+downstream implementation ../src/config.rs high-level configuration service and snapshot API
 downstream implementation ../src/config/model.rs typed raw and resolved configuration models
 downstream implementation ../src/config/source.rs source discovery and trust provenance
-downstream implementation ../src/config/resolve.rs merge, profile inheritance, validation, and immutable snapshots
+downstream implementation ../src/config/resolve.rs merge, profile inheritance, and cross-field validation
+downstream implementation ../src/runtime.rs translates snapshots into runtime providers
 downstream test ../tests/config_contract.rs user-facing configuration contract tests
+downstream test ../tests/extension_validation_contract.rs custom engine and redaction tests
 @dependency-end
 -->
 
 # ptymark configuration
 
-## Purpose
+## Purpose and ownership
 
-The configuration file controls only the **pre-display rendering path**. It can select explicit
-semantic detectors, rendering engines, presentation policy, latency limits, caches, and
-diagnostics. It cannot change keyboard input, termios, signal forwarding, child exit status,
-window-size forwarding, or the byte-exact handling of terminal control sequences.
+設定ファイルが制御するのは**pre-display rendering path**だけです。
 
-The stream loop never reads raw TOML. Configuration is resolved before child launch into an
-immutable session snapshot:
+設定可能:
+
+- explicit semantic detector
+- ordered engine candidate
+- artifact preference
+- render timeout／worker lifecycle policy
+- presentation allowlist
+- bounded cache
+- diagnostics／metrics
+- WezTerm session profile selector
+
+設定不可:
+
+- keyboard input
+- termios／raw mode／echo
+- signal forwarding
+- child exit status
+- child PTY resize
+- mouse／bracketed paste
+- ANSI／OSC／DCS／APCのbyte-exact rule
+- committed scrollbackのretroactive rewrite
+
+terminal safetyはuser optionではなくproduct invariantです。
+
+## Resolution lifecycle
+
+stream loopはraw TOMLを読みません。
 
 ```text
 ConfigSource[]
-    -> ConfigManager
-    -> schema validation
-    -> layer merge
-    -> profile inheritance
-    -> ResolvedConfig
-         -> DetectionPolicy
-         -> EngineSelectionPolicy
-         -> RenderPolicy
-         -> PresentationPolicy
-         -> CachePolicyConfig
-         -> DiagnosticsPolicy
+    ↓ discovery and trust classification
+ConfigFile
+    ↓ strict TOML parse / schema validation
+merged ConfigFile
+    ↓ profile inheritance / cross-field validation
+ResolvedConfig
+    ↓ explicit session overrides
+ConfigSnapshot
+    ├─ generation
+    ├─ stable policy fingerprint
+    ├─ Arc<ResolvedConfig>
+    └─ Arc<ConfigProvenance>
+    ↓
+RuntimeBuilder
+    ├─ DetectorProvider
+    ├─ EngineProvider[]
+    ├─ CacheProvider
+    └─ PresenterProvider
 ```
 
-A configuration failure occurs before a future PTY host enters raw mode or starts the child.
-There is no partially applied configuration.
+`ConfigSnapshot`作成後、active sessionの設定は変化しません。reloadはfuture session用の新しいgenerationを作ります。snapshot fingerprintはprocess-local cache／options identity用であり、project trust用cryptographic digestではありません。
+
+設定failureはrenderer／child process起動、future PTY raw mode移行より前に返ります。partially applied configurationはありません。
 
 ## File format
 
-The human-authored format is TOML with a required schema boundary:
+human-authored formatはTOMLです。
 
 ```toml
 schema_version = 1
 default_profile = "interactive"
 ```
 
-Unknown keys are errors. This prevents a typo from silently falling back to a different terminal
-behavior. The copyable complete example is
-[`examples/ptymark.example.toml`](../examples/ptymark.example.toml).
+`schema_version`は明示的なmigration boundaryです。unknown keyをエラーにし、typoがsilent defaultへ変わることを防ぎます。
+
+実行可能fixture:
+
+```text
+examples/ptymark.example.toml       complete reference
+examples/config/minimal.toml        minimal safe defaults
+examples/config/private.toml        privacy-first
+examples/config/ci.toml             deterministic logs
+examples/config/wezterm-interactive.toml
+examples/config/custom-process.toml
+```
+
+これらはCIで`ptymark config check`へ通します。
 
 ## Discovery and precedence
 
-The implemented v1 ordering is:
+実装済みv1 priorityは低い方から:
 
 ```text
 built-in defaults
-    < user configuration, when present
-    < PTYMARK_CONFIG, when set
+    < user configuration
+    < PTYMARK_CONFIG file
     < --config PATH
-    < PTYMARK_PROFILE / --profile session selection
-    < explicit CLI options for the current command
+    < PTYMARK_PROFILE / --profile
+    < current-session CLI overrides
 ```
 
-User configuration path:
+### User path
 
-- `$XDG_CONFIG_HOME/ptymark/config.toml` when `XDG_CONFIG_HOME` is set;
-- Linux fallback: `~/.config/ptymark/config.toml`;
-- macOS fallback: `~/Library/Application Support/ptymark/config.toml`;
-- Windows path handling is deferred with the ConPTY runtime.
+Linux:
 
-A working-directory `.ptymark.toml` is reported by `ptymark config paths`, but is **not loaded
-automatically**. Project files may eventually define external executables, so automatic project
-trust must be implemented separately. Passing a file with `--config` is an explicit user action.
+```text
+$XDG_CONFIG_HOME/ptymark/config.toml
+~/.config/ptymark/config.toml
+```
 
-`--no-config` or `PTYMARK_NO_CONFIG=1` selects built-in profiles only.
+macOS:
+
+```text
+~/Library/Application Support/ptymark/config.toml
+```
+
+Windows pathはConPTY runtime designと一緒に確定します。
+
+### Project candidate
+
+working directoryの`.ptymark.toml`は`config paths`へ表示しますが、自動loadしません。project fileはexternal executableやenvironmentを定義できるため、future trust storeが実装されるまで明示`--config`だけが選択方法です。
+
+future trustは次へbindします。
+
+```text
+canonical project directory
+cryptographic config digest
+approval metadata
+```
+
+configがmaterially変わった場合は再承認が必要です。
+
+### No-config semantics
+
+- CLI `--no-config`: すべてのexternal file sourceを無効化し、`--config`との併用をエラーにする
+- `PTYMARK_NO_CONFIG=1`: ambient user／environment fileを無効化する
+- ambient no-config中のexplicit CLI `--config`: userが明示選択した一つのfileとして利用可能
 
 ## Built-in profiles
 
 | Profile | Intended use |
 | --- | --- |
-| `interactive` | explicit Mermaid and block-math detection, memory cache, source fallback |
-| `source` | preserve exact semantic source and disable image-oriented presentation |
-| `private` | disable cache persistence and source-bearing diagnostics |
-| `ci` | deterministic source presentation with wider time budget and no cache |
+| `interactive` | explicit Mermaid／math detection、memory cache、source fallback |
+| `source` | exact source presentation、image-oriented outputなし |
+| `private` | no cache、source diagnosticsなし、metricsなし |
+| `ci` | deterministic source presentation、no cache、prewarmなし |
 
-A profile may extend zero or one parent:
+profileはzeroまたはone parentを継承します。
 
 ```toml
 [profiles.my-shell]
@@ -100,8 +168,54 @@ extends = "interactive"
 max_entries = 32
 ```
 
-Inheritance cycles are startup errors. Arrays replace parent arrays; scalar values override their
-parent. The resolved profile does not change during a running session.
+merge rule:
+
+```text
+scalar      child replaces parent when present
+table       field-wise recursive merge
+array       child replaces parent
+extends     one parent only
+```
+
+cycleはfull path付きstartup errorです。
+
+## Session override
+
+共通CLI:
+
+```text
+--config PATH
+--profile NAME
+--no-config
+--private
+```
+
+preview-specific:
+
+```text
+--source
+--strict
+--max-buffer-bytes N
+--terminal-width N
+--no-cache
+```
+
+nested TOML propertyすべてへCLI flagを作りません。複雑／再利用する変更はprofileへ置きます。
+
+### Private override
+
+`--private`またはprivate profileはsnapshot freeze前に次を強制します。
+
+```text
+cache backend = none
+cache private = true
+diagnostics sink = stderr
+diagnostics file path = none
+include_source = false
+metrics = false
+```
+
+このoverrideはinput、termios、signal、resize、child environment、exit statusへ触れません。
 
 ## Detection policy
 
@@ -112,20 +226,40 @@ mermaid = true
 block_math = true
 max_buffer_bytes = 1048576
 max_line_bytes = 65536
+
+[profiles.interactive.detection.fences]
+mermaid = ["mermaid"]
+math = ["math", "latex", "tex"]
 ```
 
-Disabling a kind or all detection can only make behavior stricter. The following remain fixed
-product invariants and are not configuration keys:
+initial detectorはline-bounded explicit constructだけを扱います。
 
-- ANSI, OSC, DCS, APC, PM, and unknown control sequences remain byte-for-byte passthrough;
-- alternate-screen and cursor-addressed screen output remain bypassed;
-- carriage-return or backspace update regions are not interpreted as Markdown;
-- incomplete, oversized, binary, or unsafe candidates return to exact source;
-- already committed textual scrollback is never erased and replaced.
+````markdown
+```mermaid
+A --> B
+```
 
-## Engine policy
+$$
+E = mc^2
+$$
 
-Engine order is explicit and deterministic:
+```latex
+E = mc^2
+```
+````
+
+configでできるのはdisable、limit縮小、明示alias変更です。次のminimum safety setを弱められません。
+
+- ANSI／OSC／DCS／APC／PM／unknown controlはbyte-exact passthrough
+- alternate screen／cursor-addressed UIはbypass
+- carriage-return／backspace update regionはbypass
+- incomplete／oversized／binary／unsafe candidateはexact source
+- committed textは後から消さない
+- safety uncertaintyにstrict rendering errorを適用しない
+
+異なるkindへ同じaliasを設定した場合、そのaliasは曖昧として検出しません。
+
+## Engine selection policy
 
 ```toml
 [profiles.interactive.engines.mermaid]
@@ -137,16 +271,99 @@ candidates = ["mathjax-worker", "katex", "source"]
 preferred_artifacts = ["image/svg+xml", "application/mathml+xml", "text/plain"]
 ```
 
-The resolver makes `source` reachable as the final fallback. Built-in engine identifiers are
-stable logical IDs, not executable paths. User-defined engines use an argv-based process record;
-the schema has no shell command string.
+candidate orderはdeterministicです。resolverは`source`を最後のfallbackとして到達可能にします。
+
+reserved built-in IDs:
+
+```text
+mermaid-worker
+mermaid-cli
+mathjax-worker
+katex
+typst
+source
+preview
+```
+
+external engineはreserved IDを再定義できません。Rust embedding applicationがbuilt-in catalogを置換する場合は、configurationではなく`RuntimeBuilder::without_engine_providers()`を明示して独自providerを登録します。
+
+`RuntimeMode::Preview`はdependency-free確認を優先し、built-in `preview`を候補先頭へ置きます。real engine orderはembedding／future terminal runtimeで使います。
+
+## Custom process engine
+
+```toml
+[engines.custom-mermaid]
+type = "process"
+version = "1"
+semantic_kinds = ["mermaid"]
+artifact_types = ["image/svg+xml"]
+layout = "pixels"
+execution = "one-shot"
+program = "/opt/tools/render-mermaid"
+args = ["--format", "svg"]
+timeout_ms = 1500
+max_stdout_bytes = 8388608
+max_stderr_bytes = 65536
+working_directory = "/tmp"
+inherit_environment = ["PATH", "LANG"]
+
+[engines.custom-mermaid.environment]
+RENDER_MODE = "offline"
+```
+
+security/runtime rule:
+
+- `program`はabsolute path
+- optional `working_directory`もabsolute path
+- shell command stringなし
+- pipe、redirect、command substitutionなし
+- process environmentをclear
+- `inherit_environment`だけをhostから復元
+- explicit environmentが継承値をoverride
+- stdinはsemantic body
+- stdout／stderr／timeoutを独立制限
+- non-zero／empty／overflow／timeoutはfailure
+- artifact identity、kind、format、layout、payloadをcache前に検証
+- normal render中にinstall／downloadしない
+
+`execution = "persistent-worker"`はschema上のstable boundaryですが、専用worker providerがない現在はruntime build errorです。one-shotへsilent downgradeしません。
+
+## Runtime configuration
+
+```toml
+[runtimes.node]
+program = "node"
+required_version = ">=24.18.0 <25"
+args = []
+
+[runtimes.chromium]
+program = "/usr/bin/chromium"
+args = ["--headless=new"]
+
+[renderer_bundle]
+path = "/opt/ptymark-renderers"
+require_lock_match = true
+```
+
+built-in runtime discoveryだけがexplicit PATH-search policyを使えます。custom engineはabsolute path policyです。
+
+bundle discovery:
+
+```text
+renderer_bundle.path
+PTYMARK_RENDERER_ROOT
+/opt/ptymark-renderers when present
+unavailable
+```
+
+missing optional bundleは`RuntimeBuildReport`へreasonを記録し、source／preview operationを妨げません。
 
 ## Presentation policy
 
 ```toml
 [profiles.interactive.presentation]
 mode = "auto" # auto | text | source
-prefer = ["image/svg+xml", "text/plain"]
+prefer = ["image/svg+xml", "application/mathml+xml", "text/plain"]
 image_protocols = ["kitty", "iterm2", "sixel"]
 unsupported = "source"
 transparent_background = true
@@ -155,10 +372,18 @@ max_rows = 40
 preserve_aspect_ratio = true
 ```
 
-This is an allowlist, not a force switch. Runtime capability detection remains authoritative; an
-unknown or unsupported transport must not receive binary image escape sequences.
+これはallowlistでありforce switchではありません。verified capabilityがauthoritativeです。unknown terminalへimage escapeを出しません。
 
-## Scheduling and cache policy
+current presenter:
+
+```text
+terminal/text-v1
+terminal/source-v1
+```
+
+image protocol presenterはfuture providerです。
+
+## Scheduling policy
 
 ```toml
 [profiles.interactive.render]
@@ -169,18 +394,45 @@ ordering = "strict"
 prewarm = true
 worker_idle_ms = 300000
 worker_max_requests = 1000
+```
 
+current runtimeはsynchronous strict orderingです。future async schedulerはmonotonic commit sequence、bounded in-flight、bounded pending bytes、cancellation、viewport generationを同じtyped policyから実装します。
+
+## Cache policy
+
+```toml
 [profiles.interactive.cache]
 backend = "memory" # none | memory | disk | tiered
 max_entries = 128
 max_bytes = 33554432
+ttl_seconds = 3600
 private = false
 ```
 
-The current executable supports `none` and bounded process-local `memory`. Disk and tiered
-backends are represented in the schema so their ownership boundary is stable, but are not yet
-connected to runtime storage. `private = true` resolves to no cache and disables source-bearing
-diagnostics.
+current implementation:
+
+```text
+none    NoopArtifactCache
+memory  bounded MemoryArtifactCache
+```
+
+`disk`／`tiered`はschemaとprovider boundaryを確保済みですが、provider未登録時はpre-launch runtime build errorです。
+
+cache identity:
+
+```text
+source fingerprint
+semantic kind
+engine ID/version
+artifact format
+layout-sensitive viewport
+full runtime options fingerprint
+theme fingerprint
+presenter ID
+terminal capability fingerprint
+```
+
+persistent backendはnon-cryptographic in-memory fingerprintをそのままtrustせず、cryptographic digestとkey schema versionを追加します。
 
 ## Diagnostics
 
@@ -188,40 +440,53 @@ diagnostics.
 [diagnostics]
 level = "warn"
 format = "text"
-sink = "stderr"
+sink = "stderr" # stderr | file | both
 include_source = false
 metrics = true
 ```
 
-Renderer diagnostics never share stdout with terminal content. A file path is required when the
-sink includes a file. Source inclusion defaults to false and is forced off by private mode.
+fileを含むsinkにはpathが必要です。renderer diagnosticsはdisplay stdoutへ混ぜません。source inclusionはdefault false、private modeでは強制falseです。
 
-## Commands
+`config show`ではcustom environment valueを`<redacted>`にします。一方、internal fingerprint materialはredact前のpolicyを使い、異なるsecret／engine optionが同じcache identityになることを防ぎます。fingerprint materialは表示／logしません。
+
+## Inspection commands
 
 ```bash
 ptymark config paths
-ptymark config check
 ptymark config check --config ./ptymark.toml
 ptymark config show --profile interactive
 ptymark config show --config ./ptymark.toml --provenance
+ptymark engine list --profile interactive
+ptymark engine doctor --config ./ptymark.toml --profile interactive
 ```
 
-`paths` labels the project candidate as untrusted and not loaded. `check` performs full parsing,
-inheritance, and cross-field validation. `show` prints the normalized immutable session policy;
-provenance is emitted separately so it cannot be mistaken for effective TOML.
+- `paths`: candidate、trust、present state
+- `check`: parse、inheritance、cross-field validation
+- `show`: effective redacted snapshot policy
+- `list`: registered descriptor inventory
+- `doctor`: provider、registered／unavailable engine、cache、presenter、warning
 
-Preview accepts the same source selectors:
+provenanceはstderrへ出し、stdoutのeffective TOMLを機械可読に保ちます。
 
-```bash
-ptymark preview --config ./ptymark.toml --profile private document.md
-ptymark preview --no-config --no-cache document.md
-```
+## Validation matrix
 
-## Implementation status and issue ownership
+| Invalid condition | Result |
+| --- | --- |
+| unknown key／syntax error | startup failure |
+| unsupported schema version | startup failure |
+| unknown profile／inheritance cycle | startup failure |
+| line limit > total buffer | validation failure |
+| soft budget > hard timeout | validation failure |
+| empty candidate／unknown artifact | validation failure |
+| reserved built-in external engine ID | validation failure |
+| relative custom process path | runtime build failure before render/child |
+| custom persistent worker without provider | runtime build failure before render/child |
+| file diagnostics without path | validation failure |
+| private mode with source diagnostics | resolved to safe private policy |
+| disk/tiered cache without provider | runtime build failure |
+| missing optional bundle | reported unavailable; fallback remains |
 
-The typed model, discovery, built-in profiles, single-parent inheritance, validation, CLI
-introspection, and preview wiring are implemented in the renderer skeleton branch. The remaining
-user-facing concerns stay independently tracked:
+## Issue ownership
 
 - [#5 configuration umbrella](https://github.com/iwashita-nozomu/ptymark/issues/5)
 - [#6 discovery, precedence, provenance, and project trust](https://github.com/iwashita-nozomu/ptymark/issues/6)
