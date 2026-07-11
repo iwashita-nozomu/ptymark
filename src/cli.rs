@@ -1,5 +1,6 @@
 mod command;
 mod config_command;
+mod engine_command;
 mod preview;
 
 use crate::{ConfigManager, ConfigRequest, LoadedConfig};
@@ -18,11 +19,14 @@ USAGE:
     ptymark config paths [CONFIG OPTIONS]
     ptymark config check [CONFIG OPTIONS]
     ptymark config show [CONFIG OPTIONS] [--provenance]
+    ptymark engine list [CONFIG OPTIONS]
+    ptymark engine doctor [CONFIG OPTIONS]
 
 COMMANDS:
     preview     render bounded Mermaid and block-math input before display
     demo        render a built-in sample through the same pre-display pipeline
     config      inspect and validate the immutable session configuration
+    engine      inspect registered, optional, and unavailable renderer engines
 
 CONFIG OPTIONS:
     --config PATH            load an explicit configuration after the user config
@@ -49,6 +53,7 @@ EXAMPLES:
     ptymark --profile private preview --no-cache
     ptymark config check --config ./ptymark.toml
     ptymark config show --profile interactive --provenance
+    ptymark engine doctor --profile interactive
 ";
 
 #[derive(Clone, Debug, Default)]
@@ -118,7 +123,7 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         .first()
         .and_then(|argument| argument.to_str())
         .ok_or_else(|| {
-            "missing command; use `ptymark -- COMMAND`, `ptymark preview`, or `ptymark config`"
+            "missing command; use `ptymark -- COMMAND`, `ptymark preview`, `ptymark config`, or `ptymark engine`"
                 .to_owned()
         })?
         .to_owned();
@@ -143,6 +148,10 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         "config" => {
             arguments.remove(0);
             config_command::run(arguments, global_config)
+        }
+        "engine" => {
+            arguments.remove(0);
+            engine_command::run(arguments, global_config)
         }
         "--" => {
             arguments.remove(0);
