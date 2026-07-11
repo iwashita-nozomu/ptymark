@@ -1,0 +1,134 @@
+name: ptymark CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "GNUmakefile"
+      - "ptymark.mk"
+      - "src/**"
+      - "plugin/**"
+      - "tests/predisplay_contract.rs"
+      - "tests/cli_contract.rs"
+      - "tests/plugin_smoke.lua"
+      - "docker/ptymark*"
+      - "scripts/ptymark-*"
+      - "scripts/check-ptymark-*"
+      - "scripts/package-ptymark-release.sh"
+      - "documents/architecture.md"
+      - "documents/ui-design.md"
+      - "documents/dependencies.md"
+      - "documents/development-environment.md"
+      - "documents/distribution.md"
+      - "documents/usage.md"
+      - "README.md"
+      - ".github/workflows/ptymark-ci.yml"
+      - ".github/workflows/ptymark-release.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "GNUmakefile"
+      - "ptymark.mk"
+      - "src/**"
+      - "plugin/**"
+      - "tests/predisplay_contract.rs"
+      - "tests/cli_contract.rs"
+      - "tests/plugin_smoke.lua"
+      - "docker/ptymark*"
+      - "scripts/ptymark-*"
+      - "scripts/check-ptymark-*"
+      - "scripts/package-ptymark-release.sh"
+      - "documents/architecture.md"
+      - "documents/ui-design.md"
+      - "documents/dependencies.md"
+      - "documents/development-environment.md"
+      - "documents/distribution.md"
+      - "documents/usage.md"
+      - "README.md"
+      - ".github/workflows/ptymark-ci.yml"
+      - ".github/workflows/ptymark-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptymark-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-container:
+    name: Canonical Docker product checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Build canonical ptymark image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          build --pull
+
+      - name: Run ptymark checks in canonical image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev make ptymark-check-local
+
+  native-smoke:
+    name: Native Rust smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Run native Rust checks
+        shell: bash
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          cargo build --locked --release
+
+      - name: Package native smoke artifact
+        shell: bash
+        run: bash scripts/package-ptymark-release.sh target/release/ptymark dist
+
+      - name: Upload native smoke artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-native-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
