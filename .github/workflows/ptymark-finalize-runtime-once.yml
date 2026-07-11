@@ -1,0 +1,402 @@
+# @dependency-start
+# contract workflow
+# responsibility Applies the final reviewed runtime, viewport, engine-ID, fixture, and documentation alignments once and commits only a fully passing Rust tree.
+# upstream design ../../documents/design-review.md records the findings resolved here.
+# upstream design ../../documents/system-design.md defines the runtime composition contract.
+# downstream workflow ./ptymark-ci.yml remains the canonical repeatable product validation path.
+# @dependency-end
+name: ptymark Final Runtime Contracts Once
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - .github/workflows/ptymark-finalize-runtime-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptymark-final-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Apply reviewed contract alignments
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected replacement target not found in {path}:\n{old}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "README.md",
+              "| Mermaid library | 11.12.2 |",
+              "| Mermaid library | 11.16.0 |",
+          )
+          replace_once(
+              "README.md",
+              "v1 runtimeのsecurity contract:\n",
+              "`ptymark preview`はdependency-free確認を優先してbuilt-in `preview`を候補の先頭へ置きます。custom candidate orderはembedding runtime／future PTY runtimeでそのまま使われ、`engine doctor`で登録状態を確認できます。\n\nv1 runtimeのsecurity contract:\n",
+          )
+
+          process = Path("src/process_engine.rs")
+          text = process.read_text()
+          old = '''        let mut config = config("/bin/sh");
+                  config.arguments = vec![OsString::from("-c"), OsString::from("sleep 1")];'''.replace("                  ", "        ")
+          new = '''        let mut config = config("/bin/sleep");
+                  config.arguments = vec![OsString::from("1")];'''.replace("                  ", "        ")
+          if old not in text:
+              raise SystemExit("expected strict process timeout test target not found")
+          process.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "src/runtime.rs",
+              '''    pub fn new() -> Self {
+                  Self::default()
+              }
+
+              pub fn with_engine_provider('''.replace("              ", "    "),
+              '''    pub fn new() -> Self {
+                  Self::default()
+              }
+
+              /// Explicitly remove all built-in engine providers before registering a replacement catalog.
+              ///
+              /// Duplicate engine IDs remain errors. This opt-out is the only supported way for an embedding
+              /// application to replace built-in IDs such as `preview` or `source`.
+              pub fn without_engine_providers(mut self) -> Self {
+                  self.engine_providers.clear();
+                  self.engine_provider_ids.clear();
+                  self
+              }
+
+              pub fn with_engine_provider('''.replace("              ", "    "),
+          )
+          replace_once(
+              "src/runtime.rs",
+              '''        let context = RenderContext {
+                  color: request.color,
+                  terminal_width: Some(usize::from(request.viewport.columns)),
+                  theme_fingerprint: request.theme_fingerprint,
+                  options_fingerprint: stable_fingerprint(option_material.as_bytes()),
+              };'''.replace("              ", "        "),
+              '''        let context = RenderContext {
+                  color: request.color,
+                  terminal_width: Some(usize::from(request.viewport.columns)),
+                  viewport: request.viewport,
+                  theme_fingerprint: request.theme_fingerprint,
+                  options_fingerprint: stable_fingerprint(option_material.as_bytes()),
+              };'''.replace("              ", "        "),
+          )
+
+          replace_once(
+              "src/config/resolve.rs",
+              '''    for (name, engine) in &config.external_engines {
+                  if name.trim().is_empty() || engine.version.trim().is_empty() {'''.replace("                  ", "        "),
+              '''    for (name, engine) in &config.external_engines {
+                  if BUILTIN_ENGINES.contains(&name.as_str()) {
+                      return Err(ConfigError::validation(format!(
+                          "external engine `{name}` uses a reserved built-in engine ID"
+                      )));
+                  }
+                  if name.trim().is_empty() || engine.version.trim().is_empty() {'''.replace("                  ", "        "),
+          )
+
+          replace_once(
+              "src/renderer.rs",
+              "use crate::ui::LayoutSensitivity;",
+              "use crate::ui::{LayoutSensitivity, Viewport};",
+          )
+          replace_once(
+              "src/renderer.rs",
+              '''#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+              pub struct RenderContext {
+                  pub color: bool,
+                  pub terminal_width: Option<usize>,
+                  pub theme_fingerprint: u64,
+                  pub options_fingerprint: u64,
+              }'''.replace("              ", ""),
+              '''#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+              pub struct RenderContext {
+                  pub color: bool,
+                  /// Legacy column-width override retained for existing adapters.
+                  pub terminal_width: Option<usize>,
+                  pub viewport: Viewport,
+                  pub theme_fingerprint: u64,
+                  pub options_fingerprint: u64,
+              }
+
+              impl Default for RenderContext {
+                  fn default() -> Self {
+                      Self {
+                          color: false,
+                          terminal_width: None,
+                          viewport: Viewport::default(),
+                          theme_fingerprint: 0,
+                          options_fingerprint: 0,
+                      }
+                  }
+              }
+
+              impl RenderContext {
+                  pub fn viewport(&self) -> Viewport {
+                      let mut viewport = self.viewport;
+                      if let Some(columns) = self
+                          .terminal_width
+                          .and_then(|width| u16::try_from(width).ok())
+                      {
+                          viewport.columns = columns;
+                      }
+                      viewport
+                  }
+              }'''.replace("              ", ""),
+          )
+          for old, new in [
+              ('"builtin/preview"', '"preview"'),
+              ('"builtin/source"', '"source"'),
+          ]:
+              path = Path("src/renderer.rs")
+              text = path.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected legacy engine ID not found: {old}")
+              path.write_text(text.replace(old, new))
+          replace_once(
+              "src/renderer.rs",
+              '''    ) -> Result<Vec<u8>, RenderError> {
+                  let mut command = Command::new(&self.config.program);'''.replace("                  ", "        "),
+              '''    ) -> Result<Vec<u8>, RenderError> {
+                  let viewport = context.viewport();
+                  let mut command = Command::new(&self.config.program);'''.replace("                  ", "        "),
+          )
+          replace_once(
+              "src/renderer.rs",
+              '''            .env("PTYMARK_COLOR", if context.color { "1" } else { "0" })
+                  .env(
+                      "PTYMARK_TERMINAL_WIDTH",
+                      context
+                          .terminal_width
+                          .map(|width| width.to_string())
+                          .unwrap_or_default(),
+                  )'''.replace("                  ", "            "),
+              '''            .env("PTYMARK_COLOR", if context.color { "1" } else { "0" })
+                  .env("PTYMARK_TERMINAL_WIDTH", viewport.columns.to_string())
+                  .env("PTYMARK_TERMINAL_COLUMNS", viewport.columns.to_string())
+                  .env("PTYMARK_TERMINAL_ROWS", viewport.rows.to_string())
+                  .env(
+                      "PTYMARK_TERMINAL_PIXEL_WIDTH",
+                      viewport.pixel_width.map(|value| value.to_string()).unwrap_or_default(),
+                  )
+                  .env(
+                      "PTYMARK_TERMINAL_PIXEL_HEIGHT",
+                      viewport.pixel_height.map(|value| value.to_string()).unwrap_or_default(),
+                  )'''.replace("                  ", "            "),
+          )
+
+          replace_once(
+              "src/coordinator.rs",
+              "use crate::ui::Viewport;\n",
+              "",
+          )
+          coordinator = Path("src/coordinator.rs")
+          text = coordinator.read_text()
+          old = '''        let viewport = Viewport::cells(
+                  context
+                      .terminal_width
+                      .and_then(|width| u16::try_from(width).ok())
+                      .unwrap_or(80),
+                  24,
+              );'''.replace("              ", "        ")
+          new = "        let viewport = context.viewport();"
+          if old not in text:
+              raise SystemExit("expected coordinator viewport synthesis target not found")
+          coordinator.write_text(text.replace(old, new, 1))
+
+          process = Path("src/process_engine.rs")
+          text = process.read_text()
+          old = '''    fn run(&self, request: &RenderRequest<'_>) -> Result<Vec<u8>, RenderError> {
+                  let mut command = Command::new(&self.config.program);'''.replace("                  ", "        ")
+          new = '''    fn run(&self, request: &RenderRequest<'_>) -> Result<Vec<u8>, RenderError> {
+                  let viewport = request.context.viewport();
+                  let mut command = Command::new(&self.config.program);'''.replace("                  ", "        ")
+          if old not in text:
+              raise SystemExit("expected ProcessEngine command target not found")
+          text = text.replace(old, new, 1)
+          old = '''            .env(
+                  "PTYMARK_TERMINAL_WIDTH",
+                  request
+                      .context
+                      .terminal_width
+                      .map(|width| width.to_string())
+                      .unwrap_or_default(),
+              )'''.replace("              ", "            ")
+          new = '''            .env("PTYMARK_TERMINAL_WIDTH", viewport.columns.to_string())
+              .env("PTYMARK_TERMINAL_COLUMNS", viewport.columns.to_string())
+              .env("PTYMARK_TERMINAL_ROWS", viewport.rows.to_string())
+              .env(
+                  "PTYMARK_TERMINAL_PIXEL_WIDTH",
+                  viewport.pixel_width.map(|value| value.to_string()).unwrap_or_default(),
+              )
+              .env(
+                  "PTYMARK_TERMINAL_PIXEL_HEIGHT",
+                  viewport.pixel_height.map(|value| value.to_string()).unwrap_or_default(),
+              )'''.replace("              ", "            ")
+          if old not in text:
+              raise SystemExit("expected ProcessEngine viewport environment target not found")
+          process.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "renderers/worker.mjs",
+              '''    width: optionalInteger(process.env.PTYMARK_TERMINAL_WIDTH),
+                  height: optionalInteger(process.env.PTYMARK_TERMINAL_HEIGHT),
+                  theme: process.env.PTYMARK_THEME || "default",'''.replace("                  ", "    "),
+              '''    columns: optionalInteger(
+                  process.env.PTYMARK_TERMINAL_COLUMNS || process.env.PTYMARK_TERMINAL_WIDTH,
+              ),
+              rows: optionalInteger(process.env.PTYMARK_TERMINAL_ROWS),
+              width: optionalInteger(process.env.PTYMARK_TERMINAL_PIXEL_WIDTH),
+              height: optionalInteger(process.env.PTYMARK_TERMINAL_PIXEL_HEIGHT),
+              theme: process.env.PTYMARK_THEME || "default",'''.replace("              ", "    "),
+          )
+
+          protocol_old = '''PTYMARK_TERMINAL_WIDTH
+          ```'''.replace("          ", "")
+          protocol_new = '''PTYMARK_TERMINAL_WIDTH
+          PTYMARK_TERMINAL_COLUMNS
+          PTYMARK_TERMINAL_ROWS
+          PTYMARK_TERMINAL_PIXEL_WIDTH
+          PTYMARK_TERMINAL_PIXEL_HEIGHT
+          ```'''.replace("          ", "")
+          for path in ["README.md", "documents/usage.md", "documents/dependencies.md"]:
+              replace_once(path, protocol_old, protocol_new)
+
+          replace_once(
+              "documents/system-design.md",
+              "Duplicate engine IDs are errors by default. An embedding application that intentionally replaces a built-in must do so before build through an explicit catalog override operation. Silent last-write-wins registration is forbidden.",
+              "Duplicate engine IDs are errors by default. An embedding application that intentionally replaces built-ins must call `RuntimeBuilder::without_engine_providers()` before registering its replacement catalog. Silent last-write-wins registration is forbidden.",
+          )
+
+          workflow = Path(".github/workflows/ptymark-ci.yml")
+          text = workflow.read_text()
+          canonical_old = '''      - name: Run runtime composition contract tests in container
+                  run: >-
+                    docker compose
+                    --env-file docker/ptymark-versions.env
+                    --file docker/ptymark-compose.yaml
+                    run --rm --no-TTY dev cargo test --locked --test runtime_contract
+
+                - name: Run terminal compatibility tests in container'''.replace("                ", "      ").replace("                  ", "        ")
+          canonical_new = '''      - name: Run runtime composition contract tests in container
+                  run: >-
+                    docker compose
+                    --env-file docker/ptymark-versions.env
+                    --file docker/ptymark-compose.yaml
+                    run --rm --no-TTY dev cargo test --locked --test runtime_contract
+
+                - name: Run runtime catalog replacement contract tests in container
+                  run: >-
+                    docker compose
+                    --env-file docker/ptymark-versions.env
+                    --file docker/ptymark-compose.yaml
+                    run --rm --no-TTY dev cargo test --locked --test runtime_override_contract
+
+                - name: Run extension security contract tests in container
+                  run: >-
+                    docker compose
+                    --env-file docker/ptymark-versions.env
+                    --file docker/ptymark-compose.yaml
+                    run --rm --no-TTY dev cargo test --locked --test extension_validation_contract
+
+                - name: Run terminal compatibility tests in container'''.replace("                ", "      ").replace("                  ", "        ")
+          if canonical_old not in text:
+              raise SystemExit("canonical runtime CI insertion target not found")
+          text = text.replace(canonical_old, canonical_new, 1)
+
+          native_old = '''      - name: Run runtime composition contract tests
+                  run: cargo test --locked --test runtime_contract
+
+                - name: Run terminal compatibility tests'''.replace("                ", "      ").replace("                  ", "        ")
+          native_new = '''      - name: Run runtime composition contract tests
+                  run: cargo test --locked --test runtime_contract
+
+                - name: Run runtime catalog replacement contract tests
+                  run: cargo test --locked --test runtime_override_contract
+
+                - name: Run extension security contract tests
+                  run: cargo test --locked --test extension_validation_contract
+
+                - name: Run terminal compatibility tests'''.replace("                ", "      ").replace("                  ", "        ")
+          if native_old not in text:
+              raise SystemExit("native runtime CI insertion target not found")
+          text = text.replace(native_old, native_new, 1)
+
+          config_old = '''          "${compose[@]}" run --rm --no-TTY dev \
+              cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+              'cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private | grep -F "private = true" >/dev/null' '''.rstrip()
+          config_new = '''          "${compose[@]}" run --rm --no-TTY dev \
+              cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+          for config in examples/config/*.toml; do
+            "${compose[@]}" run --rm --no-TTY dev \
+              cargo run --quiet --locked -- config check --config "$config"
+          done
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+              'cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private | grep -F "private = true" >/dev/null' '''.rstrip()
+          if config_old not in text:
+              raise SystemExit("config fixture CI insertion target not found")
+          workflow.write_text(text.replace(config_old, config_new, 1))
+
+          model = Path("src/model.rs")
+          text = model.read_text()
+          old = "#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]\npub enum BlockKind"
+          new = "#[non_exhaustive]\n#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]\npub enum BlockKind"
+          if old not in text:
+              raise SystemExit("BlockKind extensibility target not found")
+          model.write_text(text.replace(old, new, 1))
+          PY
+
+          cargo fmt --all
+
+      - name: Validate the complete normalized Rust tree
+        run: |
+          cargo fmt --all -- --check
+          cargo check --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+          for config in examples/config/*.toml; do
+            cargo run --quiet --locked -- config check --config "$config"
+          done
+          cargo run --quiet --locked -- engine doctor --no-config >/dev/null
+
+      - name: Commit the passing reviewed tree
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md documents src tests examples renderers ptymark.mk scripts .github/workflows/ptymark-ci.yml
+          git commit -m "Finalize extensible runtime and artifact contracts"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
