@@ -1,0 +1,175 @@
+# @dependency-start
+# contract workflow
+# responsibility Applies the remaining deterministic Rust 1.97 normalization and commits a fully tested tree once.
+# upstream workflow ./ptymark-normalized-diagnostic-once.yml proves all tests pass after normalization.
+# upstream implementation ../../src/config/resolve.rs resolves runtime dependencies.
+# upstream implementation ../../src/config/source.rs discovers configuration sources.
+# upstream implementation ../../src/detector.rs constructs explicit-fence detector policies.
+# downstream workflow ./ptymark-ci.yml remains the canonical repeatable validation path.
+# @dependency-end
+name: ptymark Final Rust Normalize Once
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - .github/workflows/ptymark-final-rust-normalize-once.yml
+      - src/config/resolve.rs
+      - src/config/source.rs
+      - src/detector.rs
+
+permissions:
+  contents: write
+
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
+concurrency:
+  group: ptymark-final-rust-normalize-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  normalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Apply remaining deterministic repairs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          resolve = Path('src/config/resolve.rs')
+          text = resolve.read_text()
+          old = '''    runtimes
+              .entry("chromium".to_owned())
+              .or_insert_with(RuntimeConfig::default);'''.replace('              ', '        ')
+          new = '    runtimes.entry("chromium".to_owned()).or_default();'
+          if old not in text:
+              raise SystemExit('expected runtime default target not found')
+          resolve.write_text(text.replace(old, new, 1))
+
+          source = Path('src/config/source.rs')
+          text = source.read_text()
+          old = '''            if let Some(path) = Self::user_path(environment) {
+                          if path.is_file() {
+                              seen.insert(canonical_or_original(&path));
+                              sources.push(ConfigSource {
+                                  origin: ConfigOrigin::User,
+                                  trust: ConfigTrust::UserOwned,
+                                  path,
+                              });
+                          }
+                      }'''.replace('                          ', '                ').replace('                      ', '            ')
+          new = '''            if let Some(path) = Self::user_path(environment)
+                          && path.is_file()
+                      {
+                          seen.insert(canonical_or_original(&path));
+                          sources.push(ConfigSource {
+                              origin: ConfigOrigin::User,
+                              trust: ConfigTrust::UserOwned,
+                              path,
+                          });
+                      }'''.replace('                          ', '                ').replace('                      ', '            ')
+          if old not in text:
+              raise SystemExit('expected user config condition target not found')
+          source.write_text(text.replace(old, new, 1))
+
+          detector = Path('src/detector.rs')
+          text = detector.read_text()
+          replacements = [
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+                  options.max_buffer_bytes = max_buffer_bytes;
+                  options.max_line_bytes = (64 * 1024).min(max_buffer_bytes);
+                  Self::with_options(options)'''.replace('                  ', '        '),
+                  '''        Self::with_options(FencedDetectorOptions {
+                  max_buffer_bytes,
+                  max_line_bytes: (64 * 1024).min(max_buffer_bytes),
+                  ..FencedDetectorOptions::default()
+              })'''.replace('                  ', '            ').replace('              ', '        '),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+                  options.math_fences = vec!["latex".to_owned()];'''.replace('                  ', '        '),
+                  '''        let options = FencedDetectorOptions {
+                  math_fences: vec!["latex".to_owned()],
+                  ..FencedDetectorOptions::default()
+              };'''.replace('                  ', '            ').replace('              ', '        '),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+                  options.mermaid_fences = vec!["diagram".to_owned()];
+                  options.math_fences = vec!["diagram".to_owned()];'''.replace('                  ', '        '),
+                  '''        let options = FencedDetectorOptions {
+                  mermaid_fences: vec!["diagram".to_owned()],
+                  math_fences: vec!["diagram".to_owned()],
+                  ..FencedDetectorOptions::default()
+              };'''.replace('                  ', '            ').replace('              ', '        '),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+                  options.max_buffer_bytes = 1024;
+                  options.max_line_bytes = 128;
+                  options.mermaid = false;'''.replace('                  ', '        '),
+                  '''        let options = FencedDetectorOptions {
+                  max_buffer_bytes: 1024,
+                  max_line_bytes: 128,
+                  mermaid: false,
+                  ..FencedDetectorOptions::default()
+              };'''.replace('                  ', '            ').replace('              ', '        '),
+              ),
+              (
+                  '''        let mut options = FencedDetectorOptions::default();
+                  options.max_buffer_bytes = 1024;
+                  options.max_line_bytes = 4;'''.replace('                  ', '        '),
+                  '''        let options = FencedDetectorOptions {
+                  max_buffer_bytes: 1024,
+                  max_line_bytes: 4,
+                  ..FencedDetectorOptions::default()
+              };'''.replace('                  ', '            ').replace('              ', '        '),
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'expected detector normalization target not found:\n{old}')
+              text = text.replace(old, new, 1)
+          detector.write_text(text)
+          PY
+          cargo fmt --all
+
+      - name: Validate normalized tree
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+
+      - name: Commit normalized sources
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/config.rs src/config/resolve.rs src/config/source.rs src/detector.rs
+          git commit -m "Normalize configuration and detector skeleton"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
