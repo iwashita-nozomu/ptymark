@@ -72,6 +72,32 @@ fn terminal_sequences_are_not_interpreted_as_markdown() {
 }
 
 #[test]
+fn engine_inventory_and_doctor_are_stable_public_entrypoints() {
+    let list = Command::new(binary())
+        .args(["engine", "list", "--no-config"])
+        .output()
+        .expect("engine list");
+    assert!(list.status.success(), "{}", String::from_utf8_lossy(&list.stderr));
+    let list_text = String::from_utf8(list.stdout).expect("UTF-8 engine list");
+    assert!(list_text.contains("preview\t"));
+    assert!(list_text.contains("source\t"));
+
+    let doctor = Command::new(binary())
+        .args(["engine", "doctor", "--no-config"])
+        .output()
+        .expect("engine doctor");
+    assert!(
+        doctor.status.success(),
+        "{}",
+        String::from_utf8_lossy(&doctor.stderr)
+    );
+    let doctor_text = String::from_utf8(doctor.stdout).expect("UTF-8 engine doctor");
+    assert!(doctor_text.contains("runtime ok:"));
+    assert!(doctor_text.contains("registered engines:"));
+    assert!(doctor_text.contains("optional"));
+}
+
+#[test]
 fn help_and_version_are_stable_public_entrypoints() {
     let help = Command::new(binary()).arg("--help").output().expect("help");
     assert!(help.status.success());
@@ -79,6 +105,7 @@ fn help_and_version_are_stable_public_entrypoints() {
     assert!(help_text.contains("ptymark [CONFIG OPTIONS] -- COMMAND"));
     assert!(help_text.contains("ptymark [CONFIG OPTIONS] preview"));
     assert!(help_text.contains("ptymark config check"));
+    assert!(help_text.contains("ptymark engine doctor"));
     assert!(help_text.contains("--private"));
     assert!(help_text.contains("--no-cache"));
 
