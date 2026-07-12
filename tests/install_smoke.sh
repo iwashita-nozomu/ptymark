@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-binary="${1:-target/debug/ptymark}"
+binary="${1:-${CARGO_TARGET_DIR:-target}/debug/ptymark}"
 if [[ ! -x "$binary" ]]; then
   printf 'ptymark test binary is not executable: %s\n' "$binary" >&2
   exit 1
