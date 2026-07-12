@@ -7,9 +7,9 @@
 name: ptymark Docker Clippy Diagnostic Once
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/minimal-pre-display-core
+      - main
     paths:
       - .github/workflows/ptymark-docker-clippy-diagnostic-once.yml
 
@@ -22,10 +22,10 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Check out branch
+      - name: Check out PR head
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
           submodules: false
           persist-credentials: false
 
