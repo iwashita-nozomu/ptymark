@@ -1,12 +1,9 @@
 # @dependency-start
 # contract environment
-# responsibility Defines the canonical mounted development service for ptymark checks.
-# upstream environment ./ptymark.Dockerfile builds the product toolchain.
-# upstream environment ./ptymark-versions.env pins build arguments.
-# downstream implementation ../scripts/ptymark-dev-container.sh provides the local wrapper.
+# responsibility Runs the canonical ptymark development image with the repository mounted at /workspace.
+# upstream environment ./ptymark.Dockerfile creates writable toolchain directories for the non-root node user.
+# downstream build ../ptymark.mk exposes the product development and validation commands.
 # @dependency-end
-name: ptymark
-
 services:
   dev:
     build:
@@ -15,22 +12,12 @@ services:
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:24.18.0-bookworm}
         RUST_VERSION: ${RUST_VERSION:-1.97.0}
-        TYPST_VERSION: ${TYPST_VERSION:-0.15.0}
     image: ptymark-dev:${PTYMARK_IMAGE_TAG:-local}
-    init: true
     working_dir: /workspace
     environment:
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: "1"
-      PTYMARK_RENDERER_ROOT: /opt/ptymark-renderers
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      PTYMARK_RENDERER_ROOT: /opt/ptymark-renderers
     volumes:
       - ..:/workspace
-      - ptymark-cargo-registry:/home/node/.cargo/registry
-      - ptymark-cargo-git:/home/node/.cargo/git
-      - ptymark-target:/home/node/.cache/ptymark-target
-
-volumes:
-  ptymark-cargo-registry:
-  ptymark-cargo-git:
-  ptymark-target:
+    stdin_open: true
+    tty: true

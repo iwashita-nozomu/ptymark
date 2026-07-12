@@ -1,0 +1,33 @@
+schema_version = 1
+
+[detection]
+mermaid = true
+math = true
+max_block_bytes = 1048576
+
+[rendering]
+mode = "preview"
+strict = false
+columns = 80
+
+[cache]
+enabled = true
+max_entries = 128
+max_bytes = 33554432
+
+# Bare names are resolved through PATH. Replace them with absolute paths when
+# WezTerm or another GUI launcher receives a different PATH from your shell.
+[engines.mermaid]
+backend = "mermaid-cli"
+path = "mmdc"
+
+# Keep math on the built-in renderer until a tex2svg-compatible MathJax CLI is
+# installed. Then set backend = "mathjax-cli" and path = "tex2svg" (or an
+# absolute executable path).
+[engines.math]
+backend = "preview"
+path = "tex2svg"
+
+# External SVG engines are converted to terminal-safe symbol output by Chafa.
+[engines.presenter]
+path = "chafa"

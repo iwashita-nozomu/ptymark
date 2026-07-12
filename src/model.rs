@@ -52,9 +52,9 @@ pub enum StreamItem {
     Semantic(SemanticBlock),
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum DisplayMode {
-    #[default]
-    Transform,
-    Bypass,
+pub(crate) fn push_passthrough(items: &mut Vec<StreamItem>, bytes: impl IntoIterator<Item = u8>) {
+    match items.last_mut() {
+        Some(StreamItem::Passthrough(existing)) => existing.extend(bytes),
+        _ => items.push(StreamItem::Passthrough(bytes.into_iter().collect())),
+    }
 }
