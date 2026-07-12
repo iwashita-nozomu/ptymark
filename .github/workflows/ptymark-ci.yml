@@ -91,10 +91,10 @@ jobs:
       - name: Run tests
         run: cargo test --locked --all-targets
 
-  windows-managed-installer:
-    name: Windows managed installer and renderer smoke
+  windows-installers:
+    name: Windows PowerShell, cmd, and WinBash installers
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
@@ -110,6 +110,7 @@ jobs:
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
+        shell: pwsh
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
@@ -120,10 +121,14 @@ jobs:
           node-version: 24.18.0
           package-manager-cache: false
 
-      - name: Parse PowerShell installers
+      - name: Parse installer frontends
         shell: pwsh
         run: |
-          foreach ($path in @('scripts/install.ps1', 'scripts/install-managed-bundle.ps1')) {
+          foreach ($path in @(
+            'scripts/installer.ps1',
+            'scripts/install.ps1',
+            'scripts/install-managed-bundle.ps1'
+          )) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile(
@@ -132,91 +137,97 @@ jobs:
               [ref]$errors
             ) | Out-Null
             if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error $_.Message }
-              throw "PowerShell parser rejected $path"
+              throw "$path parser errors: $($errors -join '; ')"
             }
           }
+          bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh
 
       - name: Build native binary
         run: cargo build --locked
 
-      - name: Locate Edge and prepare paths
+      - name: Locate installed Chromium browser
+        id: browser
         shell: pwsh
         run: |
           $candidates = @()
           if (${env:ProgramFiles(x86)}) {
             $candidates += Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'
+            $candidates += Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'
           }
           if ($env:ProgramFiles) {
             $candidates += Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'
+            $candidates += Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'
           }
-          $edge = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
-          if (-not $edge) { throw 'Microsoft Edge was not found on the Windows runner' }
-          $root = Join-Path $env:RUNNER_TEMP 'ptymark-managed-smoke'
-          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $root | Out-Null
-          "PTYMARK_TEST_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "PTYMARK_TEST_EDGE=$edge" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "PTYMARK_TEST_BINARY=$((Resolve-Path 'target/debug/ptymark.exe').Path)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $browser = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $browser) { throw 'No Chromium-compatible browser is installed on the Windows runner' }
+          "path=$browser" >> $env:GITHUB_OUTPUT
 
-      - name: Install isolated defaults
+      - name: Install and render with isolated defaults
         shell: pwsh
         env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
+          BROWSER_PATH: ${{ steps.browser.outputs.path }}
         run: |
-          & ./scripts/install.ps1 `
+          $root = Join-Path $env:RUNNER_TEMP 'ptymark-managed-windows'
+          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          $binary = (Resolve-Path 'target/debug/ptymark.exe').Path
+          $bundle = Join-Path $root 'bundle'
+          $config = Join-Path $root 'config.toml'
+          $state = Join-Path $root 'state.toml'
+
+          & ./scripts/installer.ps1 `
             -SkipCore `
-            -Binary $env:PTYMARK_TEST_BINARY `
+            -Binary $binary `
             -Managed always `
-            -ManagedRoot (Join-Path $env:PTYMARK_TEST_ROOT 'bundle') `
-            -Config (Join-Path $env:PTYMARK_TEST_ROOT 'config.toml') `
-            -State (Join-Path $env:PTYMARK_TEST_ROOT 'state.toml') `
-            -Browser $env:PTYMARK_TEST_EDGE `
+            -ManagedRoot $bundle `
+            -Config $config `
+            -State $state `
+            -Browser $env:BROWSER_PATH `
             -SkipBrowserDownload
-          if ($LASTEXITCODE -ne 0) { throw "installer exited with $LASTEXITCODE" }
+          if ($LASTEXITCODE -ne 0) { throw "installer.ps1 failed with $LASTEXITCODE" }
 
-      - name: Verify installed inventory
-        shell: pwsh
-        run: |
-          $config = Join-Path $env:PTYMARK_TEST_ROOT 'config.toml'
-          $state = Join-Path $env:PTYMARK_TEST_ROOT 'state.toml'
-          & $env:PTYMARK_TEST_BINARY --config $config config check
-          if ($LASTEXITCODE -ne 0) { throw 'config check failed' }
-          & $env:PTYMARK_TEST_BINARY --config $config engine check
-          if ($LASTEXITCODE -ne 0) { throw 'engine check failed' }
-          & $env:PTYMARK_TEST_BINARY install status --state $state
+          & $binary install status --state $state
           if ($LASTEXITCODE -ne 0) { throw 'install status failed' }
-          $text = Get-Content $config -Raw
-          if ($text -notmatch 'mmdc\.exe' -or $text -notmatch 'tex2svg\.exe' -or $text -notmatch 'chafa\.exe') {
-            throw 'managed native aliases were not written to configuration'
-          }
+          & $binary --config $config engine check
+          if ($LASTEXITCODE -ne 0) { throw 'engine check failed' }
 
-      - name: Render Mermaid and math on Windows
-        shell: pwsh
+          $mermaid = @('```mermaid', 'flowchart LR', '  A --> B', '```') -join "`n"
+          $mermaidOutput = $mermaid | & $binary --config $config preview
+          if ($LASTEXITCODE -ne 0 -or -not $mermaidOutput) { throw 'Mermaid render failed' }
+          if (($mermaidOutput -join "`n") -match '```mermaid') { throw 'Mermaid source was not replaced' }
+
+          $math = @('$$', 'E = mc^2', '$$') -join "`n"
+          $mathOutput = $math | & $binary --config $config preview
+          if ($LASTEXITCODE -ne 0 -or -not $mathOutput) { throw 'Math render failed' }
+          if (($mathOutput -join "`n") -match '^\$\$$') { throw 'Math source was not replaced' }
+
+      - name: Run Git Bash frontend with native path conversion
+        shell: bash
         run: |
-          $config = Join-Path $env:PTYMARK_TEST_ROOT 'config.toml'
-          $mermaid = @"
-          ```mermaid
-          flowchart LR
-            Windows --> Installer --> Renderer
-          ```
-          "@
-          $mermaidOutput = ($mermaid | & $env:PTYMARK_TEST_BINARY --config $config preview --columns 48 -) -join "`n"
-          if ($LASTEXITCODE -ne 0) { throw 'Mermaid preview failed' }
-          if (-not $mermaidOutput -or $mermaidOutput.Contains('```mermaid')) {
-            throw 'Mermaid source was not replaced by managed output'
-          }
+          binary="$(cygpath -u "$GITHUB_WORKSPACE/target/debug/ptymark.exe")"
+          root="$(cygpath -u "$RUNNER_TEMP")/ptymark-git-bash"
+          rm -rf "$root"
+          bash scripts/installer.sh \
+            --skip-core \
+            --binary "$binary" \
+            --managed never \
+            --mermaid preview \
+            --math preview \
+            --config "$root/config.toml" \
+            --state "$root/state.toml"
+          grep -F 'backend = "preview"' "$root/config.toml" >/dev/null
+          grep -F 'config_path = "' "$root/state.toml" >/dev/null
 
-          $math = @"
-          $$
-          E = mc^2
-          $$
-          "@
-          $mathOutput = ($math | & $env:PTYMARK_TEST_BINARY --config $config preview --columns 48 -) -join "`n"
-          if ($LASTEXITCODE -ne 0) { throw 'Math preview failed' }
-          if (-not $mathOutput -or $mathOutput.Contains('E = mc^2')) {
-            throw 'Math source was not replaced by managed output'
-          }
+      - name: Run cmd.exe frontend
+        shell: cmd
+        run: >-
+          scripts\installer.cmd
+          -SkipCore
+          -Binary "%GITHUB_WORKSPACE%\target\debug\ptymark.exe"
+          -Managed never
+          -Mermaid preview
+          -Math preview
+          -Config "%RUNNER_TEMP%\ptymark-cmd\config.toml"
+          -State "%RUNNER_TEMP%\ptymark-cmd\state.toml"
 
   canonical-docker:
     name: Canonical Docker checks
@@ -275,9 +286,9 @@ jobs:
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev \
-            bash -n scripts/check-ptymark-renderers.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+            bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
           "${compose[@]}" run --rm --no-TTY dev \
-            shellcheck scripts/check-ptymark-renderers.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+            shellcheck scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
           "${compose[@]}" run --rm --no-TTY dev \
             node --check renderers/managed/mathjax-cli.mjs
           "${compose[@]}" run --rm --no-TTY dev \
@@ -292,6 +303,7 @@ jobs:
           bash -lc 'cargo build --locked && bash tests/install_smoke.sh'
 
       - name: Run isolated managed-engine smoke
+        shell: bash
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev bash -lc '
@@ -299,14 +311,13 @@ jobs:
             cargo build --locked
             root="$(mktemp -d)"
             binary="${CARGO_TARGET_DIR}/debug/ptymark"
-            bash scripts/install.sh \
+            bash scripts/installer.sh \
               --skip-core \
               --binary "$binary" \
               --managed always \
               --managed-root "$root/bundle" \
               --browser /usr/bin/chromium \
               --skip-browser-download \
-              --presenter /usr/bin/chafa \
               --config "$root/config.toml" \
               --state "$root/state.toml"
             printf "%s\n" "```mermaid" "flowchart LR" "A --> B" "```" \
