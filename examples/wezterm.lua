@@ -1,8 +1,10 @@
--- Minimal ~/.wezterm.lua example for ptymark on Linux, macOS, and Windows.
+-- Portable ~/.wezterm.lua example for ptymark.
 --
--- Install first:
---   Linux/macOS: bash scripts/install.sh
---   Windows:     pwsh -File scripts/install.ps1
+-- Install first with one of:
+--   Linux/macOS/WSL:  bash scripts/installer.sh
+--   Git Bash/MSYS2:   bash scripts/installer.sh
+--   PowerShell:       pwsh -File scripts/installer.ps1
+--   cmd.exe:          scripts\installer.cmd
 --
 -- PTYMARK_BINARY and PTYMARK_CONFIG override the platform defaults below.
 
@@ -34,8 +36,7 @@ end
 local ptymark_binary = os.getenv 'PTYMARK_BINARY' or default_binary
 local ptymark_config = os.getenv 'PTYMARK_CONFIG' or default_config
 
--- WezTerm accepts both HTTPS plugin URLs and file:// URLs. For local plugin
--- development, replace this URL with an absolute file URL such as:
+-- For local plugin development, replace the HTTPS URL with an absolute file URL:
 -- file:///home/user/src/ptymark
 local ptymark = wezterm.plugin.require(
   'https://github.com/iwashita-nozomu/ptymark'
