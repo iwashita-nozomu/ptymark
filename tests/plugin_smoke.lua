@@ -1,14 +1,30 @@
+local ptymark_module
+
+local wezterm_stub = {
+  home_dir = '/home/user',
+  action = {
+    SpawnCommandInNewTab = function(spec)
+      return { kind = 'SpawnCommandInNewTab', spec = spec }
+    end,
+  },
+  config_builder = function()
+    return {}
+  end,
+  plugin = {
+    require = function(url)
+      assert(url == 'https://github.com/iwashita-nozomu/ptymark')
+      assert(ptymark_module ~= nil)
+      return ptymark_module
+    end,
+  },
+}
+
 package.preload['wezterm'] = function()
-  return {
-    action = {
-      SpawnCommandInNewTab = function(spec)
-        return { kind = 'SpawnCommandInNewTab', spec = spec }
-      end,
-    },
-  }
+  return wezterm_stub
 end
 
-local ptymark = dofile('plugin/init.lua')
+ptymark_module = dofile('plugin/init.lua')
+local ptymark = ptymark_module
 
 local command = ptymark.command({
   binary = '/usr/local/bin/ptymark',
@@ -56,4 +72,35 @@ ptymark.apply_to_config(no_side_effects, {
 assert(no_side_effects.launch_menu == nil)
 assert(no_side_effects.keys == nil)
 
-print('ptymark WezTerm plugin smoke: ok')
+local original_getenv = os.getenv
+os.getenv = function(name)
+  if name == 'PTYMARK_BINARY' then
+    return '/home/user/.cargo/bin/ptymark'
+  end
+  if name == 'PTYMARK_CONFIG' then
+    return '/home/user/.config/ptymark/config.toml'
+  end
+  if name == 'SHELL' then
+    return '/bin/zsh'
+  end
+  return original_getenv(name)
+end
+
+local example = dofile('examples/wezterm.lua')
+os.getenv = original_getenv
+
+assert(#example.launch_menu == 1)
+assert(example.launch_menu[1].label == 'ptymark shell')
+assert(example.launch_menu[1].cwd == '/home/user')
+assert(example.launch_menu[1].args[1] == '/home/user/.cargo/bin/ptymark')
+assert(example.launch_menu[1].args[2] == '--config')
+assert(example.launch_menu[1].args[3] == '/home/user/.config/ptymark/config.toml')
+assert(example.launch_menu[1].args[4] == '--')
+assert(example.launch_menu[1].args[5] == '/bin/zsh')
+assert(example.launch_menu[1].args[6] == '-l')
+assert(#example.keys == 1)
+assert(example.keys[1].key == 'P')
+assert(example.keys[1].mods == 'CTRL|SHIFT')
+assert(example.keys[1].action.kind == 'SpawnCommandInNewTab')
+
+print('ptymark WezTerm plugin and example smoke: ok')
