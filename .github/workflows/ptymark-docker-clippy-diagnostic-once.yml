@@ -1,0 +1,71 @@
+# @dependency-start
+# contract workflow
+# responsibility Captures the isolated canonical-Docker Clippy output once while stabilizing the first ptymark integration.
+# upstream environment ../../docker/ptymark.Dockerfile defines the canonical image.
+# downstream workflow ./ptymark-ci.yml remains the repeatable validation path.
+# @dependency-end
+name: ptymark Docker Clippy Diagnostic Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-docker-clippy-diagnostic-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build canonical image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          build --pull
+
+      - name: Capture Docker Clippy output
+        shell: bash
+        run: |
+          set +e
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev \
+            cargo clippy --locked --all-targets -- -D warnings \
+            > docker-clippy.log 2>&1
+          status=$?
+          printf '%s\n' "$status" > docker-clippy.status
+          cat docker-clippy.log
+          exit 0
+
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-docker-clippy-diagnostic
+          path: |
+            docker-clippy.log
+            docker-clippy.status
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Preserve conclusion
+        run: test "$(cat docker-clippy.status)" = 0
