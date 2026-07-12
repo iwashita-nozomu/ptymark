@@ -65,12 +65,16 @@ fn top_level_and_run_help_describe_the_filtered_path() {
         .output()
         .expect("top-level help");
     assert!(top_level.status.success());
-    assert!(String::from_utf8_lossy(&top_level.stdout).contains("run [OPTIONS] -- COMMAND"));
+    assert!(
+        String::from_utf8_lossy(&top_level.stdout).contains("run [OPTIONS] -- COMMAND")
+    );
 
     let run_help = Command::new(binary())
         .args(["run", "--help"])
         .output()
         .expect("run help");
     assert!(run_help.status.success());
-    assert!(String::from_utf8_lossy(&run_help.stdout).contains("stdout is a pipe, not a PTY"));
+    assert!(
+        String::from_utf8_lossy(&run_help.stdout).contains("stdout is a pipe, not a PTY")
+    );
 }
