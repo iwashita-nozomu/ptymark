@@ -157,7 +157,8 @@ impl ArtifactCache for MemoryCache {
         }
 
         self.bytes = self.bytes.saturating_add(weight);
-        self.entries.insert(key.clone(), CacheEntry { bytes, weight });
+        self.entries
+            .insert(key.clone(), CacheEntry { bytes, weight });
         self.order.push_back(key.clone());
         self.stats.insertions = self.stats.insertions.saturating_add(1);
 
@@ -186,14 +187,7 @@ mod tests {
     use crate::model::BlockKind;
 
     fn key(number: u8) -> CacheKey {
-        CacheKey::new(
-            "test/renderer-v1",
-            BlockKind::Math,
-            &[number],
-            80,
-            false,
-            0,
-        )
+        CacheKey::new("test/renderer-v1", BlockKind::Math, &[number], 80, false, 0)
     }
 
     #[test]
