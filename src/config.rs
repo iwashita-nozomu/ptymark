@@ -369,7 +369,11 @@ mod tests {
         config.engines.mermaid.path = PathBuf::from("mmdc");
         config.validate().expect("bare executable name");
 
-        config.engines.mermaid.path = PathBuf::from("/opt/homebrew/bin/mmdc");
+        config.engines.mermaid.path = if cfg!(windows) {
+            PathBuf::from(r"C:\Program Files\ptymark\mmdc.exe")
+        } else {
+            PathBuf::from("/opt/homebrew/bin/mmdc")
+        };
         config.validate().expect("absolute executable path");
     }
 
