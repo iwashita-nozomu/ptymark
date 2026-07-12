@@ -64,6 +64,15 @@ EXAMPLES:
 ";
 
 pub fn main_entry() -> ! {
+    if let Some(result) = crate::managed_launcher::run_if_managed_alias() {
+        match result {
+            Ok(code) => process::exit(code),
+            Err(message) => {
+                eprintln!("ptymark managed launcher: {message}");
+                process::exit(2);
+            }
+        }
+    }
     match run_from(env::args_os().skip(1).collect()) {
         Ok(code) => process::exit(code),
         Err(message) => {

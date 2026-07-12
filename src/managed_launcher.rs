@@ -48,10 +48,18 @@ struct ManagedBundleManifest {
 
 impl ManagedBundleManifest {
     fn load(path: &Path) -> Result<Self, String> {
-        let source = fs::read_to_string(path)
-            .map_err(|error| format!("cannot read managed bundle manifest `{}`: {error}", path.display()))?;
-        let manifest: Self = toml::from_str(&source)
-            .map_err(|error| format!("cannot parse managed bundle manifest `{}`: {error}", path.display()))?;
+        let source = fs::read_to_string(path).map_err(|error| {
+            format!(
+                "cannot read managed bundle manifest `{}`: {error}",
+                path.display()
+            )
+        })?;
+        let manifest: Self = toml::from_str(&source).map_err(|error| {
+            format!(
+                "cannot parse managed bundle manifest `{}`: {error}",
+                path.display()
+            )
+        })?;
         manifest.validate()?;
         Ok(manifest)
     }
@@ -110,7 +118,11 @@ fn validate_absolute_directory(label: &str, path: &Path) -> Result<(), String> {
 pub fn run_if_managed_alias() -> Option<Result<i32, String>> {
     let executable = match env::current_exe() {
         Ok(path) => path,
-        Err(error) => return Some(Err(format!("cannot resolve managed launcher executable: {error}"))),
+        Err(error) => {
+            return Some(Err(format!(
+                "cannot resolve managed launcher executable: {error}"
+            )));
+        }
     };
     let role = ManagedRole::from_executable(&executable)?;
     Some(run_managed_role(role, &executable))
@@ -159,14 +171,23 @@ fn run_managed_role(role: ManagedRole, executable: &Path) -> Result<i32, String>
 
 #[cfg(test)]
 mod tests {
-    use super::{ManagedRole, MANAGED_BUNDLE_SCHEMA_VERSION};
+    use super::{MANAGED_BUNDLE_SCHEMA_VERSION, ManagedRole};
     use std::path::Path;
 
     #[test]
     fn executable_names_map_to_fixed_roles() {
-        assert_eq!(ManagedRole::from_executable(Path::new("mmdc")), Some(ManagedRole::Mermaid));
-        assert_eq!(ManagedRole::from_executable(Path::new("tex2svg.exe")), Some(ManagedRole::Math));
-        assert_eq!(ManagedRole::from_executable(Path::new("chafa")), Some(ManagedRole::Presenter));
+        assert_eq!(
+            ManagedRole::from_executable(Path::new("mmdc")),
+            Some(ManagedRole::Mermaid)
+        );
+        assert_eq!(
+            ManagedRole::from_executable(Path::new("tex2svg.exe")),
+            Some(ManagedRole::Math)
+        );
+        assert_eq!(
+            ManagedRole::from_executable(Path::new("chafa")),
+            Some(ManagedRole::Presenter)
+        );
         assert_eq!(ManagedRole::from_executable(Path::new("ptymark")), None);
     }
 

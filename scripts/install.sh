@@ -167,7 +167,7 @@ if [[ "$resolve_defaults" -eq 1 ]]; then
   managed_ready=0
   if [[ -x "$managed_mermaid" && -x "$managed_math" && -x "$managed_presenter" ]]; then managed_ready=1; fi
   if [[ "$need_managed" -eq 1 && "$managed_ready" -eq 0 && "$dry_run" -eq 0 ]]; then
-    bundle_args=(--root "$managed_root")
+    bundle_args=(--root "$managed_root" --launcher "$binary")
     [[ -z "$browser_path" ]] || bundle_args+=(--browser "$browser_path")
     [[ "$skip_browser_download" -eq 0 ]] || bundle_args+=(--skip-browser-download)
     [[ "$offline" -eq 0 ]] || bundle_args+=(--offline)

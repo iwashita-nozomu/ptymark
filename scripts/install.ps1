@@ -60,9 +60,9 @@ if (-not $ManagedRoot) {
   $ManagedRoot = Join-Path $env:LOCALAPPDATA "ptymark\renderer-bundles\$BundleId"
 }
 $ManagedRoot = [System.IO.Path]::GetFullPath($ManagedRoot)
-$ManagedMermaid = Join-Path $ManagedRoot 'bin\mmdc.cmd'
-$ManagedMath = Join-Path $ManagedRoot 'bin\tex2svg.cmd'
-$ManagedPresenter = Join-Path $ManagedRoot 'bin\chafa.cmd'
+$ManagedMermaid = Join-Path $ManagedRoot 'bin\mmdc.exe'
+$ManagedMath = Join-Path $ManagedRoot 'bin\tex2svg.exe'
+$ManagedPresenter = Join-Path $ManagedRoot 'bin\chafa.exe'
 
 function Get-ProgramPath([string[]]$Names) {
   foreach ($Name in $Names) {
@@ -99,7 +99,7 @@ if ($ResolveDefaults) {
     (Test-Path $ManagedMath -PathType Leaf) -and
     (Test-Path $ManagedPresenter -PathType Leaf)
   if ($NeedManaged -and -not $ManagedReady -and -not $DryRun) {
-    $BundleArgs = @('-Root', $ManagedRoot)
+    $BundleArgs = @('-Root', $ManagedRoot, '-Launcher', $Binary)
     if ($Browser) { $BundleArgs += @('-Browser', $Browser) }
     if ($SkipBrowserDownload) { $BundleArgs += '-SkipBrowserDownload' }
     if ($Offline) { $BundleArgs += '-Offline' }
