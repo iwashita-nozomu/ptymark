@@ -32,7 +32,7 @@ Options:
   --mermaid VALUE     keep | auto | preview | source | EXECUTABLE
   --math VALUE        keep | auto | preview | source | EXECUTABLE
   --presenter VALUE   keep | auto | EXECUTABLE
-  --reprobe           resolve all engine slots again from configured paths/PATH
+  --reprobe           search standard engine names again in the current PATH
   --reset             discard existing configuration before resolving
   --dry-run           install the core, but only print the engine-resolution plan
   -h, --help          show this help
