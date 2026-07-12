@@ -91,10 +91,10 @@ jobs:
       - name: Run tests
         run: cargo test --locked --all-targets
 
-  windows-installers:
-    name: Windows PowerShell, cmd, and WinBash installers
+  windows-frontends:
+    name: Windows PowerShell, cmd, and WinBash frontends
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 35
 
     steps:
       - name: Check out repository
@@ -112,14 +112,8 @@ jobs:
       - name: Install pinned Rust toolchain
         shell: pwsh
         run: |
-          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup toolchain install 1.97.0 --profile minimal
           rustup override set 1.97.0
-
-      - name: Install pinned Node runtime
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.18.0
-          package-manager-cache: false
 
       - name: Parse installer frontends
         shell: pwsh
@@ -127,7 +121,8 @@ jobs:
           foreach ($path in @(
             'scripts/installer.ps1',
             'scripts/install.ps1',
-            'scripts/install-managed-bundle.ps1'
+            'scripts/install-managed-bundle.ps1',
+            'tests/windows_managed_renderer_smoke.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -140,7 +135,64 @@ jobs:
               throw "$path parser errors: $($errors -join '; ')"
             }
           }
-          bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh
+          bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/managed_renderer_smoke.sh
+
+      - name: Build native binary
+        run: cargo build --locked
+
+      - name: Run Git Bash frontend with native path conversion
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="$(cygpath -u "$GITHUB_WORKSPACE/target/debug/ptymark.exe")"
+          root="$(cygpath -u "$RUNNER_TEMP")/ptymark-git-bash"
+          rm -rf "$root"
+          bash scripts/installer.sh \
+            --skip-core \
+            --binary "$binary" \
+            --managed never \
+            --mermaid preview \
+            --math preview \
+            --config "$root/config.toml" \
+            --state "$root/state.toml"
+          grep -F 'backend = "preview"' "$root/config.toml" >/dev/null
+          grep -F 'config_path = ' "$root/state.toml" >/dev/null
+
+      - name: Run cmd.exe frontend
+        shell: cmd
+        run: |
+          scripts\installer.cmd -SkipCore -Binary "%GITHUB_WORKSPACE%\target\debug\ptymark.exe" -Managed never -Mermaid preview -Math preview -Config "%RUNNER_TEMP%\ptymark-cmd\config.toml" -State "%RUNNER_TEMP%\ptymark-cmd\state.toml"
+          if errorlevel 1 exit /b 1
+
+  windows-managed-renderers:
+    name: Windows managed renderer installation and strict rendering
+    runs-on: windows-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        shell: bash
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal
+          rustup override set 1.97.0
+
+      - name: Install pinned Node runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
 
       - name: Build native binary
         run: cargo build --locked
@@ -162,77 +214,20 @@ jobs:
           if (-not $browser) { throw 'No Chromium-compatible browser is installed on the Windows runner' }
           "path=$browser" >> $env:GITHUB_OUTPUT
 
-      - name: Install and render with isolated defaults
+      - name: Install managed defaults and render Mermaid and math
         shell: pwsh
         env:
           BROWSER_PATH: ${{ steps.browser.outputs.path }}
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'ptymark-managed-windows'
-          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
-          $binary = (Resolve-Path 'target/debug/ptymark.exe').Path
-          $bundle = Join-Path $root 'bundle'
-          $config = Join-Path $root 'config.toml'
-          $state = Join-Path $root 'state.toml'
-
-          & ./scripts/installer.ps1 `
-            -SkipCore `
-            -Binary $binary `
-            -Managed always `
-            -ManagedRoot $bundle `
-            -Config $config `
-            -State $state `
+          & ./tests/windows_managed_renderer_smoke.ps1 `
+            -Binary ((Resolve-Path 'target/debug/ptymark.exe').Path) `
             -Browser $env:BROWSER_PATH `
-            -SkipBrowserDownload
-          if ($LASTEXITCODE -ne 0) { throw "installer.ps1 failed with $LASTEXITCODE" }
-
-          & $binary install status --state $state
-          if ($LASTEXITCODE -ne 0) { throw 'install status failed' }
-          & $binary --config $config engine check
-          if ($LASTEXITCODE -ne 0) { throw 'engine check failed' }
-
-          $mermaid = @('```mermaid', 'flowchart LR', '  A --> B', '```') -join "`n"
-          $mermaidOutput = $mermaid | & $binary --config $config preview
-          if ($LASTEXITCODE -ne 0 -or -not $mermaidOutput) { throw 'Mermaid render failed' }
-          if (($mermaidOutput -join "`n") -match '```mermaid') { throw 'Mermaid source was not replaced' }
-
-          $math = @('$$', 'E = mc^2', '$$') -join "`n"
-          $mathOutput = $math | & $binary --config $config preview
-          if ($LASTEXITCODE -ne 0 -or -not $mathOutput) { throw 'Math render failed' }
-          if (($mathOutput -join "`n") -match '^\$\$$') { throw 'Math source was not replaced' }
-
-      - name: Run Git Bash frontend with native path conversion
-        shell: bash
-        run: |
-          binary="$(cygpath -u "$GITHUB_WORKSPACE/target/debug/ptymark.exe")"
-          root="$(cygpath -u "$RUNNER_TEMP")/ptymark-git-bash"
-          rm -rf "$root"
-          bash scripts/installer.sh \
-            --skip-core \
-            --binary "$binary" \
-            --managed never \
-            --mermaid preview \
-            --math preview \
-            --config "$root/config.toml" \
-            --state "$root/state.toml"
-          grep -F 'backend = "preview"' "$root/config.toml" >/dev/null
-          grep -F 'config_path = "' "$root/state.toml" >/dev/null
-
-      - name: Run cmd.exe frontend
-        shell: cmd
-        run: >-
-          scripts\installer.cmd
-          -SkipCore
-          -Binary "%GITHUB_WORKSPACE%\target\debug\ptymark.exe"
-          -Managed never
-          -Mermaid preview
-          -Math preview
-          -Config "%RUNNER_TEMP%\ptymark-cmd\config.toml"
-          -State "%RUNNER_TEMP%\ptymark-cmd\state.toml"
+            -Root (Join-Path $env:RUNNER_TEMP 'ptymark-managed-windows')
 
   canonical-docker:
     name: Canonical Docker checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 90
 
     steps:
       - name: Check out repository
@@ -286,9 +281,9 @@ jobs:
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev \
-            bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+            bash -n scripts/check-ptymark-renderers.sh scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh tests/managed_renderer_smoke.sh
           "${compose[@]}" run --rm --no-TTY dev \
-            shellcheck scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+            shellcheck scripts/check-ptymark-renderers.sh scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh tests/managed_renderer_smoke.sh
           "${compose[@]}" run --rm --no-TTY dev \
             node --check renderers/managed/mathjax-cli.mjs
           "${compose[@]}" run --rm --no-TTY dev \
@@ -302,33 +297,13 @@ jobs:
           run --rm --no-TTY dev
           bash -lc 'cargo build --locked && bash tests/install_smoke.sh'
 
-      - name: Run isolated managed-engine smoke
-        shell: bash
-        run: |
-          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
-          "${compose[@]}" run --rm --no-TTY dev bash -lc '
-            set -euo pipefail
-            cargo build --locked
-            root="$(mktemp -d)"
-            binary="${CARGO_TARGET_DIR}/debug/ptymark"
-            bash scripts/installer.sh \
-              --skip-core \
-              --binary "$binary" \
-              --managed always \
-              --managed-root "$root/bundle" \
-              --browser /usr/bin/chromium \
-              --skip-browser-download \
-              --config "$root/config.toml" \
-              --state "$root/state.toml"
-            printf "%s\n" "```mermaid" "flowchart LR" "A --> B" "```" \
-              | "$binary" --config "$root/config.toml" preview --columns 48 - >"$root/mermaid.out"
-            test -s "$root/mermaid.out"
-            ! grep -F "```mermaid" "$root/mermaid.out"
-            printf "%s\n" "$$" "E = mc^2" "$$" \
-              | "$binary" --config "$root/config.toml" preview --columns 48 - >"$root/math.out"
-            test -s "$root/math.out"
-            ! grep -F "E = mc^2" "$root/math.out"
-          '
+      - name: Run isolated managed renderer smoke
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev
+          bash -lc 'cargo build --locked && PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/managed_renderer_smoke.sh'
 
       - name: Check selected renderer engines
         run: >-
