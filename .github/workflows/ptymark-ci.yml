@@ -1,0 +1,331 @@
+# @dependency-start
+# contract workflow
+# responsibility Runs canonical ptymark product, configuration, terminal-compatibility, renderer, runtime-composition, and performance checks.
+# upstream environment ../../docker/ptymark.Dockerfile builds the pinned product environment.
+# upstream implementation ../../src/runtime.rs composes immutable session services.
+# upstream implementation ../../src/terminal.rs preserves terminal control output.
+# upstream test ../../tests/runtime_contract.rs verifies provider and composition boundaries.
+# upstream test ../../scripts/benchmark-ptymark-renderers.sh produces performance evidence.
+# downstream workflow ./ptymark-release.yml consumes the same native test and package contracts.
+# @dependency-end
+name: ptymark CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "agent/**"
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "GNUmakefile"
+      - "ptymark.mk"
+      - "src/**"
+      - "plugin/**"
+      - "tests/**"
+      - "examples/**"
+      - "renderers/**"
+      - "docker/ptymark*"
+      - "scripts/ptymark-*"
+      - "scripts/benchmark-ptymark-*"
+      - "scripts/check-ptymark-*"
+      - "scripts/package-ptymark-release.sh"
+      - "documents/**"
+      - "README.md"
+      - ".github/workflows/ptymark-ci.yml"
+      - ".github/workflows/ptymark-release.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "GNUmakefile"
+      - "ptymark.mk"
+      - "src/**"
+      - "plugin/**"
+      - "tests/**"
+      - "examples/**"
+      - "renderers/**"
+      - "docker/ptymark*"
+      - "scripts/ptymark-*"
+      - "scripts/benchmark-ptymark-*"
+      - "scripts/check-ptymark-*"
+      - "scripts/package-ptymark-release.sh"
+      - "documents/**"
+      - "README.md"
+      - ".github/workflows/ptymark-ci.yml"
+      - ".github/workflows/ptymark-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+
+concurrency:
+  group: ptymark-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-container:
+    name: Canonical Docker product and performance checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build canonical ptymark image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          build --pull
+
+      - name: Check Rust formatting in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo fmt --all -- --check
+
+      - name: Run Clippy in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run library tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --lib
+
+      - name: Run pre-display contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test predisplay_contract
+
+      - name: Run coordinator and cache contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test coordinator_contract
+
+      - name: Run runtime composition contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test runtime_contract
+
+      - name: Run terminal compatibility tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test terminal_compat
+
+      - name: Run configuration contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test config_contract
+
+      - name: Run CLI contract tests in container
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test cli_contract
+
+      - name: Build release and smoke CLI/configuration in container
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev cargo build --locked --release
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'cargo run --quiet --locked -- demo > /tmp/ptymark-demo.txt && grep -F "ptymark mermaid preview" /tmp/ptymark-demo.txt >/dev/null'
+          "${compose[@]}" run --rm --no-TTY dev \
+            cargo run --quiet --locked -- config check --config examples/ptymark.example.toml
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'cargo run --quiet --locked -- config show --config examples/ptymark.example.toml --profile private | grep -F "private = true" >/dev/null'
+
+      - name: Run WezTerm plugin smoke
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
+
+      - name: Check Bash syntax
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev bash -n
+          scripts/ptymark-dev-container.sh
+          scripts/check-ptymark-dependencies.sh
+          scripts/check-ptymark-renderers.sh
+          scripts/benchmark-ptymark-renderers.sh
+          scripts/package-ptymark-release.sh
+
+      - name: Run ShellCheck
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev shellcheck
+          scripts/ptymark-dev-container.sh
+          scripts/check-ptymark-dependencies.sh
+          scripts/check-ptymark-renderers.sh
+          scripts/benchmark-ptymark-renderers.sh
+          scripts/package-ptymark-release.sh
+
+      - name: Check Python syntax
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev python3 -m py_compile
+          scripts/check-ptymark-benchmarks.py
+
+      - name: Check Node renderer syntax
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev node --check "$PTYMARK_RENDERER_ROOT/worker.mjs"
+          "${compose[@]}" run --rm --no-TTY dev node --check "$PTYMARK_RENDERER_ROOT/check.mjs"
+          "${compose[@]}" run --rm --no-TTY dev node --check "$PTYMARK_RENDERER_ROOT/benchmark.mjs"
+
+      - name: Check pinned dependencies and selected engines
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev bash scripts/check-ptymark-dependencies.sh
+          "${compose[@]}" run --rm --no-TTY dev bash scripts/check-ptymark-renderers.sh
+
+      - name: Measure real-time renderer and cache latency
+        shell: bash
+        run: |
+          mkdir -p reports/benchmarks
+          chmod 0777 reports/benchmarks
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev \
+            bash scripts/benchmark-ptymark-renderers.sh reports/benchmarks
+          {
+            echo "### ptymark renderer benchmark"
+            echo
+            echo '```text'
+            cat reports/benchmarks/budget.txt
+            echo '```'
+            echo
+            echo "Artifacts: renderer.json, core.json, budget.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload renderer benchmark evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-renderer-benchmarks
+          path: reports/benchmarks/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Package release archive in container
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev bash -lc \
+            'rm -rf /tmp/ptymark-dist && bash scripts/package-ptymark-release.sh "$CARGO_TARGET_DIR/release/ptymark" /tmp/ptymark-dist && test -n "$(find /tmp/ptymark-dist -name "ptymark-*.tar.gz" -print -quit)"'
+
+  native-smoke:
+    name: Native Rust smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run library tests
+        run: cargo test --locked --lib
+
+      - name: Run pre-display contract tests
+        run: cargo test --locked --test predisplay_contract
+
+      - name: Run coordinator and cache contract tests
+        run: cargo test --locked --test coordinator_contract
+
+      - name: Run runtime composition contract tests
+        run: cargo test --locked --test runtime_contract
+
+      - name: Run terminal compatibility tests
+        run: cargo test --locked --test terminal_compat
+
+      - name: Run configuration contract tests
+        run: cargo test --locked --test config_contract
+
+      - name: Run CLI contract tests
+        run: cargo test --locked --test cli_contract
+
+      - name: Build release binary
+        run: cargo build --locked --release
+
+      - name: Package native smoke artifact
+        shell: bash
+        run: bash scripts/package-ptymark-release.sh target/release/ptymark dist
+
+      - name: Upload native smoke artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-native-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7

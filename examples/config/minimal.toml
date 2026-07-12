@@ -1,0 +1,5 @@
+# Minimal ptymark configuration.
+# Built-in safe defaults provide explicit Mermaid/block-math detection,
+# dependency-free preview/source fallback, and a bounded memory cache.
+schema_version = 1
+default_profile = "interactive"

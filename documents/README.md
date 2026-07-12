@@ -1,86 +1,108 @@
 <!--
 @dependency-start
 contract design
-responsibility Documents documents/ for this repository.
+responsibility Indexes ptymark project documents while preserving template and AgentCanon ownership boundaries.
 upstream design ../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md documents ownership policy
 upstream design ../vendor/agent-canon/documents/shared-runtime-surfaces.toml machine-readable ownership manifest
-upstream design ../vendor/agent-canon/documents/algorithm-implementation-boundary.md algorithm math-to-code boundary policy
-upstream design ../vendor/agent-canon/documents/codex-configuration-reference.md Codex configuration reference
-upstream design ../vendor/agent-canon/documents/object-oriented-design.md general OOP coding policy
-upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md parent repo latest-state checklist
 upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md runtime profile and validation routing policy
-upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md audit resolution ledger
-upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
+downstream design ./system-design.md abstract-to-component architecture and lifecycle
+downstream design ./design-review.md architecture review findings and merge gates
+downstream design ./extension-guide.md provider and extension procedures
+downstream design ./architecture.md ptymark pre-display renderer contract
+downstream design ./renderer-architecture.md renderer, coordinator, presenter, and cache boundaries
+downstream design ./configuration.md ptymark user configuration contract
+downstream design ./ui-design.md ptymark terminal UI contract
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
 -->
 
 # documents/
 
-`documents/` is a mixed documentation directory. The root `documents/README.md`
-is repo-local and should stay a regular file after template clone. AgentCanon may
-seed this file, but derived repositories own their local index.
+`documents/`はrepo-local index、ptymark project docs、template-owned active
+contractsを置くmixed documentation directoryです。AgentCanon-owned shared policyは
+`vendor/agent-canon/documents/`を正本とし、このindexから参照します。
 
-## Reader Map
+## ptymark Project Documents
 
-- This file owns the root `documents/` index and separates AgentCanon-owned
-  shared policy sources from template-owned and project-owned regular files.
-- Use the ownership matrix first, then follow canon runtime references, coding
-  policy references, template-owned active contracts, and tooling/artifact
-  references.
-- Read it when choosing whether to edit `vendor/agent-canon/documents/` or a root
-  `documents/` regular file.
-- It is an index and ownership guide, not the source of the policies linked from
-  the referenced documents.
+設計文書は、抽象から具体へ次の順で読むことを推奨します。
 
-## Ownership Matrix
+```text
+System Design
+  → Design Review
+  → Architecture / Renderer Architecture
+  → Configuration / UI Design
+  → Extension Guide
+  → Usage / Dependencies / Distribution
+```
+
+| Document | Responsibility |
+| --- | --- |
+| [System Design](./system-design.md) | transport／safety／render／control plane、session lifecycle、data contract、runtime composition、拡張軸 |
+| [Design Review](./design-review.md) | blocker/major finding、resolution、security/performance review、merge acceptance gate、残存risk |
+| [Architecture](./architecture.md) | pre-display renderer、detector、display writerの基本設計 |
+| [Renderer Architecture](./renderer-architecture.md) | engine registry/selector、coordinator、presenter、独立cache、性能境界 |
+| [Configuration](./configuration.md) | TOML schema、探索順序、profile、typed session policy、validation |
+| [UI Design](./ui-design.md) | streaming UI、resize、theme、image backend、cache lifecycle |
+| [Extension Guide](./extension-guide.md) | engine／detector／presenter／cache providerの追加手順と互換性checklist |
+| [Usage](./usage.md) | CLI、fallback、process protocol、engine診断、WezTerm plugin |
+| [Dependencies](./dependencies.md) | Rust/Docker/Mermaid/MathJax/KaTeX/Typst pins and update policy |
+| [Development Environment](./development-environment.md) | product Docker checks and retained template environment |
+| [Distribution](./distribution.md) | install routes、archive layout、release Actions |
+| [Licensing Policy](./licensing-policy.md) | root、AgentCanon、third-party engineのlicense boundary |
+
+UI runtimeのlive resize、image placement、persistent cacheは
+[Issue #3](https://github.com/iwashita-nozomu/ptymark/issues/3)で追跡します。renderer、性能、
+設定利用例は[Issue #4](https://github.com/iwashita-nozomu/ptymark/issues/4)と
+[Issue #5](https://github.com/iwashita-nozomu/ptymark/issues/5)以降で個別管理します。
+
+## Design Ownership Matrix
+
+| Plane / concern | Primary document | Implementation entrypoint |
+| --- | --- | --- |
+| Product and session lifecycle | `system-design.md` | `src/runtime.rs` |
+| Terminal transport | `system-design.md`, `architecture.md` | future PTY host |
+| Terminal-output safety | `system-design.md`, `architecture.md` | `src/terminal.rs` |
+| Semantic detection | `architecture.md`, `configuration.md` | `src/detector.rs` |
+| Engine execution and fallback | `renderer-architecture.md`, `extension-guide.md` | `src/engine.rs`, `src/process_engine.rs`, `src/coordinator.rs` |
+| Cache | `renderer-architecture.md`, `ui-design.md` | `src/cache.rs` |
+| Presentation | `renderer-architecture.md`, `ui-design.md` | `src/presenter.rs` |
+| Configuration | `configuration.md` | `src/config/` |
+| Runtime composition and extension | `system-design.md`, `extension-guide.md` | `src/runtime.rs` |
+| Review and merge evidence | `design-review.md` | `.github/workflows/ptymark-ci.yml` |
+
+## Repository Ownership Matrix
 
 | Class | Examples | Edit source |
 | --- | --- | --- |
-| AgentCanon-owned shared policy source | coding conventions, review process, workflow-supporting policies, shared templates, tool docs | `vendor/agent-canon/documents/` |
-| Template-owned active contract | bootstrap, host requirements, server contract, remote execution contract, template remote policy, licensing boundary | root `documents/` regular files |
-| Project-owned docs | architecture notes, project-specific design specs, implementation contracts | root `documents/` regular files |
-| Generated or run artifacts | agent reports, experiment outputs, logs | `reports/` or `experiments/`, not `documents/` |
+| AgentCanon-owned shared policy source | coding conventions, review process, workflows, shared templates, tool docs | `vendor/agent-canon/documents/` |
+| Template-owned active contract | bootstrap, host requirements, server contract, remote execution, template remote, licensing boundary | root `documents/` regular files |
+| Project-owned docs | ptymark architecture, review, UI, configuration, extension, dependencies, distribution | root `documents/` regular files |
+| Generated or run artifacts | agent reports, experiment outputs, logs, renderer smoke artifacts | `reports/`, `experiments/`, or temporary build paths |
 
-If a file is AgentCanon-owned, edit the source under `vendor/agent-canon/`. If a
-file is a template-owned active contract, edit the root regular file.
+AgentCanon-owned fileは`vendor/agent-canon/`側を編集します。root regular fileとして
+project-owned documentを維持し、shared canonをrootへ複製しません。
 
 ## Canon Runtime References
 
-- [Runtime Profiles And Check Matrix](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md):
-  active profile selection, risk classes, and check matrix.
-- [Runtime Profiles Inventory JSON](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.json):
-  machine-readable runtime profile inventory (root `documents/` has no vendored JSON copy).
-- [Template / AgentCanon Audit Resolution](../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md):
-  2026-05-16 500-item audit coverage and resolution ledger.
-- [Shared Runtime Surfaces](../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md): owner classes,
-  symlink/copy/regular behavior, and root-view repair rules.
-- [Shared Runtime Surface Manifest](../vendor/agent-canon/documents/shared-runtime-surfaces.toml):
-  machine-readable surface ownership list.
-- [AgentCanon Parent Repository Latest-State Checklist](../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md):
-  task-start checklist for repos that vendor AgentCanon.
-- [Codex Configuration Reference](../vendor/agent-canon/documents/codex-configuration-reference.md): Codex CLI
-  / config schema / hooks / MCP / skills / subagents reference.
-- [AgentCanon GitHub Remote](../vendor/agent-canon/documents/agent-canon-github-remote.md): GitHub canonical
-  remote and submodule update workflow.
-  repository instructions, path-specific instructions, custom agents, MCP, setup
-  workflow, and PR template routing.
+- [Runtime Profiles And Check Matrix](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md)
+- [Runtime Profiles Inventory JSON](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.json)
+- [Shared Runtime Surfaces](../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md)
+- [Shared Runtime Surface Manifest](../vendor/agent-canon/documents/shared-runtime-surfaces.toml)
+- [AgentCanon Parent Repository Latest-State Checklist](../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md)
+- [Codex Configuration Reference](../vendor/agent-canon/documents/codex-configuration-reference.md)
+- [AgentCanon GitHub Remote](../vendor/agent-canon/documents/agent-canon-github-remote.md)
 
 ## Coding Policy References
 
-- [Algorithm Implementation Boundary Policy](../vendor/agent-canon/documents/algorithm-implementation-boundary.md):
-  math/specification boundary, implementation boundary, change classes, and
-  review gates.
-- [Object-Oriented Design Policy](../vendor/agent-canon/documents/object-oriented-design.md): class,
-  dataclass, Protocol, composition, and inheritance policy.
-- [Python Coding Conventions](../vendor/agent-canon/documents/coding-conventions-python.md): Python-specific
-  implementation rules.
-- [Project Coding Conventions](../vendor/agent-canon/documents/coding-conventions-project.md): project-wide
-  environment, dependency, and runtime rules.
+- [Algorithm Implementation Boundary Policy](../vendor/agent-canon/documents/algorithm-implementation-boundary.md)
+- [Object-Oriented Design Policy](../vendor/agent-canon/documents/object-oriented-design.md)
+- [Python Coding Conventions](../vendor/agent-canon/documents/coding-conventions-python.md)
+- [Project Coding Conventions](../vendor/agent-canon/documents/coding-conventions-project.md)
+- [Testing Conventions](../vendor/agent-canon/documents/coding-conventions-testing.md)
 
 ## Template-Owned Active Contracts
 
-These files should be regular files in the template or derived repo root:
+These remain regular files in this repository:
 
 - [Template Bootstrap](./template-bootstrap.md)
 - [Licensing Policy](./licensing-policy.md)
@@ -90,13 +112,14 @@ These files should be regular files in the template or derived repo root:
 - [Remote Execution Repo Contract](./remote-execution-repo-contract.md)
 - [Repository Audit Checklist](./repository-audit-checklist.md)
 
-AgentCanon provides reusable contract templates under
-[templates/](../vendor/agent-canon/documents/templates/),
-but the active contract for a derived repo belongs to that repo.
+AgentCanon provides reusable templates under
+[templates/](../vendor/agent-canon/documents/templates/), but active project contracts remain
+root regular files.
 
 ## Tooling And Artifact References
 
-- [Result Log Retention And Visualization](../vendor/agent-canon/documents/result-log-retention-and-visualization.md):
-  run result, summary, visualization artifact, and retention rules.
-- [Repo-Local Tool Imports](../vendor/agent-canon/documents/repo-local-tool-imports.md): disposition ledger for
-  tools that grow in derived repos before AgentCanon promotion.
+- [Result Log Retention And Visualization](../vendor/agent-canon/documents/result-log-retention-and-visualization.md)
+- [Repo-Local Tool Imports](../vendor/agent-canon/documents/repo-local-tool-imports.md)
+- `ptymark.mk`: product checks layered over the retained template `Makefile`
+- `.github/workflows/ptymark-ci.yml`: product CI and benchmark evidence
+- `.github/workflows/ptymark-release.yml`: native archive/release flow

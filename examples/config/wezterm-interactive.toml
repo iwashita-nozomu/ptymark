@@ -1,0 +1,29 @@
+# Example selected by the WezTerm launcher plugin:
+#
+# ptymark.apply_to_config(config, {
+#   config_file = '/absolute/path/to/wezterm-interactive.toml',
+#   profile = 'wezterm',
+# })
+schema_version = 1
+default_profile = "wezterm"
+
+[profiles.wezterm]
+extends = "interactive"
+
+[profiles.wezterm.detection]
+mode = "explicit-blocks"
+max_buffer_bytes = 1048576
+max_line_bytes = 65536
+
+[profiles.wezterm.presentation]
+mode = "auto"
+prefer = ["image/svg+xml", "application/mathml+xml", "text/plain"]
+image_protocols = ["kitty", "iterm2", "sixel"]
+unsupported = "source"
+max_columns = 120
+max_rows = 40
+
+[profiles.wezterm.cache]
+backend = "memory"
+max_entries = 128
+max_bytes = 33554432
