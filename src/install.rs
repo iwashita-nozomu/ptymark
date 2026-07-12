@@ -314,11 +314,7 @@ impl<R: ProgramResolver> Installer<R> {
                 }
             },
             EnginePreference::Keep | EnginePreference::Auto => {
-                let candidate = if existing_config {
-                    existing.path
-                } else {
-                    default_program
-                };
+                let candidate = default_program;
                 match self.resolver.resolve(&candidate) {
                     Ok(resolved) => Ok(SlotPlan::external(
                         role,
@@ -326,11 +322,7 @@ impl<R: ProgramResolver> Installer<R> {
                         candidate,
                         resolved,
                         false,
-                        if existing_config {
-                            ResolutionOrigin::Existing
-                        } else {
-                            ResolutionOrigin::PathSearch
-                        },
+                        ResolutionOrigin::PathSearch,
                     )),
                     Err(error) => {
                         warnings.push(format!(
@@ -429,17 +421,9 @@ impl<R: ProgramResolver> Installer<R> {
                 (existing_path, true, ResolutionOrigin::Existing)
             }
             PresenterPreference::Keep | PresenterPreference::Auto => (
-                if existing_config {
-                    existing_path
-                } else {
-                    PathBuf::from("chafa")
-                },
+                PathBuf::from("chafa"),
                 required_external,
-                if existing_config {
-                    ResolutionOrigin::Existing
-                } else {
-                    ResolutionOrigin::PathSearch
-                },
+                ResolutionOrigin::PathSearch,
             ),
             PresenterPreference::Program(path) => (path, true, ResolutionOrigin::Explicit),
         };
