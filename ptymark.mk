@@ -17,7 +17,7 @@ ptymark-check-local:
 	lua5.4 tests/plugin_smoke.lua
 	bash -n scripts/check-ptymark-renderers.sh scripts/install.sh tests/install_smoke.sh
 	shellcheck scripts/check-ptymark-renderers.sh scripts/install.sh tests/install_smoke.sh
-	bash tests/install_smoke.sh target/debug/ptymark
+	bash tests/install_smoke.sh
 	bash scripts/check-ptymark-renderers.sh
 
 ptymark-dev:
