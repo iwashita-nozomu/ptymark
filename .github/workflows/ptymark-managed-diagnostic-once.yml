@@ -8,7 +8,7 @@ on:
       - .github/workflows/ptymark-managed-diagnostic-once.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
@@ -70,9 +70,11 @@ jobs:
               @('```mermaid', 'flowchart LR', 'A --> B', '```') -join "`n" |
                 & $binary --config (Join-Path $root 'config.toml') preview --columns 40 - *>&1 |
                 Tee-Object (Join-Path $root 'mermaid.log')
+              if ($LASTEXITCODE -ne 0) { $status = $LASTEXITCODE }
               @('$$', 'E = mc^2', '$$') -join "`n" |
                 & $binary --config (Join-Path $root 'config.toml') preview --columns 40 - *>&1 |
                 Tee-Object (Join-Path $root 'math.log')
+              if ($LASTEXITCODE -ne 0) { $status = $LASTEXITCODE }
             }
             catch {
               ($_ | Format-List * -Force | Out-String) | Add-Content (Join-Path $root 'render-error.log')
@@ -141,3 +143,37 @@ jobs:
           retention-days: 3
       - name: Preserve Docker result
         run: test "$(cat managed-docker.status)" = 0
+
+  publish:
+    if: always()
+    needs:
+      - windows
+      - docker
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Download Windows diagnostic
+        uses: actions/download-artifact@v8
+        with:
+          name: ptymark-managed-windows-diagnostic
+          path: diagnostics/managed/windows
+      - name: Download Docker diagnostic
+        uses: actions/download-artifact@v8
+        with:
+          name: ptymark-managed-docker-diagnostic
+          path: diagnostics/managed/docker
+      - name: Commit diagnostic evidence
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/managed
+          git commit -m 'Capture managed renderer failure diagnostics'
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
