@@ -122,7 +122,12 @@ fn run_filtered(
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|error| format!("cannot execute `{}`: {error}", program.to_string_lossy()))?;
+        .map_err(|error| {
+            format!(
+                "cannot execute `{}`: {error}",
+                program.to_string_lossy()
+            )
+        })?;
     let mut child_stdout = child
         .stdout
         .take()
@@ -153,9 +158,12 @@ fn run_filtered(
         return Err(error.to_string());
     }
     display.flush().map_err(|error| error.to_string())?;
-    let status = child
-        .wait()
-        .map_err(|error| format!("cannot wait for `{}`: {error}", program.to_string_lossy()))?;
+    let status = child.wait().map_err(|error| {
+        format!(
+            "cannot wait for `{}`: {error}",
+            program.to_string_lossy()
+        )
+    })?;
     Ok(status.code().unwrap_or(1))
 }
 
@@ -167,25 +175,27 @@ fn build_pipeline(
     color: bool,
     columns: Option<u16>,
 ) -> DisplayPipeline {
-    let detector: Box<dyn SemanticDetector> = if config.detection.math || config.detection.mermaid {
-        Box::new(FencedDetector::new(&config.detection))
-    } else {
-        Box::new(PassthroughDetector)
-    };
+    let detector: Box<dyn SemanticDetector> =
+        if config.detection.math || config.detection.mermaid {
+            Box::new(FencedDetector::new(&config.detection))
+        } else {
+            Box::new(PassthroughDetector)
+        };
     let source_mode = source || config.rendering.mode == RenderMode::Source;
     let renderer: Box<dyn Renderer> = if source_mode {
         Box::new(SourceRenderer)
     } else {
         Box::new(RoutedRenderer::configured(&config.engines))
     };
-    let cache: Box<dyn ArtifactCache> = if source_mode || no_cache || !config.cache.enabled {
-        Box::new(NoopCache::default())
-    } else {
-        Box::new(MemoryCache::new(
-            config.cache.max_entries,
-            config.cache.max_bytes,
-        ))
-    };
+    let cache: Box<dyn ArtifactCache> =
+        if source_mode || no_cache || !config.cache.enabled {
+            Box::new(NoopCache::default())
+        } else {
+            Box::new(MemoryCache::new(
+                config.cache.max_entries,
+                config.cache.max_bytes,
+            ))
+        };
     let service = RenderService::new(renderer, cache);
     let context = RenderContext {
         columns: columns.unwrap_or(config.rendering.columns),
