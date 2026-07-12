@@ -13,13 +13,6 @@ impl BlockKind {
             Self::Mermaid => "mermaid",
         }
     }
-
-    pub const fn cache_tag(self) -> u8 {
-        match self {
-            Self::Math => 1,
-            Self::Mermaid => 2,
-        }
-    }
 }
 
 impl fmt::Display for BlockKind {
