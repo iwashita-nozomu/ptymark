@@ -3,16 +3,15 @@
 <!--
 @dependency-start
 contract design
-responsibility Provides the user-facing entrypoint for ptymark installation, engine setup, configuration, WezTerm use, safety guarantees, and development.
+responsibility Provides the user-facing entrypoint for installation, renderer setup, configuration, WezTerm use, safety guarantees, and development.
 upstream design documents/ptymark-design.md defines the pre-display architecture and extension boundary.
-upstream design documents/ptymark-installer.md defines installation-time resolution and managed-bundle behavior.
-upstream environment docker/ptymark.Dockerfile defines the canonical validation environment.
-downstream implementation src/cli.rs and src/install.rs implement the documented command surface.
-downstream test tests/cli_contract.rs, tests/install_contract.rs, and GitHub Actions validate the documented behavior.
+upstream design documents/ptymark-installer.md defines OS/shell-specific installation and managed-bundle behavior.
+downstream implementation src/cli.rs, src/install.rs, scripts/installer.sh, and scripts/installer.ps1 implement the documented surface.
+downstream test tests/cli_contract.rs, tests/install_contract.rs, tests/install_smoke.sh, and GitHub Actions validate the documented behavior.
 @dependency-end
 -->
 
-`ptymark` is an alpha-stage **pre-display renderer** for terminal output. It detects complete,
+`ptymark` is an alpha-stage **pre-display renderer** for terminal output. It recognizes complete,
 explicitly delimited Markdown blocks and replaces only those blocks immediately before bytes are
 committed to the terminal display.
 
@@ -39,12 +38,13 @@ Implemented:
 - built-in preview and exact-source rendering;
 - Mermaid CLI and MathJax rendering;
 - terminal-safe ANSI/Unicode presentation;
-- one-command Linux, macOS, and Windows setup from a source checkout;
+- platform-specific installers for POSIX shells, Windows PowerShell, cmd.exe, and Windows Bash;
+- installation-time path normalization and absolute-path configuration;
 - system-engine preference with a versioned, user-local managed fallback;
-- installation-time engine replacement without resetting unrelated user settings;
+- role-by-role engine replacement without resetting unrelated user settings;
 - bounded in-memory and no-op caches;
-- a thin WezTerm launcher plugin and complete platform-aware example;
-- Docker plus Linux, macOS, and Windows GitHub Actions validation.
+- a thin WezTerm launcher plugin and portable example;
+- Docker plus Ubuntu, macOS, and Windows GitHub Actions validation.
 
 Not implemented yet:
 
@@ -58,51 +58,111 @@ Not implemented yet:
 `ptymark -- COMMAND` currently validates configuration and transparently executes the command. The
 command shape is reserved for the later PTY host.
 
-## Install in one command
+## Install
 
-The alpha installer is run from a repository checkout because release archives are not published yet.
-It installs the Rust binary and resolves a complete rendering pipeline.
+Release archives are not published yet, so the alpha installer runs from a repository checkout.
+Prerequisites are Git and Rust/Cargo 1.97 or newer. A first managed-renderer install also needs network
+access unless the complete bundle already exists and offline mode is selected.
 
-Prerequisites:
-
-- Git;
-- Rust/Cargo 1.97 or newer for the source-based core install;
-- network access during the first install unless all required artifacts are already present and
-  `--offline`/`-Offline` is used.
-
-### Linux or macOS
+### Linux, macOS, or WSL
 
 ```bash
 git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
 cd ptymark
-bash scripts/install.sh
+bash scripts/installer.sh
 ```
 
-### Windows PowerShell 7+
+WSL is treated as Linux. It installs the Linux binary and Linux renderer bundle inside the WSL
+distribution; it does not reuse Windows `.exe` renderers implicitly.
+
+### Windows PowerShell
 
 ```powershell
 git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
 Set-Location ptymark
-pwsh -File scripts/install.ps1
+pwsh -File scripts/installer.ps1
 ```
 
-The ordinary setup does not require a prior Node.js, npm, Mermaid, MathJax, Chafa, Chromium, or Edge
-installation. Existing compatible commands are preferred. Missing slots are supplied by an isolated
-managed bundle.
+Windows PowerShell 5.1 is also supported:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/installer.ps1
+```
+
+### Windows cmd.exe
+
+```bat
+git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+cd ptymark
+scripts\installer.cmd
+```
+
+`installer.cmd` only selects `pwsh.exe` or `powershell.exe` and delegates to `installer.ps1`.
+
+### Git Bash, MSYS2, or Cygwin
+
+```bash
+git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+cd ptymark
+bash scripts/installer.sh
+```
+
+The Bash frontend detects the Windows environment, converts path-valued options with `cygpath`,
+disables MSYS argument rewriting for the final call, and delegates to `installer.ps1`. The resulting
+TOML therefore contains native paths such as `C:\Users\...`, not `/c/Users/...`.
+
+The former `scripts/install.sh` and `scripts/install.ps1` names remain as compatibility wrappers.
+
+## What one setup command does
+
+```text
+install ptymark core with Cargo
+    -> inspect explicit and already-installed renderer commands
+    -> install missing default roles in an isolated managed bundle
+    -> normalize selected executables to native absolute paths
+    -> call the shared Rust `ptymark install resolve` command
+    -> atomically write config.toml and install.toml
+    -> run installation status checks
+```
+
+Shell scripts own only platform and shell concerns: core placement, standard user directories, bundle
+installation, and path conversion. Rust owns engine selection semantics, configuration merge,
+validation, installation-state serialization, and status reporting.
+
+## Does ptymark require JavaScript?
+
+The Rust core, detector, cache, source fallback, and terminal-safety gate do **not** require JavaScript.
+The selected default Mermaid and MathJax engines are JavaScript projects, so the optional managed
+renderer bundle contains a private Node runtime and lockfile-pinned packages.
+
+Users do not need to:
+
+- install Node globally;
+- run `npm install -g`;
+- add an npm prefix to `PATH`;
+- manage Mermaid or MathJax package paths;
+- expose the managed runtime to other applications.
+
+The bundle is an implementation detail behind the engine handoff. A later native or non-JavaScript
+engine can replace one slot without changing the detector, cache, display pipeline, or installer
+configuration contract.
 
 ## Default renderer selection
 
-The installer resolves each role in this order:
+On first install, each role is selected in this order:
 
 ```text
 1. explicit installer option
-2. existing valid selection when re-running without --reprobe
-3. compatible command already available on PATH
-4. ptymark-managed user-local default
-5. built-in textual preview when managed installation is disabled
+2. compatible command already available to the installer shell
+3. an existing complete ptymark-managed bundle
+4. install the pinned ptymark-managed bundle
+5. built-in textual preview only when managed installation is disabled
 ```
 
-The managed defaults are pinned as one tested set:
+On an ordinary rerun, valid existing selections are preserved. `--reprobe`/`-Reprobe` deliberately
+searches the current environment again.
+
+The managed set is pinned and tested together:
 
 | Role | Managed default |
 | --- | --- |
@@ -110,14 +170,15 @@ The managed defaults are pinned as one tested set:
 | TeX block math | MathJax 4.1.3 |
 | JavaScript runtime | Node.js 24.18.0 |
 | Browser bridge | Puppeteer 25.2.1 |
-| Terminal presentation | ptymark browser-backed ANSI/Unicode presenter |
+| Terminal presentation | ptymark ANSI/Unicode presenter |
 
-The managed presenter accepts the fixed Chafa-compatible argument subset used by the Rust adapter.
-This preserves the existing engine handoff while avoiding a mandatory system package on Windows.
+The installer prefers an already-installed Chromium-compatible browser. On Windows this normally
+means Microsoft Edge. If none is selected and downloads are allowed, Puppeteer may install its private
+compatible browser inside the bundle cache.
 
-## Where managed components are installed
+## Managed bundle isolation
 
-The fallback bundle is versioned and private to ptymark. It does not write to a global npm prefix and
+The fallback bundle is versioned and private to ptymark. It does not modify a global npm prefix and
 does not add anything to `PATH`.
 
 ```text
@@ -136,142 +197,111 @@ Each bundle contains:
 ```text
 bundle.toml                 validated launcher manifest
 bundle.stamp                lock/runtime/launcher identity
-app/                        lockfile-resolved JavaScript packages and fixed entrypoints
-runtime/                    private Node runtime only when exact system Node is unavailable
+app/                        lockfile-resolved packages and fixed entrypoints
+runtime/                    private Node runtime when exact system Node is unavailable
 cache/                      private npm and browser cache
 bin/mmdc[.exe]              native ptymark alias for Mermaid
 bin/tex2svg[.exe]           native ptymark alias for MathJax
 bin/chafa[.exe]             native ptymark alias for ANSI presentation
 ```
 
-The aliases are copies or hard links of the native `ptymark` binary. They invoke Node directly with a
-fixed role-specific entrypoint; Markdown, TeX, paths, and renderer arguments are not forwarded through
-`sh`, `cmd.exe`, or a generated batch wrapper.
+The aliases are copies or hard links of the native `ptymark` binary. They inspect their executable
+name, validate `bundle.toml`, and invoke Node directly with one fixed role-specific entrypoint. User
+source and renderer arguments are not forwarded through a generated shell or batch wrapper.
 
-The installer may download at install time:
-
-- an official portable Node archive when exact Node 24.18.0 is unavailable;
-- lockfile-pinned npm packages inside the managed bundle;
-- Puppeteer's private compatible browser when no browser is explicitly selected.
-
-The Node archive is checked against the official release checksum list. npm dependencies are installed
-with `npm ci` from the committed lockfile. No package manager, browser downloader, or network request is
-started during normal rendering.
-
-## Verify the installation
-
-```bash
-ptymark --version
-ptymark install status
-ptymark config check
-ptymark config show
-ptymark engine check
-```
-
-PowerShell uses the same native commands:
-
-```powershell
-ptymark.exe --version
-ptymark.exe install status
-ptymark.exe config check
-ptymark.exe engine check
-```
-
-Typical managed result:
-
-```text
-config     /home/user/.config/ptymark/config.toml
-mermaid    mermaid-cli    ready    /home/user/.local/share/ptymark/renderer-bundles/.../bin/mmdc
-math       mathjax-cli    ready    /home/user/.local/share/ptymark/renderer-bundles/.../bin/tex2svg
-presenter  chafa-symbols  ready    /home/user/.local/share/ptymark/renderer-bundles/.../bin/chafa
-```
-
-The generated runtime configuration contains absolute executable paths, so WezTerm and other GUI
-applications do not depend on inheriting the same `PATH` as an interactive shell.
+The official Node archive is checked against the release SHA-256 list. JavaScript packages are
+installed with `npm ci` from the committed lockfile. No package manager, browser downloader, or network
+request runs during normal rendering.
 
 ## Control installation behavior
 
-Prefer installed system commands, filling missing roles from the managed bundle. This is the default:
+Use installed commands first and fill missing roles from the managed bundle; this is the default:
 
 ```bash
-bash scripts/install.sh --managed auto
-```
-
-Force all three roles to the isolated bundle:
-
-```bash
-bash scripts/install.sh --managed always
+bash scripts/installer.sh --managed auto
 ```
 
 ```powershell
-pwsh -File scripts/install.ps1 -Managed always
+pwsh -File scripts/installer.ps1 -Managed auto
 ```
 
-Disable managed downloads and use built-in preview for unresolved roles:
+Force every role to the isolated bundle:
 
 ```bash
-bash scripts/install.sh --managed never
+bash scripts/installer.sh --managed always
 ```
 
 ```powershell
-pwsh -File scripts/install.ps1 -Managed never
+pwsh -File scripts/installer.ps1 -Managed always
+```
+
+Disable managed installation and use built-in preview for unresolved roles:
+
+```bash
+bash scripts/installer.sh --managed never
+```
+
+```powershell
+pwsh -File scripts/installer.ps1 -Managed never
 ```
 
 Use an existing browser and prohibit a private browser download:
 
 ```bash
-bash scripts/install.sh \
+bash scripts/installer.sh \
   --browser /usr/bin/chromium \
   --skip-browser-download
 ```
 
 ```powershell
-pwsh -File scripts/install.ps1 `
+pwsh -File scripts/installer.ps1 `
   -Browser 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe' `
   -SkipBrowserDownload
 ```
 
-Re-probe system commands and then managed fallbacks after an upgrade:
+Re-probe system commands after an upgrade:
 
 ```bash
-bash scripts/install.sh --reprobe
+bash scripts/installer.sh --reprobe
 ```
 
 ```powershell
-pwsh -File scripts/install.ps1 -Reprobe
+pwsh -File scripts/installer.ps1 -Reprobe
 ```
 
-Use only already-installed bundle/runtime files and make no download attempt:
+Use only existing core and bundle files, making no download attempt:
 
 ```bash
-bash scripts/install.sh --offline
+bash scripts/installer.sh --offline
 ```
 
 ```powershell
-pwsh -File scripts/install.ps1 -Offline
+pwsh -File scripts/installer.ps1 -Offline
 ```
 
-Select or replace one role explicitly:
+Replace one role while preserving every unrelated setting:
 
 ```bash
-bash scripts/install.sh --mermaid /opt/homebrew/bin/mmdc
-bash scripts/install.sh --math /absolute/path/to/tex2svg
-bash scripts/install.sh --presenter /usr/local/bin/chafa
-bash scripts/install.sh --math source
-bash scripts/install.sh --mermaid preview
+bash scripts/installer.sh --mermaid /opt/homebrew/bin/mmdc
+bash scripts/installer.sh --math /absolute/path/to/tex2svg
+bash scripts/installer.sh --presenter /usr/local/bin/chafa
+bash scripts/installer.sh --math source
+```
+
+```powershell
+pwsh -File scripts/installer.ps1 -Mermaid 'C:\Tools\mmdc.exe'
+pwsh -File scripts/installer.ps1 -Math source
 ```
 
 Explicit paths must resolve successfully. `preview` and `source` never require an external executable.
-Re-running preserves unrelated detection, rendering, and cache settings unless `--reset`/`-Reset` is
-specified.
 
 ## Installer destinations
 
 Default runtime configuration:
 
 ```text
-Linux/macOS  ~/.config/ptymark/config.toml
-Windows      %APPDATA%\ptymark\config.toml
+Linux/macOS/WSL  ~/.config/ptymark/config.toml
+Windows          %APPDATA%\ptymark\config.toml
 ```
 
 Default installation state:
@@ -282,64 +312,28 @@ macOS        ~/.local/state/ptymark/install.toml
 Windows      %LOCALAPPDATA%\ptymark\state\install.toml
 ```
 
-Overrides:
-
-```text
-PTYMARK_CONFIG
-PTYMARK_INSTALL_STATE
-XDG_CONFIG_HOME
-XDG_STATE_HOME
-APPDATA
-LOCALAPPDATA
-```
-
 The configuration is user-owned runtime policy. The state file records the selected backend,
-resolution origin, requested path, resolved path, and readiness for diagnostics.
+resolution origin, requested path, resolved native path, and readiness.
 
-## Installer options
+## Verify
 
-Linux/macOS:
-
-```text
-bash scripts/install.sh [OPTIONS]
-
---root DIR                Cargo installation root
---binary PATH             installed ptymark binary to invoke
---skip-core               skip cargo install; requires --binary
---config PATH             configuration destination
---state PATH              installation-state destination
---mermaid VALUE           auto | keep | preview | source | EXECUTABLE
---math VALUE              auto | keep | preview | source | EXECUTABLE
---presenter VALUE         auto | keep | EXECUTABLE
---managed MODE            auto | always | never
---managed-root DIR        managed bundle destination
---browser PATH            existing Chromium-compatible browser
---skip-browser-download   prohibit Puppeteer browser download
---offline                 prohibit downloads and npm install
---force-managed           rebuild the managed app and aliases
---reprobe                 search system commands again, then managed fallbacks
---reset                   start from built-in settings
---dry-run                 print the resolution plan without writing config/state
+```bash
+ptymark --version
+ptymark install status
+ptymark config check
+ptymark config show
+ptymark engine check
 ```
 
-Windows uses equivalent PowerShell parameters:
+On Windows, use `ptymark.exe` if the Cargo bin directory is not already on `PATH`.
+
+A managed installation reports absolute paths, for example:
 
 ```text
-pwsh -File scripts/install.ps1 \
-  [-Root DIR] [-Binary PATH] [-SkipCore] [-Config PATH] [-State PATH] \
-  [-Mermaid VALUE] [-Math VALUE] [-Presenter VALUE] \
-  [-Managed auto|always|never] [-ManagedRoot DIR] [-Browser PATH] \
-  [-SkipBrowserDownload] [-Offline] [-ForceManaged] [-Reprobe] [-Reset] [-DryRun]
+mermaid    mermaid-cli    ready    C:\Users\name\AppData\Local\ptymark\...\mmdc.exe
+math       mathjax-cli    ready    C:\Users\name\AppData\Local\ptymark\...\tex2svg.exe
+presenter  chafa-symbols  ready    C:\Users\name\AppData\Local\ptymark\...\chafa.exe
 ```
-
-The lower-level resolver remains available after installation:
-
-```text
-ptymark install resolve [OPTIONS]
-ptymark install status [--state PATH]
-```
-
-The full contract is in [documents/ptymark-installer.md](documents/ptymark-installer.md).
 
 ## Use `preview`
 
@@ -367,29 +361,13 @@ ptymark preview --columns 100 README.md
 ptymark --config /absolute/path/config.toml preview README.md
 ```
 
-The initial detector recognizes only complete, line-bounded forms:
-
-````markdown
-```mermaid
-flowchart LR
-  A --> B
-```
-
-$$
-E = mc^2
-$$
-
-```latex
-\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-```
-````
-
-Inline `$...$`, headings, lists, and other ambiguous Markdown are intentionally not detected in
-interactive output.
+The initial detector recognizes only complete, line-bounded Mermaid and block-math forms. Inline
+`$...$`, headings, lists, and other ambiguous Markdown are intentionally not detected in interactive
+output.
 
 ## Configuration
 
-The installer writes a strict TOML file. A simplified configuration is:
+The installer writes strict TOML with resolved absolute paths:
 
 ```toml
 schema_version = 1
@@ -400,7 +378,7 @@ math = true
 max_block_bytes = 1048576
 
 [rendering]
-mode = "preview" # preview | source
+mode = "preview"
 strict = false
 columns = 80
 
@@ -410,20 +388,19 @@ max_entries = 128
 max_bytes = 33554432
 
 [engines.mermaid]
-backend = "mermaid-cli" # preview | source | mermaid-cli
+backend = "mermaid-cli"
 path = "/absolute/path/to/mmdc"
 
 [engines.math]
-backend = "mathjax-cli" # preview | source | mathjax-cli
+backend = "mathjax-cli"
 path = "/absolute/path/to/tex2svg"
 
 [engines.presenter]
 path = "/absolute/path/to/chafa-compatible-presenter"
 ```
 
-Engine paths accept an absolute path or a bare executable name. Working-directory-relative paths such
-as `tools/mmdc` are rejected. The installer stores absolute paths; manually written bare names remain
-supported for explicit user configurations.
+Manually written bare executable names are supported and resolved through the runtime `PATH`.
+Working-directory-relative paths such as `tools/mmdc` are rejected.
 
 ## Safety and failure behavior
 
@@ -444,9 +421,8 @@ For each semantic block, the display pipeline commits exactly one result:
 3. exact original source after a non-strict failure;
 4. an error before replacement bytes in strict mode.
 
-External processes are invoked with fixed argument protocols. The managed aliases use the native
-ptymark launcher and Node directly. No arbitrary shell command, pipe, redirect, or argument template is
-accepted from the renderer configuration.
+External processes use fixed argument protocols. Configuration cannot contain an arbitrary shell
+command, pipe, redirect, or argument template.
 
 Initial bounds:
 
@@ -460,15 +436,13 @@ diagnostic output    64 KiB
 ## Cache
 
 `ArtifactCache` is independent from detection, routing, engine execution, and display commit. Current
-implementations are `MemoryCache` and `NoopCache`.
-
-The complete key includes renderer identity, semantic kind, exact source bytes, terminal columns,
-color permission, and theme fingerprint. Only successful final display bytes are cached. Persistent
-cache is deferred until the interactive PTY path is measured.
+implementations are `MemoryCache` and `NoopCache`. The complete key includes renderer identity,
+semantic kind, exact source bytes, terminal columns, color permission, and theme fingerprint. Only
+successful final display bytes are cached.
 
 ## WezTerm
 
-Run the platform installer, then use [`examples/wezterm.lua`](examples/wezterm.lua):
+Run the appropriate installer, then copy [`examples/wezterm.lua`](examples/wezterm.lua):
 
 ```bash
 cp examples/wezterm.lua ~/.wezterm.lua
@@ -478,45 +452,24 @@ cp examples/wezterm.lua ~/.wezterm.lua
 Copy-Item examples/wezterm.lua $HOME/.wezterm.lua
 ```
 
-The example chooses the platform-specific binary, config, and shell defaults. `PTYMARK_BINARY` and
+The example uses `wezterm.target_triple` to select Unix or Windows defaults. `PTYMARK_BINARY` and
 `PTYMARK_CONFIG` override those paths. The plugin appends one launch-menu entry and one
 `CTRL|SHIFT+P` binding; it does not replace existing entries.
-
-```lua
-local wezterm = require 'wezterm'
-local config = wezterm.config_builder()
-local ptymark = wezterm.plugin.require(
-  'https://github.com/iwashita-nozomu/ptymark'
-)
-
-ptymark.apply_to_config(config, {
-  binary = '/absolute/path/to/ptymark',
-  config_file = '/absolute/path/to/config.toml',
-})
-
-return config
-```
 
 The plugin is currently a launcher. Interactive interception becomes active after the PTY host is
 implemented.
 
 ## Extension boundaries
 
-Installation-time executable lookup is behind `ProgramResolver`. The managed native alias dispatcher
-is versioned by `bundle.toml`. Render selection and execution remain behind `RenderDecider` and
-`EngineHandoff`. Adding a new resolver or managed source must not change the terminal safety gate,
-semantic detector, cache, or display commit contract.
+Installation-time executable lookup is behind `ProgramResolver`. OS/shell frontends normalize paths
+before calling the shared Rust resolver. Managed launchers are versioned by `bundle.toml`. Render
+selection and execution remain behind `RenderDecider` and `EngineHandoff`.
 
-This is intentionally not a dynamic plugin registry. A new engine slot requires a concrete input/output
-protocol, installation route, integrity policy, exact-source fallback, dependency ownership, and
-Linux/macOS/Windows tests.
+A new resolver, engine, or handoff must not change the terminal safety gate, semantic detector, cache,
+or display-commit contract. A new engine slot requires a concrete protocol, install route, integrity
+policy, exact-source fallback, dependency owner, and Ubuntu/macOS/Windows tests.
 
 ## Development and CI
-
-The repository retains its AgentCanon and project-template workspace. `GNUmakefile` includes the
-inherited `Makefile` and project-local `ptymark.mk`.
-
-Canonical environment:
 
 ```bash
 make ptymark-build
@@ -527,11 +480,12 @@ make ptymark-dev
 GitHub Actions is the formal pull-request evidence. It runs:
 
 - Rust formatting, Clippy, and all tests on Ubuntu, macOS, and Windows;
-- a real managed-bundle install on Windows using pinned Node and installed Edge;
-- Mermaid and MathJax rendering through the managed native aliases on Windows;
-- canonical Docker tests and isolated managed-engine smoke;
-- shell syntax, ShellCheck, PowerShell parse checks, and Node syntax checks;
-- WezTerm plugin plus Linux/Windows example checks;
+- PowerShell parser checks and Bash syntax checks;
+- a real managed-bundle install on Windows using installed Edge;
+- PowerShell, cmd.exe, and Git Bash installer entrypoint checks;
+- Mermaid and MathJax rendering through managed native aliases on Windows;
+- canonical Docker checks and isolated managed-engine smoke;
+- shell syntax, ShellCheck, Node syntax, and WezTerm example checks;
 - inherited repository and Docker-pack checks.
 
 ## Design documents
