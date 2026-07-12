@@ -1,12 +1,11 @@
 name: ptymark Managed Renderer Diagnostic Once
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - agent/minimal-pre-display-core
     paths:
       - .github/workflows/ptymark-managed-diagnostic-once.yml
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,30 +17,44 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.ref_name }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 24.18.0
           package-manager-cache: false
-      - name: Install Rust and build
+      - name: Install Rust
         shell: pwsh
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
-          cargo build --locked
-      - name: Trace Windows managed installation and rendering
+      - name: Capture Windows tests, install, and strict rendering
         shell: pwsh
         run: |
           $root = Join-Path $env:RUNNER_TEMP 'ptymark-managed-diagnostic'
           Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $statuses = [ordered]@{}
+
+          cargo test --locked --all-targets -- --nocapture *>&1 |
+            Tee-Object (Join-Path $root 'cargo-test.log')
+          $statuses.cargo_test = $LASTEXITCODE
+
+          cargo build --locked *>&1 | Tee-Object (Join-Path $root 'cargo-build.log')
+          $statuses.cargo_build = $LASTEXITCODE
           $binary = (Resolve-Path 'target/debug/ptymark.exe').Path
+
           $candidates = @()
-          if (${env:ProgramFiles(x86)}) { $candidates += Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe' }
-          if ($env:ProgramFiles) { $candidates += Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe' }
+          if (${env:ProgramFiles(x86)}) {
+            $candidates += Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'
+          }
+          if ($env:ProgramFiles) {
+            $candidates += Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'
+          }
           $edge = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
-          "binary=$binary`nedge=$edge`nnode=$(node --version)`nnpm=$(npm --version)" | Set-Content (Join-Path $root 'environment.log')
-          $status = 0
+          "binary=$binary`nedge=$edge`nnode=$(node --version)`nnpm=$(npm --version)" |
+            Set-Content (Join-Path $root 'environment.log')
+
           try {
             & ./scripts/installer.ps1 `
               -SkipCore `
@@ -51,59 +64,55 @@ jobs:
               -Config (Join-Path $root 'config.toml') `
               -State (Join-Path $root 'state.toml') `
               -Browser $edge `
-              -SkipBrowserDownload `
-              -Verbose *>&1 | Tee-Object (Join-Path $root 'installer.log')
-            if ($LASTEXITCODE -ne 0) { $status = $LASTEXITCODE }
+              -SkipBrowserDownload *>&1 |
+              Tee-Object (Join-Path $root 'installer.log')
+            $statuses.installer = $LASTEXITCODE
           }
           catch {
-            ($_ | Format-List * -Force | Out-String) | Add-Content (Join-Path $root 'installer.log')
-            $status = 1
+            ($_ | Format-List * -Force | Out-String) | Set-Content (Join-Path $root 'installer.log')
+            $statuses.installer = 1
           }
-          if (Test-Path (Join-Path $root 'config.toml')) {
-            Get-Content (Join-Path $root 'config.toml') -Raw | Set-Content (Join-Path $root 'config-copy.log')
+
+          $config = Join-Path $root 'config.toml'
+          if (Test-Path $config) {
+            Copy-Item $config (Join-Path $root 'config-copy.log')
+            @('```mermaid', 'flowchart LR', '  A --> B', '```') |
+              Set-Content -Encoding utf8NoBOM (Join-Path $root 'mermaid.md')
+            Get-Content (Join-Path $root 'mermaid.md') -Raw |
+              & $binary --config $config preview --strict --columns 40 - *>&1 |
+              Tee-Object (Join-Path $root 'mermaid-strict.log')
+            $statuses.mermaid_strict = $LASTEXITCODE
+
+            @('$$', 'E = mc^2', '$$') |
+              Set-Content -Encoding utf8NoBOM (Join-Path $root 'math.md')
+            Get-Content (Join-Path $root 'math.md') -Raw |
+              & $binary --config $config preview --strict --columns 40 - *>&1 |
+              Tee-Object (Join-Path $root 'math-strict.log')
+            $statuses.math_strict = $LASTEXITCODE
           }
-          if (Test-Path (Join-Path $root 'state.toml')) {
-            Get-Content (Join-Path $root 'state.toml') -Raw | Set-Content (Join-Path $root 'state-copy.log')
+          else {
+            $statuses.mermaid_strict = 1
+            $statuses.math_strict = 1
           }
-          if ($status -eq 0) {
-            try {
-              @('```mermaid', 'flowchart LR', 'A --> B', '```') -join "`n" |
-                & $binary --config (Join-Path $root 'config.toml') preview --columns 40 - *>&1 |
-                Tee-Object (Join-Path $root 'mermaid.log')
-              if ($LASTEXITCODE -ne 0) { $status = $LASTEXITCODE }
-              @('$$', 'E = mc^2', '$$') -join "`n" |
-                & $binary --config (Join-Path $root 'config.toml') preview --columns 40 - *>&1 |
-                Tee-Object (Join-Path $root 'math.log')
-              if ($LASTEXITCODE -ne 0) { $status = $LASTEXITCODE }
-            }
-            catch {
-              ($_ | Format-List * -Force | Out-String) | Add-Content (Join-Path $root 'render-error.log')
-              $status = 1
-            }
-          }
-          "$status" | Set-Content (Join-Path $root 'status.txt')
+
+          $statuses.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" } |
+            Set-Content (Join-Path $root 'status.txt')
           "PTYMARK_DIAGNOSTIC_ROOT=$root" >> $env:GITHUB_ENV
           exit 0
       - name: Upload Windows diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ptymark-managed-windows-diagnostic
-          path: |
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/environment.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/installer.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/config-copy.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/state-copy.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/mermaid.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/math.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/render-error.log
-            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/status.txt
-          if-no-files-found: warn
+          name: ptymark-managed-windows-strict-diagnostic
+          path: ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}
+          if-no-files-found: error
           retention-days: 3
       - name: Preserve Windows result
         shell: pwsh
         run: |
-          if ((Get-Content (Join-Path $env:PTYMARK_DIAGNOSTIC_ROOT 'status.txt') -Raw).Trim() -ne '0') { throw 'Windows diagnostic reproduced the failure' }
+          $failed = Get-Content (Join-Path $env:PTYMARK_DIAGNOSTIC_ROOT 'status.txt') |
+            Where-Object { $_ -notmatch '=0$' }
+          if ($failed) { throw ($failed -join ', ') }
 
   docker:
     runs-on: ubuntu-24.04
@@ -111,16 +120,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.ref_name }}
           persist-credentials: false
       - name: Build canonical image
         run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml build --pull
-      - name: Trace canonical managed install and render
+      - name: Capture strict Docker rendering
         shell: bash
         run: |
           set +e
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
           "${compose[@]}" run --rm --no-TTY dev bash -lc '
-            set -x
+            set -euo pipefail
             cargo build --locked
             root="$(mktemp -d)"
             binary="${CARGO_TARGET_DIR}/debug/ptymark"
@@ -129,24 +139,33 @@ jobs:
               --managed always --managed-root "$root/bundle" \
               --browser /usr/bin/chromium --skip-browser-download \
               --config "$root/config.toml" --state "$root/state.toml"
-            cat "$root/config.toml"
-            cat "$root/state.toml"
-            printf "%s\n" "```mermaid" "flowchart LR" "A --> B" "```" | "$binary" --config "$root/config.toml" preview --columns 40 -
-            printf "%s\n" "$$" "E = mc^2" "$$" | "$binary" --config "$root/config.toml" preview --columns 40 -
-          ' >managed-docker.log 2>&1
+            cat >"$root/mermaid.md" <<'"'"'EOF_MERMAID'"'"'
+```mermaid
+flowchart LR
+  A --> B
+```
+EOF_MERMAID
+            "$binary" --config "$root/config.toml" preview --strict --columns 40 "$root/mermaid.md"
+            cat >"$root/math.md" <<'"'"'EOF_MATH'"'"'
+$$
+E = mc^2
+$$
+EOF_MATH
+            "$binary" --config "$root/config.toml" preview --strict --columns 40 "$root/math.md"
+          ' >managed-docker-strict.log 2>&1
           status=$?
-          printf '%s\n' "$status" >managed-docker.status
-          cat managed-docker.log
+          printf '%s\n' "$status" >managed-docker-strict.status
+          cat managed-docker-strict.log
           exit 0
       - name: Upload Docker diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ptymark-managed-docker-diagnostic
+          name: ptymark-managed-docker-strict-diagnostic
           path: |
-            managed-docker.log
-            managed-docker.status
+            managed-docker-strict.log
+            managed-docker-strict.status
           if-no-files-found: error
           retention-days: 3
       - name: Preserve Docker result
-        run: test "$(cat managed-docker.status)" = 0
+        run: test "$(cat managed-docker-strict.status)" = 0
