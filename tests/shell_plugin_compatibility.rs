@@ -9,10 +9,7 @@ const INVENTORIES: [(&str, &str); 5] = [
         "bash",
         include_str!("../compat/shell-integrations/bash.tsv"),
     ),
-    (
-        "zsh",
-        include_str!("../compat/shell-integrations/zsh.tsv"),
-    ),
+    ("zsh", include_str!("../compat/shell-integrations/zsh.tsv")),
     (
         "fish",
         include_str!("../compat/shell-integrations/fish.tsv"),
@@ -78,7 +75,11 @@ fn inventory_has_twenty_reviewed_integrations_per_shell() {
             Some("integration\tcategory\tprofile\tverification\tupstream\tnotes")
         );
         let rows: Vec<_> = lines.filter(|line| !line.is_empty()).collect();
-        assert_eq!(rows.len(), 20, "{shell} must retain about twenty reviewed integrations");
+        assert_eq!(
+            rows.len(),
+            20,
+            "{shell} must retain about twenty reviewed integrations"
+        );
 
         for row in rows {
             let fields: Vec<_> = row.split('\t').collect();
@@ -117,7 +118,10 @@ fn every_behavior_profile_is_byte_exact_across_arbitrary_chunks() {
 
         assert_eq!(output, source, "profile {profile} changed terminal bytes");
         if !matches!(profile, "safe-text" | "hook-only") {
-            assert!(saw_raw, "profile {profile} must exercise the protected raw path");
+            assert!(
+                saw_raw,
+                "profile {profile} must exercise the protected raw path"
+            );
         }
     }
 }
@@ -143,7 +147,12 @@ fn prompt_controls_pass_unchanged_before_a_renderable_block() {
 
 #[test]
 fn full_screen_and_progress_interfaces_never_enter_semantic_detection() {
-    for profile in ["alternate-screen", "progress-line", "line-editor", "completion-menu"] {
+    for profile in [
+        "alternate-screen",
+        "progress-line",
+        "line-editor",
+        "completion-menu",
+    ] {
         let source = fixture(profile);
         let mut pipeline = preview_pipeline();
         let mut output = Vec::new();
