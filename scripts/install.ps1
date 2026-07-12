@@ -99,13 +99,15 @@ if ($ResolveDefaults) {
     (Test-Path $ManagedMath -PathType Leaf) -and
     (Test-Path $ManagedPresenter -PathType Leaf)
   if ($NeedManaged -and -not $ManagedReady -and -not $DryRun) {
-    $BundleArgs = @('-Root', $ManagedRoot, '-Launcher', $Binary)
-    if ($Browser) { $BundleArgs += @('-Browser', $Browser) }
-    if ($SkipBrowserDownload) { $BundleArgs += '-SkipBrowserDownload' }
-    if ($Offline) { $BundleArgs += '-Offline' }
-    if ($ForceManaged) { $BundleArgs += '-Force' }
-    & (Join-Path $RepoRoot 'scripts\install-managed-bundle.ps1') @BundleArgs
-    if ($LASTEXITCODE -ne 0) { throw "managed bundle installation failed with exit code $LASTEXITCODE" }
+    $BundleParameters = @{
+      Root = $ManagedRoot
+      Launcher = $Binary
+    }
+    if ($Browser) { $BundleParameters.Browser = $Browser }
+    if ($SkipBrowserDownload) { $BundleParameters.SkipBrowserDownload = $true }
+    if ($Offline) { $BundleParameters.Offline = $true }
+    if ($ForceManaged) { $BundleParameters.Force = $true }
+    & (Join-Path $RepoRoot 'scripts\install-managed-bundle.ps1') @BundleParameters
     $ManagedReady = $true
   }
 
