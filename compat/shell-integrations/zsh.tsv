@@ -1,0 +1,21 @@
+integration	category	profile	verification	upstream	notes
+Oh My Zsh	framework	prompt-control	contract-verified	https://github.com/ohmyzsh/ohmyzsh	Framework hooks and themes remain shell-owned.
+Prezto	framework	prompt-control	contract-verified	https://github.com/sorin-ionescu/prezto	Prompt, completion, and hook output is byte-preserved.
+Zim	framework	prompt-control	contract-verified	https://github.com/zimfw/zimfw	Module and prompt hooks remain shell-owned.
+Zinit	plugin-manager	hook-only	contract-verified	https://github.com/zdharma-continuum/zinit	Plugin loading is not modified by ptymark.
+Antidote	plugin-manager	hook-only	contract-verified	https://github.com/mattmc3/antidote	Static plugin loading is not modified.
+zplug	plugin-manager	hook-only	contract-verified	https://github.com/zplug/zplug	Plugin manager operations are independent of the display gate.
+Znap	plugin-manager	hook-only	contract-verified	https://github.com/marlonrichert/zsh-snap	Plugin loading and compilation are not modified.
+Sheldon	plugin-manager	hook-only	contract-verified	https://github.com/rossmacarthur/sheldon	Generated shell startup code is not rewritten.
+zsh-autosuggestions	line-editor	line-editor	contract-verified	https://github.com/zsh-users/zsh-autosuggestions	ZLE redraw and dim suggestions are passed through unchanged.
+zsh-syntax-highlighting	line-editor	line-editor	contract-verified	https://github.com/zsh-users/zsh-syntax-highlighting	ZLE color and redraw controls are byte-preserved.
+Fast Syntax Highlighting	line-editor	line-editor	contract-verified	https://github.com/zdharma-continuum/fast-syntax-highlighting	ZLE highlighting output bypasses semantic rendering.
+zsh-autocomplete	completion	completion-menu	contract-verified	https://github.com/marlonrichert/zsh-autocomplete	Completion menus and cursor movement are passed through.
+fzf-tab	completion	alternate-screen	contract-verified	https://github.com/Aloxaf/fzf-tab	fzf-backed completion UI bypasses rendering.
+Powerlevel10k	prompt	right-prompt	contract-verified	https://github.com/romkatv/powerlevel10k	Instant prompt, right prompt, and cursor controls are preserved.
+Pure	prompt	right-prompt	contract-verified	https://github.com/sindresorhus/pure	Async prompt refresh and cursor controls are preserved.
+Spaceship	prompt	prompt-control	contract-verified	https://github.com/spaceship-prompt/spaceship-prompt	Prompt segments and asynchronous updates are preserved.
+Starship	prompt	prompt-control	contract-verified	https://github.com/starship/starship	Prompt output and hooks remain shell-owned.
+Oh My Posh	prompt	prompt-control	contract-verified	https://github.com/JanDeDobbeleer/oh-my-posh	Prompt and right-prompt control output is preserved.
+Atuin	history	alternate-screen	contract-verified	https://github.com/atuinsh/atuin	History UI bypasses rendering; hooks remain intact.
+zoxide	navigation	hook-only	contract-verified	https://github.com/ajeetdsouza/zoxide	chpwd hooks and environment behavior remain shell-owned.
