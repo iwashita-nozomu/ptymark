@@ -29,6 +29,14 @@ case "$(uname -m)" in
   *) printf 'unsupported release packaging architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
+hash_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
 package_name="ptymark-${version}-${platform}-${architecture}"
 package_root="$output_dir/$package_name"
 archive="$output_dir/$package_name.tar.gz"
@@ -41,7 +49,8 @@ mkdir -p \
   "$package_root/renderers/managed" \
   "$package_root/plugin" \
   "$package_root/examples" \
-  "$package_root/documents"
+  "$package_root/documents" \
+  "$package_root/compat/shell-integrations"
 
 install -m 755 "$binary" "$package_root/bin/ptymark"
 install -m 755 "$repo_root/distribution/install.sh" "$package_root/install.sh"
@@ -63,9 +72,12 @@ install -m 644 "$repo_root/README.md" "$package_root/README.md"
 install -m 644 "$repo_root/LICENSE" "$package_root/LICENSE"
 install -m 644 "$repo_root/documents/ptymark-design.md" "$package_root/documents/ptymark-design.md"
 install -m 644 "$repo_root/documents/ptymark-installer.md" "$package_root/documents/ptymark-installer.md"
-if [[ -f "$repo_root/documents/shell-plugin-compatibility.md" ]]; then
-  install -m 644 "$repo_root/documents/shell-plugin-compatibility.md" "$package_root/documents/shell-plugin-compatibility.md"
-fi
+install -m 644 "$repo_root/documents/shell-plugin-compatibility.md" "$package_root/documents/shell-plugin-compatibility.md"
+for inventory in bash zsh fish powershell nushell; do
+  install -m 644 \
+    "$repo_root/compat/shell-integrations/$inventory.tsv" \
+    "$package_root/compat/shell-integrations/$inventory.tsv"
+done
 
 cat >"$package_root/PACKAGE-MANIFEST.txt" <<EOF_MANIFEST
 name=$package_name
@@ -78,8 +90,43 @@ EOF_MANIFEST
 
 smoke_root="$(mktemp -d)"
 trap 'rm -rf "$smoke_root"' EXIT
-mkdir -p "$smoke_root/home"
-HOME="$smoke_root/home" \
+home="$smoke_root/home"
+mkdir -p \
+  "$home/.config/fish" \
+  "$home/.config/nushell" \
+  "$home/.config/powershell"
+cat >"$home/.bashrc" <<'EOF_BASH_PROFILE'
+source "$HOME/.bash_plugins"
+EOF_BASH_PROFILE
+cat >"$home/.zshrc" <<'EOF_ZSH_PROFILE'
+source "$ZDOTDIR/plugins.zsh"
+EOF_ZSH_PROFILE
+cat >"$home/.config/fish/config.fish" <<'EOF_FISH_PROFILE'
+source ~/.config/fish/plugins.fish
+EOF_FISH_PROFILE
+cat >"$home/.config/nushell/config.nu" <<'EOF_NUSHELL_PROFILE'
+source ~/.config/nushell/plugins.nu
+EOF_NUSHELL_PROFILE
+cat >"$home/.config/powershell/Microsoft.PowerShell_profile.ps1" <<'EOF_POWERSHELL_PROFILE'
+Import-Module PSReadLine
+EOF_POWERSHELL_PROFILE
+
+profile_files=(
+  "$home/.bashrc"
+  "$home/.zshrc"
+  "$home/.config/fish/config.fish"
+  "$home/.config/nushell/config.nu"
+  "$home/.config/powershell/Microsoft.PowerShell_profile.ps1"
+)
+profile_snapshot() {
+  local path
+  for path in "${profile_files[@]}"; do
+    printf '%s  %s\n' "$(hash_file "$path")" "$path"
+  done
+}
+profile_snapshot >"$smoke_root/profiles.before"
+
+HOME="$home" \
 XDG_CONFIG_HOME="$smoke_root/xdg-config" \
 XDG_STATE_HOME="$smoke_root/xdg-state" \
 XDG_DATA_HOME="$smoke_root/xdg-data" \
@@ -90,6 +137,8 @@ bash "$package_root/install.sh" \
   --config "$smoke_root/config.toml" \
   --state "$smoke_root/state.toml"
 
+profile_snapshot >"$smoke_root/profiles.after"
+cmp "$smoke_root/profiles.before" "$smoke_root/profiles.after"
 "$package_root/bin/ptymark" --version >/dev/null
 "$package_root/bin/ptymark" --config "$smoke_root/config.toml" config check >/dev/null
 printf '%s\n' '$$' 'E = mc^2' '$$' \
@@ -100,12 +149,7 @@ grep -F 'ptymark math' "$smoke_root/preview.out" >/dev/null
 mkdir -p "$output_dir"
 rm -f "$archive" "$checksum"
 tar -czf "$archive" -C "$output_dir" "$package_name"
-
-if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum "$archive" >"$checksum"
-else
-  shasum -a 256 "$archive" >"$checksum"
-fi
+printf '%s  %s\n' "$(hash_file "$archive")" "$(basename "$archive")" >"$checksum"
 
 printf 'package\t%s\n' "$package_root"
 printf 'archive\t%s\n' "$archive"
