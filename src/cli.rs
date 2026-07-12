@@ -2,6 +2,10 @@ use crate::cache::{MemoryCache, NoopCache};
 use crate::config::{Config, RenderMode};
 use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 use crate::engine::check_configured_engines;
+use crate::install::{
+    EnginePreference, InstallRequest, InstallState, Installer, PathProgramResolver,
+    PresenterPreference, default_install_state_path,
+};
 use crate::pipeline::DisplayPipeline;
 use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
 use crate::routing::RoutedRenderer;
@@ -20,6 +24,8 @@ USAGE:
     ptymark [--config PATH] config check
     ptymark [--config PATH] config show
     ptymark [--config PATH] engine check
+    ptymark [--config PATH] install resolve [INSTALL OPTIONS]
+    ptymark install status [--state PATH]
     ptymark [--config PATH] -- COMMAND [ARG...]
 
 PREVIEW OPTIONS:
@@ -31,12 +37,25 @@ PREVIEW OPTIONS:
     --config PATH         use an explicit ptymark TOML file
     -h, --help            print this help
 
+INSTALL OPTIONS:
+    --config PATH         write or update this user configuration
+    --state PATH          write the resolved installation snapshot here
+    --mermaid VALUE       keep | auto | preview | source | EXECUTABLE
+    --math VALUE          keep | auto | preview | source | EXECUTABLE
+    --presenter VALUE     keep | auto | EXECUTABLE
+    --reset               start from built-in defaults instead of preserving config
+    --dry-run             print the plan without writing files
+
 GLOBAL OPTIONS:
     --config PATH         validate and use an explicit ptymark TOML file
     -h, --help            print this help
     -V, --version         print the version
 
 EXAMPLES:
+    bash scripts/install.sh
+    ptymark install resolve
+    ptymark install resolve --mermaid /opt/homebrew/bin/mmdc
+    ptymark install status
     printf '$$\\nE = mc^2\\n$$\\n' | ptymark preview
     ptymark preview --source README.md
     ptymark config check --config examples/ptymark.toml
@@ -77,7 +96,8 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         .first()
         .and_then(|value| value.to_str())
         .ok_or_else(|| {
-            "missing command; use `preview`, `config`, `engine`, or `-- COMMAND`".to_owned()
+            "missing command; use `preview`, `config`, `engine`, `install`, or `-- COMMAND`"
+                .to_owned()
         })?
         .to_owned();
     arguments.remove(0);
@@ -86,6 +106,7 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         "preview" => run_preview(arguments, config_path),
         "config" => run_config(arguments, config_path),
         "engine" => run_engine(arguments, config_path),
+        "install" => run_install(arguments, config_path),
         "--" => run_command(arguments, config_path),
         option if option.starts_with('-') => Err(format!("unknown option `{option}`")),
         _ => Err("child commands must follow `--`; example: `ptymark -- zsh -l`".to_owned()),
@@ -118,20 +139,24 @@ fn set_config(target: &mut Option<PathBuf>, path: PathBuf) -> Result<(), String>
     Ok(())
 }
 
+fn next_value(
+    iterator: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<OsString, String> {
+    iterator
+        .next()
+        .ok_or_else(|| format!("missing value after `{option}`"))
+}
+
 fn next_path(
     iterator: &mut impl Iterator<Item = OsString>,
     option: &str,
 ) -> Result<PathBuf, String> {
-    iterator
-        .next()
-        .map(PathBuf::from)
-        .ok_or_else(|| format!("missing value after `{option}`"))
+    next_value(iterator, option).map(PathBuf::from)
 }
 
 fn next_columns(iterator: &mut impl Iterator<Item = OsString>) -> Result<u16, String> {
-    let value = iterator
-        .next()
-        .ok_or_else(|| "missing value after `--columns`".to_owned())?
+    let value = next_value(iterator, "--columns")?
         .into_string()
         .map_err(|_| "`--columns` requires UTF-8 digits".to_owned())?;
     let columns = value
@@ -141,6 +166,34 @@ fn next_columns(iterator: &mut impl Iterator<Item = OsString>) -> Result<u16, St
         return Err("`--columns` must be greater than zero".to_owned());
     }
     Ok(columns)
+}
+
+fn next_engine_preference(
+    iterator: &mut impl Iterator<Item = OsString>,
+    option: &str,
+) -> Result<EnginePreference, String> {
+    let value = next_value(iterator, option)?;
+    Ok(match value.to_str() {
+        Some("keep") => EnginePreference::Keep,
+        Some("auto") => EnginePreference::Auto,
+        Some("preview") => EnginePreference::Preview,
+        Some("source") => EnginePreference::Source,
+        _ => EnginePreference::External(PathBuf::from(value)),
+    })
+}
+
+fn next_presenter_preference(
+    iterator: &mut impl Iterator<Item = OsString>,
+) -> Result<PresenterPreference, String> {
+    let value = next_value(iterator, "--presenter")?;
+    Ok(match value.to_str() {
+        Some("keep") => PresenterPreference::Keep,
+        Some("auto") => PresenterPreference::Auto,
+        Some("preview" | "source") => {
+            return Err("`--presenter` accepts keep, auto, or an executable path".to_owned());
+        }
+        _ => PresenterPreference::Program(PathBuf::from(value)),
+    })
 }
 
 fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Result<i32, String> {
@@ -301,6 +354,130 @@ fn run_engine(
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
     for check in check_configured_engines(&config.engines).map_err(|error| error.to_string())? {
         println!("{}", check.display_line());
+    }
+    Ok(0)
+}
+
+fn run_install(
+    mut arguments: Vec<OsString>,
+    config_path: Option<PathBuf>,
+) -> Result<i32, String> {
+    let action = arguments
+        .first()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "missing install action; use `resolve` or `status`".to_owned())?
+        .to_owned();
+    arguments.remove(0);
+
+    match action.as_str() {
+        "resolve" => run_install_resolve(arguments, config_path),
+        "status" => run_install_status(arguments),
+        _ => Err(format!(
+            "unknown install action `{action}`; use `resolve` or `status`"
+        )),
+    }
+}
+
+fn run_install_resolve(
+    arguments: Vec<OsString>,
+    mut config_path: Option<PathBuf>,
+) -> Result<i32, String> {
+    let mut state_path = None;
+    let mut mermaid = EnginePreference::Keep;
+    let mut math = EnginePreference::Keep;
+    let mut presenter = PresenterPreference::Keep;
+    let mut reset = false;
+    let mut dry_run = false;
+    let mut iterator = arguments.into_iter();
+
+    while let Some(argument) = iterator.next() {
+        let text = argument
+            .to_str()
+            .ok_or_else(|| "install options must be valid UTF-8".to_owned())?;
+        match text {
+            "-h" | "--help" => {
+                print!("{HELP}");
+                return Ok(0);
+            }
+            "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
+            "--state" => {
+                if state_path
+                    .replace(next_path(&mut iterator, "--state")?)
+                    .is_some()
+                {
+                    return Err("`--state` may be specified only once".to_owned());
+                }
+            }
+            "--mermaid" => mermaid = next_engine_preference(&mut iterator, "--mermaid")?,
+            "--math" => math = next_engine_preference(&mut iterator, "--math")?,
+            "--presenter" => presenter = next_presenter_preference(&mut iterator)?,
+            "--reset" => reset = true,
+            "--dry-run" => dry_run = true,
+            option => return Err(format!("unknown install option `{option}`")),
+        }
+    }
+
+    let config_path = config_path
+        .map(Ok)
+        .unwrap_or_else(Config::user_config_path)
+        .map_err(|error| error.to_string())?;
+    let state_path = state_path
+        .map(Ok)
+        .unwrap_or_else(default_install_state_path)
+        .map_err(|error| error.to_string())?;
+    let mut request = InstallRequest::new(config_path, state_path);
+    request.mermaid = mermaid;
+    request.math = math;
+    request.presenter = presenter;
+    request.reset = reset;
+
+    let plan = Installer::new(PathProgramResolver)
+        .plan(&request)
+        .map_err(|error| error.to_string())?;
+    if dry_run {
+        println!("# resolved ptymark configuration");
+        print!("{}", plan.config.to_toml().map_err(|error| error.to_string())?);
+        println!("# resolved installation state");
+        print!("{}", plan.state.to_toml().map_err(|error| error.to_string())?);
+    } else {
+        plan.apply().map_err(|error| error.to_string())?;
+        for line in plan.summary_lines() {
+            println!("{line}");
+        }
+    }
+    Ok(0)
+}
+
+fn run_install_status(arguments: Vec<OsString>) -> Result<i32, String> {
+    let mut state_path = None;
+    let mut iterator = arguments.into_iter();
+    while let Some(argument) = iterator.next() {
+        match argument.to_str() {
+            Some("-h" | "--help") => {
+                print!("{HELP}");
+                return Ok(0);
+            }
+            Some("--state") => {
+                if state_path
+                    .replace(next_path(&mut iterator, "--state")?)
+                    .is_some()
+                {
+                    return Err("`--state` may be specified only once".to_owned());
+                }
+            }
+            Some(option) => return Err(format!("unknown install status option `{option}`")),
+            None => return Err("install status options must be valid UTF-8".to_owned()),
+        }
+    }
+
+    let state_path = state_path
+        .map(Ok)
+        .unwrap_or_else(default_install_state_path)
+        .map_err(|error| error.to_string())?;
+    let state = InstallState::load(&state_path).map_err(|error| error.to_string())?;
+    println!("state\t{}", state_path.display());
+    for line in state.status_lines(&PathProgramResolver) {
+        println!("{line}");
     }
     Ok(0)
 }
