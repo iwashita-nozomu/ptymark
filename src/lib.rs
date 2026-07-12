@@ -6,6 +6,7 @@ pub mod engine;
 pub mod model;
 pub mod pipeline;
 pub mod render;
+pub mod routing;
 pub mod terminal;
 
 pub use cache::{ArtifactCache, CacheKey, CacheStats, MemoryCache, NoopCache};
@@ -21,5 +22,9 @@ pub use pipeline::{DisplayPipeline, PipelineError, PipelineReport};
 pub use render::{
     PreviewRenderer, RenderArtifact, RenderContext, RenderError, RenderOutput, RenderService,
     Renderer, SourceRenderer,
+};
+pub use routing::{
+    ConfiguredDecider, ConfiguredHandoff, DecisionRequest, EngineHandoff, EngineRequest,
+    EngineResponse, RenderDecider, RenderDecision, RenderRoute, RoutedRenderer,
 };
 pub use terminal::{OutputSegment, TerminalOutputGate};
