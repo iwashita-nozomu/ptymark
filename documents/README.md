@@ -11,7 +11,7 @@ upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-c
 upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md runtime profile and validation routing policy
 upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md audit resolution ledger
 upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
-downstream design ./ptymark-design.md ptymark pre-display rendering contract
+downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
 -->
@@ -35,9 +35,9 @@ seed this file, but derived repositories own their local index.
 
 ## Project-Owned Documents
 
-- [ptymark Design](./ptymark-design.md): current minimal architecture, safety
-  invariants, configuration boundary, rejected overdesign, extension rules, and
-  test strategy.
+- [ptymark Design](./ptymark-design.md): current pre-display architecture,
+  terminal-safety invariants, render decision policy, typed engine handoff,
+  installed-engine contracts, cache identity, extension rules, and test strategy.
 
 ## Ownership Matrix
 
