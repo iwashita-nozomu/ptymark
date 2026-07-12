@@ -51,5 +51,6 @@ finally {
   Remove-Item $TemporaryBinary -Force -ErrorAction SilentlyContinue
 }
 
-& $Installer -SkipCore -Binary $BinaryDestination @($Forward.ToArray())
+$ForwardArguments = $Forward.ToArray()
+& $Installer -SkipCore -Binary $BinaryDestination @ForwardArguments
 exit $LASTEXITCODE
