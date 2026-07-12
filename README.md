@@ -4,143 +4,71 @@
 @dependency-start
 contract design
 responsibility Provides the user-facing entrypoint for ptymark installation, engine setup, configuration, WezTerm use, safety guarantees, and development.
-upstream design documents/ptymark-design.md defines the current minimal architecture and rejected overdesign.
+upstream design documents/ptymark-design.md defines the current pre-display architecture and extension boundary.
+upstream design documents/ptymark-installer.md defines installation-time resolution and replacement behavior.
 upstream environment docker/ptymark.Dockerfile defines the canonical validation environment.
 downstream implementation src/cli.rs implements the documented command surface.
-downstream test tests/cli_contract.rs validates the documented CLI behavior.
+downstream test tests/cli_contract.rs and tests/install_contract.rs validate the documented behavior.
 @dependency-end
 -->
 
-`ptymark` is an alpha-stage **pre-display renderer** for terminal output. It inspects only bytes
-travelling from a child process toward the terminal, detects explicitly delimited Markdown blocks,
-and replaces a complete block before it is written to the display.
-
-The first integration deliberately keeps the runtime small:
+`ptymark` is an alpha-stage **pre-display renderer** for terminal output. It detects complete,
+explicitly delimited Markdown blocks and replaces only those blocks before bytes are committed to the
+terminal display.
 
 ```text
 child output
   -> terminal safety gate
-  -> explicit block detector
-  -> selected renderer
-  -> independent in-memory cache
+  -> explicit semantic detector
+  -> render decision
+  -> selected engine handoff
+  -> independent cache
   -> terminal-safe display bytes
 ```
 
-It does **not** replace terminal input handling, termios, signals, window-size forwarding, mouse
-reporting, bracketed paste, or child exit-status handling.
+It does not replace keyboard input, termios, signal routing, window-size forwarding, mouse reporting,
+bracketed paste, or child exit-status handling.
 
 ## Current status
 
-Implemented now:
+Implemented:
 
-- `ptymark preview` for streams and files;
-- explicit Mermaid fences and block-math fences;
-- byte-exact bypass for ANSI/OSC/DCS-style control output, carriage-return update lines, and
-  alternate-screen applications;
-- source fallback for incomplete, oversized, unsafe, or failed blocks;
-- built-in preview and exact-source renderers;
-- optional Mermaid CLI and MathJax-CLI-compatible renderer slots;
-- SVG-to-terminal presentation through Chafa symbol output;
-- executable selection through `PATH` or absolute paths in TOML;
-- `ptymark engine check` for installation verification;
-- an independent bounded memory cache and a no-op cache;
-- a strict, explicit TOML configuration file;
-- a WezTerm launcher plugin;
-- Docker-based development and GitHub Actions checks.
+- stream and file rendering through `ptymark preview`;
+- Mermaid fences and block-math fences;
+- byte-exact bypass for ANSI, OSC, DCS-style controls, carriage-return updates, and alternate-screen
+  applications;
+- built-in preview and exact-source rendering;
+- installed Mermaid CLI and MathJax-compatible engine slots;
+- SVG presentation through Chafa `symbols` output;
+- installation-time engine resolution into absolute paths;
+- idempotent engine replacement without resetting unrelated user settings;
+- bounded in-memory and no-op caches;
+- a thin WezTerm launcher plugin;
+- Docker and GitHub Actions validation.
 
 Not implemented yet:
 
-- the interactive child-PTY host used by `ptymark -- COMMAND`;
-- pixel image placement through Kitty, iTerm2, Sixel, or a WezTerm-specific path;
-- persistent external renderer workers;
-- resize generations, render cancellation, and persistent cache;
+- the interactive child-PTY host behind `ptymark -- COMMAND`;
+- WezTerm/Kitty/iTerm2/Sixel pixel placement;
+- persistent renderer workers;
+- live resize generations and cancellation;
+- persistent cache;
 - Windows ConPTY support.
 
-`ptymark -- COMMAND` currently validates configuration and then transparently executes the command.
-The public command shape is reserved for the later PTY host without changing how users launch shells
-or Codex.
+`ptymark -- COMMAND` currently validates configuration and transparently executes the command. The
+command shape is reserved for the later PTY host.
 
-## Safety contract
+## Install
 
-The renderer may change only an explicitly recognized, fully closed semantic block. Everything else
-is preserved.
+The supported alpha installation flow is source-based. The installer installs the Rust binary, then
+resolves rendering engines that are already present on the machine.
 
-```text
-keyboard input ------------------------------> child process
-signals / termios / resize ------------------> child process
-child output:
-  ordinary safe text ------------------------> detector
-  ANSI / OSC / DCS / CR / alternate screen -> byte-exact passthrough
-```
+### 1. Install optional rendering tools
 
-The initial detector recognizes only:
+The core works without optional tools and falls back to the built-in textual preview. Install only the
+engines you plan to use.
 
-````markdown
-```mermaid
-flowchart LR
-  A --> B
-```
-
-$$
-E = mc^2
-$$
-
-```latex
-\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-```
-````
-
-Inline `$...$`, headings, lists, and other ambiguous Markdown are intentionally not detected in
-interactive output.
-
-External engines never write terminal protocol bytes directly. Their output follows this path:
-
-```text
-semantic body
-  -> mmdc or tex2svg-compatible command
-  -> SVG artifact
-  -> Chafa in symbols mode
-  -> ANSI/Unicode display bytes
-```
-
-Chafa is initially forced to `symbols` mode. Pixel protocols are deferred until capability checking,
-multiplexer passthrough, placement, deletion, and resize behavior are tested end to end.
-
-## Install the core
-
-The core binary has no runtime dependency on Node.js, Mermaid, MathJax, Chromium, or Chafa. With the
-default configuration it uses the built-in textual preview renderer.
-
-Rust 1.97.0 or a compatible newer toolchain is required.
-
-### From a clone
-
-```bash
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
-cd ptymark
-cargo install --locked --path .
-ptymark --version
-```
-
-### Directly from GitHub
-
-```bash
-cargo install --locked \
-  --git https://github.com/iwashita-nozomu/ptymark.git \
-  ptymark
-```
-
-There is no published release archive yet. Release packaging is deferred until the interactive PTY
-path and terminal presentation contract are stable.
-
-## Optional rendering engines
-
-Install only the engines you plan to select. `ptymark` never runs `npm install`, downloads a browser,
-or changes your package manager state during a terminal session.
-
-### Mermaid CLI
-
-The supported Mermaid adapter expects the `mmdc` command from Mermaid CLI.
+Mermaid CLI:
 
 ```bash
 npm install --global @mermaid-js/mermaid-cli@11.16.0
@@ -148,15 +76,7 @@ command -v mmdc
 mmdc --version
 ```
 
-Mermaid CLI uses a browser for layout. Its normal installation may install a compatible browser
-through Puppeteer. A separately managed browser can also be configured according to Mermaid CLI's
-own installation documentation.
-
-### MathJax CLI-compatible `tex2svg`
-
-The math adapter expects an executable named `tex2svg` that accepts one TeX expression as its first
-argument and writes SVG to stdout. One compatible installation is the official
-`mathjax-node-cli` package:
+MathJax-compatible `tex2svg`:
 
 ```bash
 npm install --global mathjax-node-cli@1.0.1
@@ -164,215 +84,226 @@ command -v tex2svg
 tex2svg 'E = mc^2' | head
 ```
 
-`mathjax-node-cli` is a compatibility CLI around an older MathJax generation. An alternative wrapper
-around a newer MathJax installation may be used when it implements the same narrow `tex2svg`
-contract. Point `engines.math.path` at that wrapper.
+The `mathjax-cli` slot accepts any executable that implements the narrow contract:
 
-The first adapter passes the expression as one process argument and therefore rejects expressions
-larger than 32 KiB. A persistent stdin protocol may replace this only when a measured real-time use
-case justifies it.
-
-### Chafa presenter
-
-External engines produce SVG, not terminal display bytes. Chafa converts the SVG into terminal-safe
-symbol output.
-
-macOS with Homebrew:
-
-```bash
-brew install chafa
-command -v chafa
+```text
+tex2svg FORMULA
+  stdout -> SVG
 ```
 
-Debian or Ubuntu:
+A wrapper around a newer MathJax installation can therefore replace `mathjax-node-cli`.
+
+Chafa presenter:
 
 ```bash
+# macOS
+brew install chafa
+
+# Debian / Ubuntu
 sudo apt-get update
 sudo apt-get install chafa
+
 command -v chafa
 ```
 
-Other platforms should install Chafa through their system package manager. Verify that the build can
-read SVG input.
+External layout engines produce SVG. Chafa converts that SVG to terminal-safe ANSI/Unicode symbols.
+Raw SVG is never written to the terminal.
 
-## Select installed engines
-
-Copy the example first:
+### 2. Run the installer
 
 ```bash
-mkdir -p ~/.config/ptymark
-cp examples/external-engines.toml ~/.config/ptymark/config.toml
+git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+cd ptymark
+bash scripts/install.sh
 ```
 
-A complete selection looks like this:
+The script runs:
+
+```text
+cargo install --locked --force --path REPOSITORY
+ptymark install resolve
+ptymark install status
+```
+
+By default it writes:
+
+```text
+~/.config/ptymark/config.toml
+~/.local/state/ptymark/install.toml
+```
+
+The configuration is runtime policy. The state file is diagnostic evidence of what the installer
+resolved.
+
+Environment overrides:
+
+```text
+PTYMARK_CONFIG
+PTYMARK_INSTALL_STATE
+XDG_CONFIG_HOME
+XDG_STATE_HOME
+```
+
+### 3. Verify
+
+```bash
+ptymark --version
+ptymark install status
+ptymark config check
+ptymark config show
+ptymark engine check
+```
+
+A resolved installation reports absolute executable paths:
+
+```text
+state      /home/user/.local/state/ptymark/install.toml
+config     /home/user/.config/ptymark/config.toml
+mermaid    mermaid-cli    ready    /home/user/.local/bin/mmdc
+math       preview        built-in -
+presenter  chafa-symbols  ready    /usr/bin/chafa
+```
+
+## What the installer resolves
+
+On a first installation, each engine slot starts in `auto` behavior:
+
+```text
+mmdc + chafa found
+  -> Mermaid uses mermaid-cli
+
+tex2svg + chafa found
+  -> math uses mathjax-cli
+
+layout engine or presenter missing
+  -> that automatic slot uses built-in preview
+```
+
+The generated configuration stores canonical absolute paths. Normal rendering uses those resolved
+paths instead of selecting a different program from `PATH` for each block.
+
+The installer never runs npm, Homebrew, apt, curl, or a browser downloader. Package-manager ownership
+remains explicit and visible to the user.
+
+## Re-run and replace engines
+
+The installer is idempotent. If a valid configuration already exists, it preserves the current
+backend selections and all unrelated detection, rendering, and cache settings.
+
+Re-probe all known slots after installing or upgrading tools:
+
+```bash
+bash scripts/install.sh --reprobe
+```
+
+Equivalent direct command:
+
+```bash
+ptymark install resolve \
+  --mermaid auto \
+  --math auto \
+  --presenter auto
+```
+
+Replace only Mermaid:
+
+```bash
+ptymark install resolve \
+  --mermaid /opt/homebrew/bin/mmdc
+```
+
+Replace only the math engine:
+
+```bash
+ptymark install resolve \
+  --math /Users/example/.local/bin/tex2svg
+```
+
+Replace the presenter:
+
+```bash
+ptymark install resolve \
+  --presenter /usr/local/bin/chafa
+```
+
+Use exact source for one kind:
+
+```bash
+ptymark install resolve --mermaid source
+ptymark install resolve --math source
+```
+
+Reset project-owned settings and resolve again:
+
+```bash
+ptymark install resolve --reset
+```
+
+Print the plan without writing files:
+
+```bash
+ptymark install resolve --dry-run
+```
+
+The full installer design is in
+[documents/ptymark-installer.md](documents/ptymark-installer.md).
+
+## Installer options
+
+```text
+bash scripts/install.sh [OPTIONS]
+
+--root DIR          cargo installation root
+--binary PATH       installed ptymark binary to invoke
+--skip-core         skip cargo install; requires --binary
+--config PATH       configuration destination
+--state PATH        installation-state destination
+--mermaid VALUE     keep | auto | preview | source | EXECUTABLE
+--math VALUE        keep | auto | preview | source | EXECUTABLE
+--presenter VALUE   keep | auto | EXECUTABLE
+--reprobe           re-run automatic resolution for every slot
+--reset             start from built-in defaults
+--dry-run           install core but only print the resolution plan
+```
+
+The native command is also available directly:
+
+```text
+ptymark install resolve [OPTIONS]
+ptymark install status [--state PATH]
+```
+
+## Executable path rules
+
+Engine and presenter paths accept:
+
+1. an absolute path; or
+2. a bare executable name resolved by the installer process `PATH`.
+
+Examples:
 
 ```toml
-schema_version = 1
-
-[rendering]
-mode = "preview"
-strict = false
-columns = 100
-
 [engines.mermaid]
 backend = "mermaid-cli"
 path = "mmdc"
-
-[engines.math]
-backend = "mathjax-cli"
-path = "tex2svg"
-
-[engines.presenter]
-path = "chafa"
 ```
-
-Available backends are intentionally concrete:
-
-| Semantic kind | Backend | Executable contract |
-| --- | --- | --- |
-| Mermaid | `preview` | built-in text preview; no external dependency |
-| Mermaid | `source` | exact original fenced source |
-| Mermaid | `mermaid-cli` | `mmdc`, stdin input, SVG file output |
-| Math | `preview` | built-in text preview; no external dependency |
-| Math | `source` | exact original fenced source |
-| Math | `mathjax-cli` | `tex2svg FORMULA`, SVG on stdout |
-| External artifact presentation | Chafa | SVG file to terminal `symbols` output |
-
-There is no arbitrary command string, shell expansion, pipe, redirect, or general engine registry.
-Each backend has a fixed adapter and fixed argument protocol.
-
-## Executable path resolution
-
-Each `path` accepts one of two forms.
-
-A bare executable name uses the process `PATH`:
-
-```toml
-[engines.mermaid]
-backend = "mermaid-cli"
-path = "mmdc"
-```
-
-An absolute path bypasses `PATH`:
 
 ```toml
 [engines.mermaid]
 backend = "mermaid-cli"
 path = "/opt/homebrew/bin/mmdc"
-
-[engines.math]
-backend = "mathjax-cli"
-path = "/Users/example/.local/bin/tex2svg"
-
-[engines.presenter]
-path = "/opt/homebrew/bin/chafa"
 ```
 
-Relative paths containing directories, such as `tools/mmdc`, are rejected. This avoids dependence on
-the current working directory. Use an absolute path instead.
+Relative paths containing directories, such as `tools/mmdc`, are rejected. Their meaning would
+otherwise depend on the current working directory.
 
-GUI applications often receive a smaller `PATH` than an interactive shell. For WezTerm, absolute
-paths are the most predictable choice. Discover them from the shell with:
+WezTerm and other GUI applications may inherit a smaller `PATH` than an interactive shell. The
+installer-generated absolute paths avoid that ambiguity.
 
-```bash
-command -v mmdc
-command -v tex2svg
-command -v chafa
-```
+## Configuration
 
-Then copy the printed paths into TOML.
-
-## Verify the installation
-
-Configuration validation checks syntax and value invariants without requiring optional tools:
-
-```bash
-ptymark config check --config ~/.config/ptymark/config.toml
-```
-
-Engine verification resolves only the selected external commands and verifies that they are
-executable:
-
-```bash
-ptymark engine check --config ~/.config/ptymark/config.toml
-```
-
-Example output:
-
-```text
-mermaid  mermaid-cli  mmdc      /opt/homebrew/bin/mmdc
-math     mathjax-cli  tex2svg   /Users/example/.local/bin/tex2svg
-presenter chafa-symbols chafa   /opt/homebrew/bin/chafa
-```
-
-With dependency-free defaults:
-
-```text
-mermaid  preview  built-in
-math     preview  built-in
-```
-
-If a selected command is absent, `engine check` exits with an error explaining which configured name
-was not found. During normal non-strict rendering, an engine or presenter failure restores the exact
-source block. `--strict` or `rendering.strict = true` reports the failure instead.
-
-## Try it
-
-Render standard input with built-in previews:
-
-````bash
-cat <<'EOF' | ptymark preview
-ordinary output
-
-```mermaid
-flowchart LR
-  Output --> Gate --> Detector --> Renderer --> Display
-```
-
-$$
-E = mc^2
-$$
-EOF
-````
-
-Use selected installed engines:
-
-```bash
-ptymark \
-  --config ~/.config/ptymark/config.toml \
-  preview README.md
-```
-
-Keep semantic blocks exactly as source:
-
-```bash
-ptymark preview --source README.md
-```
-
-Disable the cache for one command:
-
-```bash
-ptymark preview --no-cache README.md
-```
-
-Set a width hint used by the renderer and Chafa presenter:
-
-```bash
-ptymark preview --columns 100 README.md
-```
-
-Launch a command through the reserved command-mode interface:
-
-```bash
-ptymark -- zsh -l
-ptymark -- codex
-```
-
-At this alpha stage command mode is a transparent `exec`, not yet a PTY proxy.
-
-## Configuration reference
-
-Configuration is explicit TOML. No project file is auto-loaded.
+The default user configuration is discovered automatically. `--config PATH` or `PTYMARK_CONFIG`
+overrides it.
 
 ```toml
 schema_version = 1
@@ -407,54 +338,139 @@ path = "chafa"
 Validate and inspect:
 
 ```bash
-ptymark config check --config examples/ptymark.toml
-ptymark config show --config examples/ptymark.toml
-ptymark engine check --config examples/ptymark.toml
+ptymark config check
+ptymark config show
+ptymark engine check
 ```
 
-Unknown keys, invalid limits, empty executable paths, and relative executable paths containing
-directories are errors. Configuration validation happens before command execution.
+Unknown keys, invalid limits, empty executable paths, and working-directory-relative executable paths
+are errors.
 
-The configuration intentionally has no profile inheritance, automatic project trust, arbitrary
-custom commands, persistent cache, scheduler policy, or hot reload. Those are added only with a
-concrete runtime requirement and acceptance tests.
+## Use `preview`
 
-## Failure and cache behavior
+Built-in textual preview:
 
-For every complete semantic block, the display pipeline commits exactly one result:
+````bash
+cat <<'EOF' | ptymark preview
+ordinary output
 
-1. cached display bytes, when the complete cache key matches;
+```mermaid
+flowchart LR
+  Output --> Gate --> Detector --> Renderer --> Display
+```
+
+$$
+E = mc^2
+$$
+EOF
+````
+
+Use the installed configuration explicitly:
+
+```bash
+ptymark \
+  --config ~/.config/ptymark/config.toml \
+  preview README.md
+```
+
+Keep semantic blocks exactly as source:
+
+```bash
+ptymark preview --source README.md
+```
+
+Disable cache for one invocation:
+
+```bash
+ptymark preview --no-cache README.md
+```
+
+Set the width hint used by renderers and Chafa:
+
+```bash
+ptymark preview --columns 100 README.md
+```
+
+## Detection syntax
+
+The initial detector recognizes only complete line-bounded forms:
+
+````markdown
+```mermaid
+flowchart LR
+  A --> B
+```
+
+$$
+E = mc^2
+$$
+
+```latex
+\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+```
+````
+
+Inline `$...$`, headings, lists, and other ambiguous Markdown are intentionally not detected in
+interactive output.
+
+## Safety and failure behavior
+
+The renderer may change only a complete recognized semantic block.
+
+```text
+keyboard input ------------------------------> child process
+signals / termios / resize ------------------> child process
+child output:
+  safe text ---------------------------------> detector
+  ANSI / OSC / DCS / CR / alternate screen -> byte-exact passthrough
+```
+
+For each semantic block, the display pipeline commits exactly one result:
+
+1. cached final display bytes;
 2. newly rendered and presented bytes;
 3. exact original source after a non-strict failure;
 4. an error before replacement bytes in strict mode.
 
-The cache key includes:
+Failures include missing executables, non-zero exit, timeout, oversized output, malformed SVG, and
+presenter failure.
 
-- renderer selection and configured executable paths;
-- semantic kind;
-- exact source bytes;
-- terminal columns;
-- color permission;
-- theme fingerprint.
+```toml
+[rendering]
+strict = true
+```
 
-Only successful display bytes are cached. Engine failures, invalid SVG, presenter failures, source
-fallback, and strict errors are not cached.
+External processes are invoked directly with fixed arguments. No shell command string, pipe,
+redirect, package install, or arbitrary argument template is used.
 
-External processes have fixed limits in the first implementation:
+Initial limits:
 
-- 5-second wall-clock timeout per engine or presenter invocation;
-- 8 MiB SVG artifact limit;
-- 8 MiB terminal display output limit;
-- 64 KiB diagnostic output limit.
+```text
+process timeout       5 seconds
+layout artifact       8 MiB
+terminal output       8 MiB
+diagnostic output    64 KiB
+```
 
-The process is invoked directly with argv; no shell is involved.
+## Cache
+
+`ArtifactCache` is independent from detection, routing, engine execution, and display commit.
+
+Current implementations:
+
+```text
+MemoryCache
+NoopCache
+```
+
+The complete key includes renderer identity, semantic kind, exact source bytes, terminal columns,
+color permission, and theme fingerprint. Only successful final display bytes are cached.
+
+Persistent cache is deferred until the interactive PTY path is measured.
 
 ## WezTerm plugin
 
-Install the native `ptymark` binary and optional tools first. Put absolute engine paths in the TOML
-when WezTerm's GUI environment does not inherit your shell `PATH`.
-
-Add the plugin to `~/.wezterm.lua`:
+Install the native binary and run the installer first. Then add the plugin to `~/.wezterm.lua`:
 
 ```lua
 local wezterm = require 'wezterm'
@@ -476,13 +492,10 @@ ptymark.apply_to_config(config, {
 return config
 ```
 
-The plugin appends:
+The plugin appends a launch-menu entry and key binding; it does not replace existing entries. At this
+stage it is a launcher. Interactive interception becomes active after the PTY host is implemented.
 
-- a `ptymark shell` launch-menu entry;
-- a `CTRL|SHIFT+P` binding by default;
-- a new tab running `ptymark [--config PATH] -- "$SHELL" -l`.
-
-It does not replace existing key bindings or launch-menu entries. For local plugin development:
+For local plugin development:
 
 ```lua
 local ptymark = wezterm.plugin.require(
@@ -490,16 +503,30 @@ local ptymark = wezterm.plugin.require(
 )
 ```
 
-The plugin is currently a launcher. Interactive output interception becomes active after the PTY
-host is implemented. Chafa symbol presentation already works in `preview`; inline pixel placement is
-a later presenter.
+## Extending engine resolution
+
+Installation-time program lookup is behind one interface:
+
+```rust
+pub trait ProgramResolver: Send + Sync {
+    fn resolve(&self, configured: &Path) -> Result<PathBuf, InstallError>;
+}
+```
+
+The initial resolver supports absolute paths and `PATH`. A future verified managed bundle or
+platform-specific package location can implement the same interface without changing configuration
+serialization, installation-state serialization, render routing, engine handoff, or terminal stream
+processing.
+
+This is intentionally not a dynamic plugin registry. A new engine slot still requires a concrete
+protocol, installation route, exact-source fallback, dependency ownership, and end-to-end tests.
 
 ## Development
 
-The repository retains its AgentCanon and project-template structure for local work. `GNUmakefile`
-includes both the inherited `Makefile` and `ptymark.mk`.
+The repository retains its AgentCanon and project-template workspace. `GNUmakefile` includes the
+inherited `Makefile` and project-local `ptymark.mk`.
 
-The canonical ptymark environment is Docker:
+Canonical environment:
 
 ```bash
 make ptymark-build
@@ -512,51 +539,26 @@ The Docker image contains:
 - Rust 1.97.0 with rustfmt and Clippy;
 - Node.js 24.18.0;
 - Mermaid CLI 11.16.0;
-- MathJax 4.1.3 for engine correctness smoke;
+- MathJax 4.1.3 for correctness smoke;
 - Debian Chromium;
 - Chafa;
 - Lua 5.4 and ShellCheck.
 
-The canonical checks exercise the real installed Mermaid CLI path and Chafa presentation path through
-`examples/external-engines.toml`. MathJax CLI protocol behavior is covered with an isolated fake
-process test; the container's current MathJax library is separately checked for SVG generation.
+GitHub Actions is the formal pull-request evidence. It runs:
 
-Native quick checks:
+- Rust formatting, Clippy, and all tests on Linux and macOS;
+- installer contract tests;
+- shell syntax and ShellCheck;
+- end-to-end installer smoke;
+- WezTerm plugin smoke;
+- real Mermaid, MathJax, and Chafa checks in the canonical Docker image.
 
-```bash
-cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked --all-targets
-```
+## Design documents
 
-Formal pull-request evidence comes from `.github/workflows/ptymark-ci.yml`.
+- [ptymark architecture](documents/ptymark-design.md)
+- [installer and engine resolution](documents/ptymark-installer.md)
 
-## Design
+## License
 
-The current design is in [documents/ptymark-design.md](documents/ptymark-design.md).
-
-The stable extension points remain intentionally few:
-
-```text
-SemanticDetector
-Renderer
-ArtifactCache
-TerminalOutputGate
-DisplayPipeline
-```
-
-Known installed engines are selected through concrete adapters, not a generic plugin registry. A new
-backend is added only when its executable protocol, installation route, failure fallback, security
-boundary, and end-to-end test are all defined.
-
-## Repository workspace
-
-This repository is derived from the local project template and keeps:
-
-- `vendor/agent-canon/` and its root views;
-- the inherited `Makefile`, Python/C++/experiment surfaces, and Dev Container;
-- existing AgentCanon and template workflows;
-- project-local ptymark files layered alongside those surfaces.
-
-Shared AgentCanon policy remains owned by `vendor/agent-canon/`; ptymark-specific implementation,
-tests, Docker files, and design documents remain project-local.
+Apache-2.0. Optional rendering engines and system packages retain their own licenses and update
+ownership.
