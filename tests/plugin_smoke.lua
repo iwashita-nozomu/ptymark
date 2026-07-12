@@ -2,6 +2,7 @@ local ptymark_module
 
 local wezterm_stub = {
   home_dir = '/home/user',
+  target_triple = 'x86_64-unknown-linux-gnu',
   action = {
     SpawnCommandInNewTab = function(spec)
       return { kind = 'SpawnCommandInNewTab', spec = spec }
@@ -86,21 +87,43 @@ os.getenv = function(name)
   return original_getenv(name)
 end
 
-local example = dofile('examples/wezterm.lua')
+local unix_example = dofile('examples/wezterm.lua')
 os.getenv = original_getenv
 
-assert(#example.launch_menu == 1)
-assert(example.launch_menu[1].label == 'ptymark shell')
-assert(example.launch_menu[1].cwd == '/home/user')
-assert(example.launch_menu[1].args[1] == '/home/user/.cargo/bin/ptymark')
-assert(example.launch_menu[1].args[2] == '--config')
-assert(example.launch_menu[1].args[3] == '/home/user/.config/ptymark/config.toml')
-assert(example.launch_menu[1].args[4] == '--')
-assert(example.launch_menu[1].args[5] == '/bin/zsh')
-assert(example.launch_menu[1].args[6] == '-l')
-assert(#example.keys == 1)
-assert(example.keys[1].key == 'P')
-assert(example.keys[1].mods == 'CTRL|SHIFT')
-assert(example.keys[1].action.kind == 'SpawnCommandInNewTab')
+assert(#unix_example.launch_menu == 1)
+assert(unix_example.launch_menu[1].label == 'ptymark shell')
+assert(unix_example.launch_menu[1].cwd == '/home/user')
+assert(unix_example.launch_menu[1].args[1] == '/home/user/.cargo/bin/ptymark')
+assert(unix_example.launch_menu[1].args[2] == '--config')
+assert(unix_example.launch_menu[1].args[3] == '/home/user/.config/ptymark/config.toml')
+assert(unix_example.launch_menu[1].args[4] == '--')
+assert(unix_example.launch_menu[1].args[5] == '/bin/zsh')
+assert(unix_example.launch_menu[1].args[6] == '-l')
+assert(#unix_example.keys == 1)
+assert(unix_example.keys[1].key == 'P')
+assert(unix_example.keys[1].mods == 'CTRL|SHIFT')
+assert(unix_example.keys[1].action.kind == 'SpawnCommandInNewTab')
 
-print('ptymark WezTerm plugin and example smoke: ok')
+wezterm_stub.home_dir = 'C:/Users/user'
+wezterm_stub.target_triple = 'x86_64-pc-windows-msvc'
+os.getenv = function(name)
+  if name == 'APPDATA' then
+    return 'C:/Users/user/AppData/Roaming'
+  end
+  if name == 'COMSPEC' then
+    return 'C:/Windows/System32/cmd.exe'
+  end
+  return nil
+end
+
+local windows_example = dofile('examples/wezterm.lua')
+os.getenv = original_getenv
+
+assert(windows_example.launch_menu[1].args[1] == 'C:/Users/user/.cargo/bin/ptymark.exe')
+assert(windows_example.launch_menu[1].args[2] == '--config')
+assert(windows_example.launch_menu[1].args[3] == 'C:/Users/user/AppData/Roaming/ptymark/config.toml')
+assert(windows_example.launch_menu[1].args[4] == '--')
+assert(windows_example.launch_menu[1].args[5] == 'C:/Windows/System32/cmd.exe')
+assert(windows_example.launch_menu[1].args[6] == nil)
+
+print('ptymark WezTerm plugin and platform examples smoke: ok')
