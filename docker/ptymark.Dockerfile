@@ -27,6 +27,7 @@ RUN apt-get update \
         bash \
         build-essential \
         ca-certificates \
+        chafa \
         chromium \
         curl \
         git \
@@ -72,6 +73,7 @@ RUN rustc --version \
     && cargo --version \
     && node --version \
     && mmdc --version \
+    && chafa --version \
     && lua5.4 -v \
     && chromium --version
 
