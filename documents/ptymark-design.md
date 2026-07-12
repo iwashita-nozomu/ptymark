@@ -83,7 +83,7 @@ history selectors, fuzzy finders, and full-screen file browsers.
 The built-in detector recognizes line-bounded forms:
 
 - `` ```mermaid ... ``` ``;
-- `$$ ... $$`;
+- ``$$ ... $$``;
 - `` ```math|latex|tex ... ``` ``.
 
 A candidate is buffered only while it can still become a complete supported
@@ -214,14 +214,10 @@ protocol uses one argument.
 ### 6.3 Presenter
 
 External layout engines produce SVG, not terminal bytes. The initial presenter
-accepts the fixed Chafa-compatible subset used by ptymark:
+accepts the stable Chafa-compatible subset used by ptymark:
 
 ```text
 --format symbols
---probe off
---polite on
---relative off
---animate off
 --colors full|none
 --size COLUMNSx
 SVG_PATH
