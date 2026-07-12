@@ -3,11 +3,21 @@ use crate::model::SemanticBlock;
 use std::error::Error;
 use std::fmt;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RenderContext {
     pub columns: u16,
     pub color: bool,
     pub theme_fingerprint: u64,
+}
+
+impl Default for RenderContext {
+    fn default() -> Self {
+        Self {
+            columns: 80,
+            color: false,
+            theme_fingerprint: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -52,7 +62,7 @@ impl fmt::Display for RenderError {
 impl Error for RenderError {}
 
 pub trait Renderer: Send {
-    fn id(&self) -> &'static str;
+    fn id(&self) -> &str;
     fn render(
         &mut self,
         block: &SemanticBlock,
@@ -64,7 +74,7 @@ pub trait Renderer: Send {
 pub struct PreviewRenderer;
 
 impl Renderer for PreviewRenderer {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "builtin/preview-v1"
     }
 
@@ -73,6 +83,13 @@ impl Renderer for PreviewRenderer {
         block: &SemanticBlock,
         context: RenderContext,
     ) -> Result<RenderArtifact, RenderError> {
+        let body = std::str::from_utf8(block.body()).map_err(|error| {
+            RenderError::new(format!(
+                "{} block is not valid UTF-8: {error}",
+                block.kind()
+            ))
+        })?;
+
         let mut bytes = Vec::new();
         if context.color {
             bytes.extend_from_slice(b"\x1b[1;36m");
@@ -82,7 +99,6 @@ impl Renderer for PreviewRenderer {
             bytes.extend_from_slice(b"\x1b[0m");
         }
 
-        let body = String::from_utf8_lossy(block.body());
         if body.is_empty() {
             bytes.extend_from_slice("│ <empty>\n".as_bytes());
         } else {
@@ -101,7 +117,7 @@ impl Renderer for PreviewRenderer {
 pub struct SourceRenderer;
 
 impl Renderer for SourceRenderer {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "builtin/source-v1"
     }
 
@@ -164,14 +180,14 @@ impl RenderService {
         self.cache.stats()
     }
 
-    pub fn renderer_id(&self) -> &'static str {
+    pub fn renderer_id(&self) -> &str {
         self.renderer.id()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PreviewRenderer, RenderContext, RenderService, SourceRenderer};
+    use super::{PreviewRenderer, RenderContext, RenderService, Renderer, SourceRenderer};
     use crate::cache::{MemoryCache, NoopCache};
     use crate::model::{BlockKind, SemanticBlock};
 
@@ -181,6 +197,11 @@ mod tests {
             b"$$\nE = mc^2\n$$\n".to_vec(),
             b"E = mc^2\n".to_vec(),
         )
+    }
+
+    #[test]
+    fn render_context_defaults_to_a_valid_terminal_width() {
+        assert_eq!(RenderContext::default().columns, 80);
     }
 
     #[test]
@@ -197,6 +218,19 @@ mod tests {
             .expect("second");
         assert!(!first.cache_hit);
         assert!(second.cache_hit);
+    }
+
+    #[test]
+    fn invalid_utf8_is_rejected_before_preview_replacement() {
+        let block = SemanticBlock::new(
+            BlockKind::Math,
+            b"$$\n\xff\n$$\n".to_vec(),
+            b"\xff\n".to_vec(),
+        );
+        let error = PreviewRenderer
+            .render(&block, RenderContext::default())
+            .expect_err("invalid UTF-8 must not be rendered lossily");
+        assert!(error.to_string().contains("not valid UTF-8"));
     }
 
     #[test]
