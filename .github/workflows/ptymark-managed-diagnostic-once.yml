@@ -1,14 +1,15 @@
 name: ptymark Managed Renderer Diagnostic Once
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/minimal-pre-display-core
+      - main
     paths:
       - .github/workflows/ptymark-managed-diagnostic-once.yml
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
@@ -17,7 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
@@ -103,7 +103,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
           persist-credentials: false
       - name: Build canonical image
         run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml build --pull
@@ -143,37 +142,3 @@ jobs:
           retention-days: 3
       - name: Preserve Docker result
         run: test "$(cat managed-docker.status)" = 0
-
-  publish:
-    if: always()
-    needs:
-      - windows
-      - docker
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.ref_name }}
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Download Windows diagnostic
-        uses: actions/download-artifact@v8
-        with:
-          name: ptymark-managed-windows-diagnostic
-          path: diagnostics/managed/windows
-      - name: Download Docker diagnostic
-        uses: actions/download-artifact@v8
-        with:
-          name: ptymark-managed-docker-diagnostic
-          path: diagnostics/managed/docker
-      - name: Commit diagnostic evidence
-        env:
-          PUSH_TOKEN: ${{ github.token }}
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add diagnostics/managed
-          git commit -m 'Capture managed renderer failure diagnostics'
-          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
