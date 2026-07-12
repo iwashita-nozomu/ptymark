@@ -1,7 +1,8 @@
 # @dependency-start
 # contract workflow
-# responsibility Normalizes and validates the render decision and engine handoff contract once on the latest branch head.
+# responsibility Normalizes and validates the final render decision and engine handoff contract tree once.
 # upstream implementation ../../src/routing.rs owns the new extension boundary.
+# upstream test ../../tests/routing_contract.rs validates public substitution and typed transfer.
 # downstream workflow ./ptymark-ci.yml remains the repeatable validation path.
 # @dependency-end
 name: ptymark Routing Normalize Once
