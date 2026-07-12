@@ -24,7 +24,7 @@ const INVENTORIES: [(&str, &str); 5] = [
     ),
 ];
 
-const PROFILES: [&str; 8] = [
+const PROFILES: [&str; 14] = [
     "safe-text",
     "hook-only",
     "prompt-control",
@@ -33,6 +33,12 @@ const PROFILES: [&str; 8] = [
     "completion-menu",
     "alternate-screen",
     "progress-line",
+    "hyperlink-control",
+    "multiplexer-control",
+    "keyboard-protocol",
+    "mouse-protocol",
+    "apc-control",
+    "binary-output",
 ];
 
 fn fixture(profile: &str) -> Vec<u8> {
@@ -45,6 +51,16 @@ fn fixture(profile: &str) -> Vec<u8> {
         "completion-menu" => b"\x1b[2K\rcheckout  cherry-pick  clone\x1b[1A\x1b[12C\n".to_vec(),
         "alternate-screen" => b"\x1b[?1049h\x1b[?1000hselector\n$$\nnot math\n$$\n\x1b[?1000l\x1b[?1049l\n".to_vec(),
         "progress-line" => b"indexing 1%\rindexing 50%\rindexing 100%\n".to_vec(),
+        "hyperlink-control" => {
+            b"\x1b]8;;https://example.com\x1b\\docs\x1b]8;;\x1b\\\n".to_vec()
+        }
+        "multiplexer-control" => {
+            b"\x1bPtmux;\x1b\x1b[1;35mstatus\x1b[0m\x1b\\\n".to_vec()
+        }
+        "keyboard-protocol" => b"\x1b[>1u\x1b[65;5u\n".to_vec(),
+        "mouse-protocol" => b"\x1b[?1000h\x1b[<0;10;4M\x1b[?1000l\n".to_vec(),
+        "apc-control" => b"\x1b_Ga=T,f=24,s=1,v=1;AAAA\x1b\\\n".to_vec(),
+        "binary-output" => vec![0xff, 0xfe, 0x00, b'$', b'$', b'\n'],
         other => panic!("unknown compatibility profile: {other}"),
     }
 }
@@ -146,13 +162,12 @@ fn prompt_controls_pass_unchanged_before_a_renderable_block() {
 }
 
 #[test]
-fn full_screen_and_progress_interfaces_never_enter_semantic_detection() {
-    for profile in [
-        "alternate-screen",
-        "progress-line",
-        "line-editor",
-        "completion-menu",
-    ] {
+fn protected_terminal_interfaces_never_enter_semantic_detection() {
+    for profile in PROFILES {
+        if matches!(profile, "safe-text" | "hook-only") {
+            continue;
+        }
+
         let source = fixture(profile);
         let mut pipeline = preview_pipeline();
         let mut output = Vec::new();
