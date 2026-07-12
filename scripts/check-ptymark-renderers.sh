@@ -32,4 +32,28 @@ chafa \
   >"$work_dir/diagram.txt"
 
 test -s "$work_dir/diagram.txt"
-printf 'ptymark Mermaid + Chafa smoke: ok\n'
+
+cargo run --quiet --locked -- \
+  --config examples/external-engines.toml \
+  engine check \
+  >"$work_dir/engine-check.txt"
+grep -F $'mermaid\tmermaid-cli' "$work_dir/engine-check.txt" >/dev/null
+grep -F $'presenter\tchafa-symbols' "$work_dir/engine-check.txt" >/dev/null
+
+cat <<'MARKDOWN' | cargo run --quiet --locked -- \
+  --config examples/external-engines.toml \
+  preview \
+  >"$work_dir/ptymark-display.txt"
+```mermaid
+flowchart LR
+  Installed --> Selected --> Rendered
+```
+MARKDOWN
+
+test -s "$work_dir/ptymark-display.txt"
+if grep -F '```mermaid' "$work_dir/ptymark-display.txt" >/dev/null; then
+  echo "external Mermaid block was not replaced" >&2
+  exit 1
+fi
+
+printf 'ptymark Mermaid CLI + Chafa integration: ok\n'
