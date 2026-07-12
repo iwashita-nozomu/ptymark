@@ -102,11 +102,7 @@ impl ConfiguredDecider {
             config.mermaid.backend.as_str(),
             config.math.backend.as_str()
         );
-        Self {
-            mermaid,
-            math,
-            id,
-        }
+        Self { mermaid, math, id }
     }
 }
 
@@ -355,10 +351,7 @@ mod tests {
 
     #[test]
     fn routed_renderer_preserves_the_typed_handoff_request() {
-        let mut renderer = RoutedRenderer::new(
-            Box::new(FixedDecider),
-            Box::new(RecordingHandoff),
-        );
+        let mut renderer = RoutedRenderer::new(Box::new(FixedDecider), Box::new(RecordingHandoff));
         let artifact = renderer
             .render(
                 &block(BlockKind::Math),

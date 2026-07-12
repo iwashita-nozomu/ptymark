@@ -105,5 +105,8 @@ fn decision_can_change_without_exposing_terminal_stream_bytes_to_the_handoff() {
         .render(&block, RenderContext::default())
         .expect("routed rendering");
 
-    assert_eq!(seen.lock().expect("recording lock")[0].0, RenderRoute::Source);
+    assert_eq!(
+        seen.lock().expect("recording lock")[0].0,
+        RenderRoute::Source
+    );
 }
