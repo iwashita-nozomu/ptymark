@@ -137,9 +137,9 @@ $ResolveDefaults = (-not (Test-Path $Config -PathType Leaf)) -or $Reset -or $Rep
   [bool]$Mermaid -or [bool]$Math -or [bool]$Presenter
 
 if ($ResolveDefaults) {
-  $SystemMermaid = Get-ProgramPath @('mmdc.exe', 'mmdc.cmd', 'mmdc')
-  $SystemMath = Get-ProgramPath @('tex2svg.exe', 'tex2svg.cmd', 'tex2svg')
-  $SystemPresenter = Get-ProgramPath @('chafa.exe', 'chafa.cmd', 'chafa')
+  $SystemMermaid = Get-ProgramPath @('mmdc.exe')
+  $SystemMath = Get-ProgramPath @('tex2svg.exe')
+  $SystemPresenter = Get-ProgramPath @('chafa.exe')
 
   if ($Mermaid -eq 'auto') { $Mermaid = $null }
   if ($Math -eq 'auto') { $Math = $null }

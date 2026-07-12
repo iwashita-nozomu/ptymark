@@ -183,6 +183,7 @@ pub fn check_configured_engines(config: &EnginesConfig) -> Result<Vec<EngineChec
 }
 
 pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
+    reject_windows_shell_wrapper(path)?;
     if path.is_absolute() {
         for candidate in executable_candidates(path) {
             if let Some(candidate) = executable_candidate(&candidate) {
@@ -225,11 +226,10 @@ fn executable_candidates(path: &Path) -> Vec<PathBuf> {
             return vec![path.to_path_buf()];
         }
         let mut candidates = vec![path.to_path_buf()];
-        let extensions =
-            env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
+        let extensions = env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE"));
         for extension in extensions.to_string_lossy().split(';') {
             let extension = extension.trim().trim_start_matches('.');
-            if !extension.is_empty() {
+            if extension.eq_ignore_ascii_case("com") || extension.eq_ignore_ascii_case("exe") {
                 candidates.push(path.with_extension(extension));
             }
         }
@@ -239,6 +239,28 @@ fn executable_candidates(path: &Path) -> Vec<PathBuf> {
     {
         vec![path.to_path_buf()]
     }
+}
+
+#[cfg(windows)]
+fn reject_windows_shell_wrapper(path: &Path) -> Result<(), RenderError> {
+    let is_batch = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat")
+        });
+    if is_batch {
+        return Err(RenderError::new(format!(
+            "configured renderer `{}` is a shell wrapper; select a native .exe/.com or the ptymark-managed alias",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn reject_windows_shell_wrapper(_path: &Path) -> Result<(), RenderError> {
+    Ok(())
 }
 
 fn executable_candidate(path: &Path) -> Option<PathBuf> {

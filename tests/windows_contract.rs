@@ -3,7 +3,6 @@
 use ptymark::resolve_executable;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn root(label: &str) -> PathBuf {
@@ -17,22 +16,21 @@ fn root(label: &str) -> PathBuf {
 }
 
 #[test]
-fn absolute_program_resolution_honors_pathext() {
+fn absolute_program_resolution_honors_native_exe_suffix() {
     let root = root("pathext");
-    let script = root.join("renderer.cmd");
-    fs::write(&script, "@echo off\r\necho ok\r\n").expect("script");
-    let resolved = resolve_executable(&root.join("renderer")).expect("resolve .cmd");
-    assert_eq!(resolved, fs::canonicalize(&script).expect("canonical"));
+    let executable = root.join("renderer.exe");
+    fs::write(&executable, b"native-test-placeholder").expect("placeholder");
+    let resolved = resolve_executable(&root.join("renderer")).expect("resolve .exe");
+    assert_eq!(resolved, fs::canonicalize(&executable).expect("canonical"));
     let _ = fs::remove_dir_all(root);
 }
 
 #[test]
-fn fixed_managed_batch_wrapper_can_be_invoked() {
+fn batch_renderer_is_rejected_without_a_shell_handoff() {
     let root = root("batch");
-    let script = root.join("presenter.cmd");
-    fs::write(&script, "@echo off\r\necho windows-managed-output\r\n").expect("script");
-    let output = Command::new(&script).output().expect("run .cmd");
-    assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("windows-managed-output"));
+    let script = root.join("renderer.cmd");
+    fs::write(&script, "@echo off\r\necho unsafe-shell-wrapper\r\n").expect("script");
+    let error = resolve_executable(&script).expect_err("batch wrapper must be rejected");
+    assert!(error.to_string().contains("shell wrapper"));
     let _ = fs::remove_dir_all(root);
 }
