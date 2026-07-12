@@ -1,0 +1,25 @@
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/ptymark.Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24.18.0-bookworm}
+        RUST_VERSION: ${RUST_VERSION:-1.97.0}
+    image: ptymark-dev:${PTYMARK_IMAGE_TAG:-local}
+    working_dir: /workspace
+    environment:
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      PTYMARK_RENDERER_ROOT: /opt/ptymark-renderers
+    volumes:
+      - ..:/workspace
+      - ptymark-cargo-target:/home/node/.cache/ptymark-target
+      - ptymark-cargo-registry:/home/node/.cargo/registry
+      - ptymark-cargo-git:/home/node/.cargo/git
+    stdin_open: true
+    tty: true
+
+volumes:
+  ptymark-cargo-target:
+  ptymark-cargo-registry:
+  ptymark-cargo-git:
