@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$Root,
+  [Parameter(Mandatory = $true)]
+  [string]$Launcher,
   [string]$Browser,
   [switch]$SkipBrowserDownload,
   [switch]$Offline,
@@ -9,12 +11,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$Launcher = [System.IO.Path]::GetFullPath($Launcher)
+if (-not (Test-Path $Launcher -PathType Leaf)) { throw "Launcher was not found: $Launcher" }
 
 $Versions = @{}
 Get-Content (Join-Path $RepoRoot 'renderers/managed-bundle.env') | ForEach-Object {
-  if ($_ -match '^([A-Z0-9_]+)=(.+)$') {
-    $Versions[$Matches[1]] = $Matches[2]
-  }
+  if ($_ -match '^([A-Z0-9_]+)=(.+)$') { $Versions[$Matches[1]] = $Matches[2] }
 }
 $BundleVersion = $Versions.PTYMARK_MANAGED_BUNDLE_VERSION
 $NodeVersion = $Versions.PTYMARK_MANAGED_NODE_VERSION
@@ -37,6 +39,7 @@ $AppRoot = Join-Path $Root 'app'
 $BinRoot = Join-Path $Root 'bin'
 $CacheRoot = Join-Path $Root 'cache\puppeteer'
 $StampPath = Join-Path $Root 'bundle.stamp'
+$ManifestPath = Join-Path $Root 'bundle.toml'
 New-Item -ItemType Directory -Force -Path $BinRoot, $CacheRoot | Out-Null
 
 function Get-CommandPath([string]$Name) {
@@ -88,28 +91,34 @@ if (-not $UseSystemNode) {
     }
   }
 }
+$NodeCommand = [System.IO.Path]::GetFullPath($NodeCommand)
 
 if ($Browser) {
   $Browser = [System.IO.Path]::GetFullPath($Browser)
   if (-not (Test-Path $Browser -PathType Leaf)) { throw "Browser was not found: $Browser" }
 }
 elseif ($SkipBrowserDownload) {
-  $Candidates = @(
-    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
-    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
-    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
-    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe')
-  ) | Where-Object { $_ -and (Test-Path $_ -PathType Leaf) }
-  $Browser = $Candidates | Select-Object -First 1
+  $Candidates = [System.Collections.Generic.List[string]]::new()
+  if (${env:ProgramFiles(x86)}) {
+    $Candidates.Add((Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'))
+    $Candidates.Add((Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'))
+  }
+  if ($env:ProgramFiles) {
+    $Candidates.Add((Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'))
+    $Candidates.Add((Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'))
+  }
+  $Browser = $Candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
   if (-not $Browser) { throw 'No Chromium-compatible browser was found while -SkipBrowserDownload is active' }
 }
 
 $LockPath = Join-Path $RepoRoot 'renderers/package-lock.json'
 $LockSha = (Get-FileHash -Algorithm SHA256 $LockPath).Hash.ToLowerInvariant()
+$LauncherSha = (Get-FileHash -Algorithm SHA256 $Launcher).Hash.ToLowerInvariant()
 $BrowserIdentity = if ($Browser) { $Browser } else { 'puppeteer-managed' }
 $ExpectedStamp = @(
   "bundle=$BundleId"
   "lock_sha=$LockSha"
+  "launcher_sha=$LauncherSha"
   "node=$NodeCommand"
   "browser=$BrowserIdentity"
 ) -join "`n"
@@ -134,27 +143,39 @@ if (-not $Installed) {
   Set-Content -Path $StampPath -Value $ExpectedStamp -NoNewline -Encoding UTF8
 }
 
-function Write-Wrapper([string]$Destination, [string]$Script) {
-  $Lines = @(
-    '@echo off',
-    'setlocal',
-    "set `"PUPPETEER_CACHE_DIR=$CacheRoot`""
-  )
-  if ($Browser) { $Lines += "set `"PUPPETEER_EXECUTABLE_PATH=$Browser`"" }
-  $Lines += "`"$NodeCommand`" `"$Script`" %*"
-  Set-Content -Path $Destination -Value $Lines -Encoding ASCII
+function Install-NativeAlias([string]$Destination) {
+  Remove-Item $Destination -Force -ErrorAction SilentlyContinue
+  try {
+    New-Item -ItemType HardLink -Path $Destination -Target $Launcher -ErrorAction Stop | Out-Null
+  }
+  catch {
+    Copy-Item $Launcher $Destination -Force
+  }
 }
 
-$MermaidScript = Join-Path $AppRoot 'node_modules\@mermaid-js\mermaid-cli\src\cli.js'
-$MathScript = Join-Path $AppRoot 'managed\mathjax-cli.mjs'
-$PresenterScript = Join-Path $AppRoot 'managed\ansi-presenter.mjs'
-Write-Wrapper (Join-Path $BinRoot 'mmdc.cmd') $MermaidScript
-Write-Wrapper (Join-Path $BinRoot 'tex2svg.cmd') $MathScript
-Write-Wrapper (Join-Path $BinRoot 'chafa.cmd') $PresenterScript
+$MermaidAlias = Join-Path $BinRoot 'mmdc.exe'
+$MathAlias = Join-Path $BinRoot 'tex2svg.exe'
+$PresenterAlias = Join-Path $BinRoot 'chafa.exe'
+Install-NativeAlias $MermaidAlias
+Install-NativeAlias $MathAlias
+Install-NativeAlias $PresenterAlias
+
+function Convert-ToTomlString([string]$Value) {
+  return '"' + $Value.Replace('\', '\\').Replace('"', '\"') + '"'
+}
+$Manifest = @(
+  'schema_version = 1'
+  "node_path = $(Convert-ToTomlString $NodeCommand)"
+  "app_root = $(Convert-ToTomlString $AppRoot)"
+  "cache_root = $(Convert-ToTomlString $CacheRoot)"
+)
+if ($Browser) { $Manifest += "browser_path = $(Convert-ToTomlString $Browser)" }
+$Manifest += 'browser_no_sandbox = false'
+Set-Content -Path $ManifestPath -Value $Manifest -Encoding UTF8
 
 "root`t$Root"
 "node`t$NodeCommand"
-"mermaid`t$(Join-Path $BinRoot 'mmdc.cmd')"
-"math`t$(Join-Path $BinRoot 'tex2svg.cmd')"
-"presenter`t$(Join-Path $BinRoot 'chafa.cmd')"
+"mermaid`t$MermaidAlias"
+"math`t$MathAlias"
+"presenter`t$PresenterAlias"
 "browser`t$BrowserIdentity"
