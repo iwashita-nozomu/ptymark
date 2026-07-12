@@ -36,7 +36,8 @@ New-Item -ItemType Directory -Force -Path @(
   (Join-Path $PackageRoot 'renderers\managed'),
   (Join-Path $PackageRoot 'plugin'),
   (Join-Path $PackageRoot 'examples'),
-  (Join-Path $PackageRoot 'documents')
+  (Join-Path $PackageRoot 'documents'),
+  (Join-Path $PackageRoot 'compat\shell-integrations')
 ) | Out-Null
 
 function Copy-Required([string]$Source, [string]$Destination) {
@@ -64,9 +65,11 @@ Copy-Required (Join-Path $RepoRoot 'README.md') (Join-Path $PackageRoot 'README.
 Copy-Required (Join-Path $RepoRoot 'LICENSE') (Join-Path $PackageRoot 'LICENSE')
 Copy-Required (Join-Path $RepoRoot 'documents\ptymark-design.md') (Join-Path $PackageRoot 'documents\ptymark-design.md')
 Copy-Required (Join-Path $RepoRoot 'documents\ptymark-installer.md') (Join-Path $PackageRoot 'documents\ptymark-installer.md')
-$ShellCompatibility = Join-Path $RepoRoot 'documents\shell-plugin-compatibility.md'
-if (Test-Path $ShellCompatibility -PathType Leaf) {
-  Copy-Item $ShellCompatibility (Join-Path $PackageRoot 'documents\shell-plugin-compatibility.md') -Force
+Copy-Required (Join-Path $RepoRoot 'documents\shell-plugin-compatibility.md') (Join-Path $PackageRoot 'documents\shell-plugin-compatibility.md')
+foreach ($Inventory in @('bash', 'zsh', 'fish', 'powershell', 'nushell')) {
+  Copy-Required `
+    (Join-Path $RepoRoot "compat\shell-integrations\$Inventory.tsv") `
+    (Join-Path $PackageRoot "compat\shell-integrations\$Inventory.tsv")
 }
 
 $Manifest = @(
@@ -84,8 +87,34 @@ $Manifest = @(
 )
 
 $SmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("ptymark-package-" + [guid]::NewGuid())
-New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
+$HomeRoot = Join-Path $SmokeRoot 'home'
+$FishRoot = Join-Path $HomeRoot '.config\fish'
+$NuRoot = Join-Path $HomeRoot '.config\nushell'
+$PowerShellRoot = Join-Path $HomeRoot 'Documents\PowerShell'
+New-Item -ItemType Directory -Force -Path $FishRoot, $NuRoot, $PowerShellRoot | Out-Null
+$Profiles = [ordered]@{
+  (Join-Path $HomeRoot '.bashrc') = 'source "$HOME/.bash_plugins"'
+  (Join-Path $HomeRoot '.zshrc') = 'source "$ZDOTDIR/plugins.zsh"'
+  (Join-Path $FishRoot 'config.fish') = 'source ~/.config/fish/plugins.fish'
+  (Join-Path $NuRoot 'config.nu') = 'source ~/.config/nushell/plugins.nu'
+  (Join-Path $PowerShellRoot 'Microsoft.PowerShell_profile.ps1') = 'Import-Module PSReadLine'
+}
+foreach ($Entry in $Profiles.GetEnumerator()) {
+  [System.IO.File]::WriteAllText($Entry.Key, "$($Entry.Value)`n", [System.Text.UTF8Encoding]::new($false))
+}
+
+function Get-ProfileSnapshot {
+  Get-ChildItem $HomeRoot -Recurse -File |
+    Sort-Object FullName |
+    ForEach-Object {
+      $Relative = [System.IO.Path]::GetRelativePath($HomeRoot, $_.FullName)
+      $Hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+      "$Relative`t$Hash"
+    }
+}
+
 try {
+  $BeforeProfiles = @(Get-ProfileSnapshot)
   $Config = Join-Path $SmokeRoot 'config.toml'
   $State = Join-Path $SmokeRoot 'state.toml'
   & (Join-Path $PackageRoot 'install.ps1') `
@@ -95,6 +124,11 @@ try {
     -Config $Config `
     -State $State
   if ($LASTEXITCODE -ne 0) { throw "Packaged installer failed with exit code $LASTEXITCODE" }
+
+  $AfterProfiles = @(Get-ProfileSnapshot)
+  if (($BeforeProfiles -join "`n") -ne ($AfterProfiles -join "`n")) {
+    throw 'Packaged installer modified one or more shell profile files'
+  }
 
   $PackagedBinary = Join-Path $PackageRoot 'bin\ptymark.exe'
   & $PackagedBinary --version | Out-Null
