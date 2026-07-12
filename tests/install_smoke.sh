@@ -47,7 +47,7 @@ printf 'installed-engine-output\n'
 EOF
 chmod +x "$fake_bin/mmdc" "$fake_bin/tex2svg" "$fake_bin/chafa"
 
-bash scripts/install.sh \
+bash scripts/installer.sh \
   --skip-core \
   --binary "$binary" \
   --config "$config" \
@@ -67,6 +67,7 @@ grep -F "path = \"$fake_bin/chafa\"" "$config" >/dev/null
 } | env PTYMARK_CONFIG="$config" "$binary" preview \
   | grep -F 'installed-engine-output' >/dev/null
 
+# The old name remains a compatibility wrapper and must preserve one-slot updates.
 bash scripts/install.sh \
   --skip-core \
   --binary "$binary" \
