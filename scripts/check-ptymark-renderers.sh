@@ -60,10 +60,6 @@ grep -F '<svg' "$work_dir/diagram.svg" >/dev/null
 
 "$real_chafa" \
   --format symbols \
-  --probe off \
-  --polite on \
-  --relative off \
-  --animate off \
   --colors none \
   --size 60x \
   "$work_dir/diagram.svg" \
