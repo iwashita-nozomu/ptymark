@@ -1,0 +1,143 @@
+name: ptymark Managed Renderer Diagnostic Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-managed-diagnostic-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install Rust and build
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+          cargo build --locked
+      - name: Trace Windows managed installation and rendering
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'ptymark-managed-diagnostic'
+          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $binary = (Resolve-Path 'target/debug/ptymark.exe').Path
+          $candidates = @()
+          if (${env:ProgramFiles(x86)}) { $candidates += Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe' }
+          if ($env:ProgramFiles) { $candidates += Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe' }
+          $edge = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+          "binary=$binary`nedge=$edge`nnode=$(node --version)`nnpm=$(npm --version)" | Set-Content (Join-Path $root 'environment.log')
+          $status = 0
+          try {
+            & ./scripts/installer.ps1 `
+              -SkipCore `
+              -Binary $binary `
+              -Managed always `
+              -ManagedRoot (Join-Path $root 'bundle') `
+              -Config (Join-Path $root 'config.toml') `
+              -State (Join-Path $root 'state.toml') `
+              -Browser $edge `
+              -SkipBrowserDownload `
+              -Verbose *>&1 | Tee-Object (Join-Path $root 'installer.log')
+            if ($LASTEXITCODE -ne 0) { $status = $LASTEXITCODE }
+          }
+          catch {
+            ($_ | Format-List * -Force | Out-String) | Add-Content (Join-Path $root 'installer.log')
+            $status = 1
+          }
+          if (Test-Path (Join-Path $root 'config.toml')) {
+            Get-Content (Join-Path $root 'config.toml') -Raw | Set-Content (Join-Path $root 'config-copy.log')
+          }
+          if (Test-Path (Join-Path $root 'state.toml')) {
+            Get-Content (Join-Path $root 'state.toml') -Raw | Set-Content (Join-Path $root 'state-copy.log')
+          }
+          if ($status -eq 0) {
+            try {
+              @('```mermaid', 'flowchart LR', 'A --> B', '```') -join "`n" |
+                & $binary --config (Join-Path $root 'config.toml') preview --columns 40 - *>&1 |
+                Tee-Object (Join-Path $root 'mermaid.log')
+              @('$$', 'E = mc^2', '$$') -join "`n" |
+                & $binary --config (Join-Path $root 'config.toml') preview --columns 40 - *>&1 |
+                Tee-Object (Join-Path $root 'math.log')
+            }
+            catch {
+              ($_ | Format-List * -Force | Out-String) | Add-Content (Join-Path $root 'render-error.log')
+              $status = 1
+            }
+          }
+          "$status" | Set-Content (Join-Path $root 'status.txt')
+          "PTYMARK_DIAGNOSTIC_ROOT=$root" >> $env:GITHUB_ENV
+          exit 0
+      - name: Upload Windows diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-managed-windows-diagnostic
+          path: ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}
+          if-no-files-found: error
+          retention-days: 3
+      - name: Preserve Windows result
+        shell: pwsh
+        run: |
+          if ((Get-Content (Join-Path $env:PTYMARK_DIAGNOSTIC_ROOT 'status.txt') -Raw).Trim() -ne '0') { throw 'Windows diagnostic reproduced the failure' }
+
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+      - name: Build canonical image
+        run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml build --pull
+      - name: Trace canonical managed install and render
+        shell: bash
+        run: |
+          set +e
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev bash -lc '
+            set -x
+            cargo build --locked
+            root="$(mktemp -d)"
+            binary="${CARGO_TARGET_DIR}/debug/ptymark"
+            bash scripts/installer.sh \
+              --skip-core --binary "$binary" \
+              --managed always --managed-root "$root/bundle" \
+              --browser /usr/bin/chromium --skip-browser-download \
+              --config "$root/config.toml" --state "$root/state.toml"
+            cat "$root/config.toml"
+            cat "$root/state.toml"
+            printf "%s\n" "```mermaid" "flowchart LR" "A --> B" "```" | "$binary" --config "$root/config.toml" preview --columns 40 -
+            printf "%s\n" "$$" "E = mc^2" "$$" | "$binary" --config "$root/config.toml" preview --columns 40 -
+          ' >managed-docker.log 2>&1
+          status=$?
+          printf '%s\n' "$status" >managed-docker.status
+          cat managed-docker.log
+          exit 0
+      - name: Upload Docker diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-managed-docker-diagnostic
+          path: |
+            managed-docker.log
+            managed-docker.status
+          if-no-files-found: error
+          retention-days: 3
+      - name: Preserve Docker result
+        run: test "$(cat managed-docker.status)" = 0
