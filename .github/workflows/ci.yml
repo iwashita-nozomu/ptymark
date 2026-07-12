@@ -202,3 +202,34 @@ jobs:
 
       - name: Run fresh clone acceptance
         run: make fresh-clone-check
+
+  reroot-portable-core:
+    name: Generate clean portable-core PR branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create one-commit branch from reviewed tree
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+          REVIEWED_COMMIT: 35e8bf7b0c49d626f0366397fef1a55fe95f80be
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin refs/heads/agent/minimal-pre-display-core:refs/remotes/origin/agent/minimal-pre-display-core
+          git cat-file -e "${REVIEWED_COMMIT}^{commit}"
+          desired_tree="$(git rev-parse "${REVIEWED_COMMIT}^{tree}")"
+          main_commit="$(git rev-parse HEAD)"
+          new_commit="$(printf '%s\n' 'Replace merged bootstrap with reviewed portable pre-display core' | git commit-tree "$desired_tree" -p "$main_commit")"
+          git push --force origin "${new_commit}:refs/heads/agent/portable-pre-display-core-pr"
+          printf 'main=%s\nreviewed=%s\nnew=%s\n' "$main_commit" "$REVIEWED_COMMIT" "$new_commit"
