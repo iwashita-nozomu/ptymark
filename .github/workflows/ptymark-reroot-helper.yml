@@ -9,12 +9,13 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: ptymark-reroot-helper
   cancel-in-progress: false
 
-# This second commit intentionally triggers the workflow after it already exists on main.
 jobs:
   reroot:
     runs-on: ubuntu-24.04
@@ -28,19 +29,46 @@ jobs:
           persist-credentials: false
 
       - name: Re-root reviewed product tree
+        id: reroot
+        continue-on-error: true
+        shell: bash
         env:
           PUSH_TOKEN: ${{ github.token }}
           REVIEWED_COMMIT: 35e8bf7b0c49d626f0366397fef1a55fe95f80be
         run: |
-          set -euo pipefail
-          git fetch origin "$REVIEWED_COMMIT"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          set -o pipefail
+          {
+            set -euo pipefail
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            git fetch origin refs/heads/agent/minimal-pre-display-core:refs/remotes/origin/agent/minimal-pre-display-core
+            git cat-file -e "${REVIEWED_COMMIT}^{commit}"
 
-          desired_tree="$(git rev-parse "${REVIEWED_COMMIT}^{tree}")"
-          main_commit="$(git rev-parse HEAD)"
-          new_commit="$(printf '%s\n' 'Replace merged bootstrap with reviewed portable pre-display core' | git commit-tree "$desired_tree" -p "$main_commit")"
+            desired_tree="$(git rev-parse "${REVIEWED_COMMIT}^{tree}")"
+            main_commit="$(git rev-parse HEAD)"
+            new_commit="$(printf '%s\n' 'Replace merged bootstrap with reviewed portable pre-display core' | git commit-tree "$desired_tree" -p "$main_commit")"
+            git push --force origin "${new_commit}:refs/heads/agent/portable-pre-display-core-pr"
 
-          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin "${new_commit}:refs/heads/agent/portable-pre-display-core-pr"
-          printf 'main=%s\nreviewed=%s\nnew=%s\n' "$main_commit" "$REVIEWED_COMMIT" "$new_commit"
+            printf 'main=%s\nreviewed=%s\nnew=%s\n' "$main_commit" "$REVIEWED_COMMIT" "$new_commit"
+            printf 'new_commit=%s\n' "$new_commit" >> "$GITHUB_OUTPUT"
+          } 2>&1 | tee reroot.log
+
+      - name: Report re-root result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            printf '### Clean PR branch generation\n\n'
+            printf 'Outcome: `%s`\n\n' '${{ steps.reroot.outcome }}'
+            printf '```text\n'
+            tail -n 120 reroot.log
+            printf '\n```\n'
+          } > reroot-comment.md
+          gh pr comment 23 --repo "$GITHUB_REPOSITORY" --body-file reroot-comment.md
+
+      - name: Require successful branch generation
+        if: always()
+        run: test '${{ steps.reroot.outcome }}' = success
