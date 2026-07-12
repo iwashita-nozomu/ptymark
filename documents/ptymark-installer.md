@@ -1,115 +1,244 @@
 # ptymark installer design
 
-## 1. Goal
+## 1. Purpose
 
-The setup path must produce a usable renderer with one platform command while keeping normal terminal
-sessions free of package installation, network access, and repeated engine discovery.
+The installer must leave the user with a usable pre-display renderer after one platform-appropriate
+command while keeping normal terminal sessions free of installation, network access, and repeated
+engine discovery.
 
 ```text
-source checkout
-    -> install native ptymark binary
-    -> inspect user-installed engine commands
-    -> provision missing roles in a versioned user-local bundle
-    -> validate every selected executable
-    -> write absolute paths to runtime config
-    -> write diagnostic installation state
+platform installer
+    -> install native ptymark core
+    -> discover user-provided renderer programs
+    -> provision only missing default roles in an isolated bundle
+    -> convert paths to the host-native representation
+    -> call the shared Rust resolver
+    -> atomically write runtime configuration and installation state
     -> normal rendering performs no installation
 ```
 
-The installer owns installation-time dependency resolution only. It does not alter the pre-display
-safety gate, terminal input, child process, signals, resize forwarding, or display commit behavior.
+The installer may affect only ptymark-owned files and configuration. It does not alter terminal input,
+termios, signal forwarding, resize forwarding, child-process behavior, or terminal control sequences.
 
-## 2. User flow
+## 2. Responsibility split
 
-Linux/macOS:
+Installation is divided into three layers.
+
+### 2.1 Shell and OS frontend
+
+```text
+scripts/installer.sh
+scripts/installer.ps1
+scripts/installer.cmd
+```
+
+A frontend owns only concerns that genuinely differ by host or shell:
+
+- locating the installed core binary;
+- choosing standard config, state, and data directories;
+- detecting commands visible to that shell;
+- installing the isolated renderer bundle;
+- converting shell-specific paths to native absolute paths;
+- presenting platform-specific help and errors.
+
+It must not independently merge TOML, decide cache semantics, or implement a second engine-selection
+model.
+
+### 2.2 Shared Rust resolver
+
+```text
+ptymark install resolve
+ptymark install status
+```
+
+The Rust implementation owns:
+
+- the typed `InstallRequest`;
+- engine-slot selection semantics;
+- preservation of unrelated user configuration;
+- cross-field validation;
+- atomic config and state writes;
+- installation inventory and readiness reporting.
+
+Every frontend ends by calling this resolver. Consequently, PowerShell, cmd.exe, Git Bash, MSYS2,
+Linux, macOS, and WSL produce the same semantic configuration.
+
+### 2.3 Managed-bundle installer
+
+```text
+scripts/install-managed-bundle.sh
+scripts/install-managed-bundle.ps1
+```
+
+This layer installs a pinned renderer implementation under a versioned ptymark-owned data directory.
+It never changes a global npm prefix or the user's `PATH`.
+
+## 3. Supported entrypoints
+
+### 3.1 Linux, macOS, and WSL
 
 ```bash
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
-cd ptymark
-bash scripts/install.sh
+bash scripts/installer.sh
 ```
 
-Windows PowerShell 7+:
+`uname -s` selects Linux or macOS data locations. WSL reports Linux and is deliberately treated as a
+Linux environment:
+
+```text
+WSL shell
+    -> Linux ptymark binary
+    -> Linux paths
+    -> Linux renderer bundle
+```
+
+The installer does not silently mix a WSL process with Windows `.exe` renderer paths.
+
+### 3.2 Windows PowerShell
 
 ```powershell
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
-Set-Location ptymark
-pwsh -File scripts/install.ps1
+pwsh -File scripts/installer.ps1
 ```
 
-The top-level scripts perform these stages:
+Windows PowerShell 5.1 is also a supported frontend:
 
-1. install the Rust binary with `cargo install --locked --force --path REPOSITORY`;
-2. determine config, state, and managed-data locations;
-3. inspect explicit selections and compatible commands already available on `PATH`;
-4. install the managed bundle when one or more default roles remain unresolved;
-5. call `ptymark install resolve` with concrete paths;
-6. call `ptymark install status`.
-
-The source-based alpha flow requires Rust/Cargo. A future release package may replace stage 1 without
-changing stages 2 through 6.
-
-## 3. Default renderer set
-
-The managed fallback is a pinned, coherent set:
-
-```text
-bundle schema       1
-Node.js             24.18.0
-Mermaid CLI         11.16.0
-MathJax             4.1.3
-Puppeteer           25.2.1
-terminal presenter  ptymark ANSI presenter v1
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/installer.ps1
 ```
 
-The roles are concrete:
+This is the canonical Windows-native implementation.
 
-```text
-Mermaid slot
-  mmdc protocol -> SVG
+### 3.3 Windows cmd.exe
 
-Math slot
-  tex2svg FORMULA protocol -> SVG
-
-Presenter slot
-  fixed Chafa-compatible arguments + SVG file -> ANSI/Unicode bytes
+```bat
+scripts\installer.cmd
 ```
 
-The managed presenter deliberately implements only the fixed argument subset emitted by
-`ConfiguredRenderer`. It is not a general Chafa replacement.
+The cmd file contains no installation policy. It selects `pwsh.exe` when available, falls back to
+`powershell.exe`, and delegates all arguments to `installer.ps1`.
 
-## 4. Resolution precedence
-
-The top-level platform installer resolves each role in this order:
-
-```text
-explicit option
-    > preserved valid selection when not re-probing
-    > compatible command on PATH
-    > managed bundle alias
-    > built-in preview when managed mode is never
-```
-
-Explicit examples:
+### 3.4 Git Bash, MSYS2, and Cygwin
 
 ```bash
-bash scripts/install.sh --mermaid /opt/homebrew/bin/mmdc
-bash scripts/install.sh --math source
-bash scripts/install.sh --presenter /usr/local/bin/chafa
+bash scripts/installer.sh
 ```
 
-```powershell
-pwsh -File scripts/install.ps1 -Mermaid C:\Tools\mmdc.cmd
-pwsh -File scripts/install.ps1 -Math preview
+The Bash frontend recognizes `MINGW*`, `MSYS*`, and `CYGWIN*`, then performs only the bridge work:
+
+```text
+POSIX-looking Bash arguments
+    -> classify option as path, enum, or scalar
+    -> cygpath -aw for path-valued options
+    -> disable MSYS automatic argv conversion
+    -> invoke installer.ps1
 ```
 
-An explicitly requested external path must resolve successfully. An automatically unresolved role may
-use the managed bundle or, when managed installation is disabled, the built-in preview.
+This prevents mixed path representations such as `/c/Users/...` in a configuration consumed by
+`ptymark.exe`.
 
-A layout engine is never activated without a presenter. This prevents an SVG artifact from being
-committed directly as terminal output.
+## 4. Path contract
 
-## 5. Managed bundle isolation
+Paths have an explicit owner and normalization point.
+
+| Value | Owner | Stored form |
+| --- | --- | --- |
+| core binary | platform frontend | host-native absolute path |
+| config path | platform frontend | host-native absolute path |
+| state path | platform frontend | host-native absolute path |
+| managed bundle root | platform frontend | host-native absolute path |
+| selected engine path | Rust resolver input | canonical absolute path |
+| runtime config engine path | Rust resolver | canonical absolute path |
+| installation-state paths | Rust resolver | canonical absolute path |
+
+Rules:
+
+1. an explicit executable may be an absolute path or a bare command name;
+2. a bare name is searched only during installation or an explicit runtime check;
+3. a relative path containing directory components is rejected;
+4. generated runtime configuration always stores absolute paths;
+5. Git Bash/MSYS/Cygwin paths are converted before the Rust resolver sees them;
+6. WSL paths remain Linux paths;
+7. normal rendering never repeats installation-time candidate ranking.
+
+## 5. One-command flow
+
+On a new installation, the frontend performs:
+
+```text
+1. cargo install --locked --force --path REPOSITORY
+2. resolve platform config/data/state destinations
+3. inspect explicit options and visible system commands
+4. determine whether any renderer role is missing
+5. install or reuse the versioned managed bundle when allowed
+6. select absolute engine and presenter paths
+7. invoke `ptymark install resolve`
+8. invoke `ptymark install status`
+```
+
+A valid existing configuration changes the behavior of an ordinary rerun: existing choices and all
+unrelated detector, render, and cache settings are retained. `--reprobe` or `-Reprobe` asks the
+frontend to inspect current commands and managed fallbacks again.
+
+## 6. Engine slots and selection
+
+The initial installer has three concrete slots:
+
+```text
+Mermaid layout
+Math layout
+Terminal presenter
+```
+
+This is intentionally not a generic plugin registry. Each slot has a known input/output protocol and a
+known configuration representation.
+
+First-install selection order:
+
+```text
+1. explicit user choice
+2. compatible executable visible to the installer shell
+3. existing complete ptymark-managed bundle
+4. install the pinned managed bundle
+5. built-in preview when managed installation is disabled
+```
+
+Ordinary rerun order:
+
+```text
+1. explicit replacement
+2. preserved valid existing choice
+3. first-install rules only for a reset or reprobe
+```
+
+An external layout engine is activated only when a presenter is also available. SVG is never emitted
+directly to terminal stdout.
+
+## 7. Default managed implementation
+
+The tested default set is pinned as a unit:
+
+| Component | Version or role |
+| --- | --- |
+| Mermaid | `@mermaid-js/mermaid-cli` 11.16.0 |
+| TeX math | MathJax 4.1.3 |
+| runtime | Node.js 24.18.0 |
+| browser bridge | Puppeteer 25.2.1 |
+| terminal output | ptymark ANSI/Unicode presenter |
+
+JavaScript is not part of the core architecture contract. It is an implementation detail of the
+selected default renderer bundle:
+
+```text
+Rust detector / safety / cache / routing
+    -> fixed engine handoff
+    -> optional managed JavaScript implementation
+    -> SVG artifact
+    -> terminal-safe bytes
+```
+
+The built-in preview and source routes work without Node or npm. A future native engine can replace a
+slot without changing the terminal gate, detector, cache, installer state schema, or display commit.
+
+## 8. Bundle isolation and layout
 
 Default roots:
 
@@ -124,216 +253,126 @@ Windows
   %LOCALAPPDATA%\ptymark\renderer-bundles\<bundle-id>\
 ```
 
-`<bundle-id>` contains the bundle schema and major pinned engine/runtime versions. Different sets can
-coexist without replacing each other.
+The bundle identifier includes the ptymark bundle schema and selected component versions so multiple
+versions can coexist.
 
 ```text
 <bundle-id>/
-  bundle.toml
-  bundle.stamp
-  app/
-    package.json
-    package-lock.json
-    node_modules/
-    managed/mathjax-cli.mjs
-    managed/ansi-presenter.mjs
-  runtime/
-    node-v24.18.0-<platform>-<arch>/
-  cache/
-    npm/
-    puppeteer/
-  bin/
-    mmdc[.exe]
-    tex2svg[.exe]
-    chafa[.exe]
+├── bundle.toml
+├── bundle.stamp
+├── app/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── node_modules/
+│   └── managed/
+├── runtime/
+├── cache/
+│   ├── npm/
+│   └── puppeteer/
+└── bin/
+    ├── mmdc[.exe]
+    ├── tex2svg[.exe]
+    └── chafa[.exe]
 ```
 
-The bundle does not:
+The `bin` entries are copies or hard links of the native ptymark binary. The executable name selects a
+fixed role. The launcher validates `bundle.toml` and invokes the configured Node runtime directly with
+a fixed entrypoint. It does not create a shell command string or generated batch wrapper.
 
-- modify the user's global npm prefix;
-- add its `bin` directory to `PATH`;
-- overwrite system Mermaid, MathJax, Node, Chafa, Chrome, or Edge;
-- use a project-local `node_modules` directory outside its own root;
-- run during a render request.
+## 9. Browser selection
 
-## 6. Native alias launcher
-
-The three managed commands are copies or hard links of the installed native `ptymark` binary. Startup
-examines the current executable name:
+A browser is needed by Mermaid and the ANSI presenter. The frontend chooses in this order:
 
 ```text
-mmdc[.exe]      -> managed Mermaid entrypoint
-tex2svg[.exe]   -> managed MathJax entrypoint
-chafa[.exe]     -> managed ANSI presenter entrypoint
-ptymark[.exe]   -> normal CLI
+1. explicit --browser / -Browser path
+2. installed Chromium-compatible browser
+3. Puppeteer's private compatible browser inside the bundle cache
 ```
 
-The alias reads `<bundle-id>/bundle.toml`:
+Typical installed candidates include Chromium, Chrome, and Microsoft Edge. Selecting an installed
+browser automatically enables the no-download path for the bundle install.
 
-```toml
-schema_version = 1
-node_path = "/absolute/path/to/node"
-app_root = "/absolute/path/to/bundle/app"
-cache_root = "/absolute/path/to/bundle/cache/puppeteer"
-browser_path = "/optional/absolute/path/to/browser"
-browser_no_sandbox = false
+`--skip-browser-download`/`-SkipBrowserDownload` requires a usable installed browser. `--offline` and
+`-Offline` prohibit both browser and package downloads.
+
+## 10. Integrity and network boundary
+
+Installation-time network access is explicit and limited to managed provisioning.
+
+- an official Node archive is checked against the official `SHASUMS256.txt` entry;
+- JavaScript dependencies are resolved with `npm ci` from the committed lockfile;
+- npm cache and Puppeteer cache are bundle-local;
+- the stamp records lockfile, launcher, runtime, and browser identity;
+- normal rendering never invokes npm, downloads a browser, or performs dependency resolution.
+
+The installer does not modify Homebrew, apt, winget, Chocolatey, a global npm prefix, or user `PATH`.
+
+## 11. Replacement and idempotence
+
+Replace one slot without touching other settings:
+
+```bash
+bash scripts/installer.sh --mermaid /absolute/path/to/mmdc
+bash scripts/installer.sh --math source
 ```
 
-The manifest is strict and versioned. Node, app, entrypoint, and optional browser paths are validated
-before execution.
+```powershell
+pwsh -File scripts/installer.ps1 -Mermaid 'C:\Tools\mmdc.exe'
+pwsh -File scripts/installer.ps1 -Math source
+```
 
-The alias invokes Node directly with a fixed role-specific JavaScript file and forwards the existing
-fixed engine protocol arguments. It does not generate or execute a shell script, `.cmd` wrapper,
-command string, pipe, redirect, or arbitrary argv template. This is important for TeX input on Windows,
-where a batch wrapper could reinterpret metacharacters.
+Re-probe all known slots:
 
-## 7. Runtime and browser provisioning
+```bash
+bash scripts/installer.sh --reprobe
+```
 
-### 7.1 Node
+```powershell
+pwsh -File scripts/installer.ps1 -Reprobe
+```
 
-The installer first accepts an exact system Node 24.18.0 plus npm. Otherwise it uses a private portable
-Node runtime in the bundle.
-
-When downloading Node:
-
-1. choose the platform/architecture archive;
-2. download it from the official versioned Node distribution path;
-3. download the corresponding `SHASUMS256.txt`;
-4. compare SHA-256 before extraction;
-5. extract under the versioned bundle root.
-
-Supported managed targets in the first implementation:
+Force the managed set:
 
 ```text
-Linux   x64, arm64
-macOS   x64, arm64
-Windows x64, arm64
+--managed always
+-Managed always
 ```
 
-### 7.2 JavaScript packages
-
-The installer copies the repository's package manifest, lockfile, and fixed entrypoints into the bundle,
-then runs:
+Disable managed provisioning:
 
 ```text
-npm ci --omit=dev --no-audit --no-fund
+--managed never
+-Managed never
 ```
 
-npm's cache is redirected under the bundle root. The committed lockfile is the dependency source of
-truth.
+Reset discards ptymark-owned configuration values before resolving again. A dry run prints the plan
+without writing config or state.
 
-### 7.3 Browser
+## 12. Stored installation state
 
-Selection options:
-
-```text
-explicit --browser / -Browser
-existing browser with --skip-browser-download / -SkipBrowserDownload
-Puppeteer-managed private browser under the bundle cache
-```
-
-An explicit browser remains owned and updated by the user or operating system. A Puppeteer-managed
-browser remains private to the versioned bundle. Browser acquisition is permitted only during the
-explicit install command.
-
-## 8. Runtime configuration and state
-
-Default configuration:
-
-```text
-Linux/macOS  ~/.config/ptymark/config.toml
-Windows      %APPDATA%\ptymark\config.toml
-```
-
-Default state:
-
-```text
-Linux        ${XDG_STATE_HOME:-~/.local/state}/ptymark/install.toml
-macOS        ~/.local/state/ptymark/install.toml
-Windows      %LOCALAPPDATA%\ptymark\state\install.toml
-```
-
-The config contains the active runtime policy and absolute selected paths. The state file is diagnostic
-evidence, not a second source of runtime policy.
+The state file is diagnostic evidence, not runtime policy.
 
 ```toml
 schema_version = 1
 ptymark_version = "0.1.0-alpha.1"
-config_path = "C:\\Users\\user\\AppData\\Roaming\\ptymark\\config.toml"
+config_path = "C:\\Users\\name\\AppData\\Roaming\\ptymark\\config.toml"
 
 [[components]]
 role = "mermaid"
 backend = "mermaid-cli"
 active = true
 origin = "explicit"
-requested_path = "C:\\Users\\user\\AppData\\Local\\ptymark\\renderer-bundles\\...\\bin\\mmdc.exe"
-resolved_path = "C:\\Users\\user\\AppData\\Local\\ptymark\\renderer-bundles\\...\\bin\\mmdc.exe"
+requested_path = "C:\\...\\mmdc.exe"
+resolved_path = "C:\\...\\mmdc.exe"
 ```
 
-Each component records:
+Each component records role, backend, activation, resolution origin, requested path, resolved path, and
+an optional fallback note. `install status` verifies the recorded executable; it does not silently
+choose a replacement.
 
-- logical role;
-- selected backend;
-- active/inactive state;
-- resolution origin;
-- requested path;
-- resolved absolute path;
-- optional fallback note.
+## 13. Extension boundaries
 
-`ptymark install status` verifies the stored resolved executables. It does not silently replace them.
-Replacement remains an explicit installer or `install resolve` operation.
-
-## 9. Idempotence and replacement
-
-An ordinary re-run preserves a valid existing config and its selected backends. It also preserves
-unrelated detection, rendering, and cache settings.
-
-Re-probe known system names, then managed fallbacks:
-
-```bash
-bash scripts/install.sh --reprobe
-```
-
-```powershell
-pwsh -File scripts/install.ps1 -Reprobe
-```
-
-Force the coherent managed set:
-
-```bash
-bash scripts/install.sh --managed always
-```
-
-Disable managed provisioning:
-
-```bash
-bash scripts/install.sh --managed never
-```
-
-Offline reuse:
-
-```bash
-bash scripts/install.sh --offline
-```
-
-Reset project-owned configuration:
-
-```bash
-bash scripts/install.sh --reset
-```
-
-Print the final native resolver plan without writing config/state:
-
-```bash
-bash scripts/install.sh --dry-run
-```
-
-The managed app is reused when the bundle ID, package-lock digest, native launcher digest, Node path,
-and browser identity match `bundle.stamp`. `--force-managed`/`-ForceManaged` rebuilds it.
-
-## 10. Extension boundaries
-
-### 10.1 Native executable resolution
+### Program discovery
 
 ```rust
 pub trait ProgramResolver: Send + Sync {
@@ -341,107 +380,66 @@ pub trait ProgramResolver: Send + Sync {
 }
 ```
 
-`PathProgramResolver` supports absolute paths and platform PATH conventions, including `PATHEXT` on
-Windows. A future verified package location can implement this interface without changing config/state
-serialization or render routing.
+`PathProgramResolver` supports absolute paths and platform `PATH`/`PATHEXT` conventions. A verified
+package directory or signed-bundle resolver can implement the same interface without changing config
+or state serialization.
 
-### 10.2 Managed source
+### Frontend extension
 
-Managed acquisition is deliberately outside normal `Installer<R>` resolution. A future source
-implementation must produce the same outputs:
+A new shell frontend must:
 
-```text
-absolute executable paths
-strict bundle manifest
-integrity evidence
-versioned isolated root
-idempotent installation result
-```
+1. map its option syntax to the canonical installer values;
+2. normalize path-valued inputs to host-native absolute paths;
+3. use standard host-owned config/data/state directories;
+4. invoke the shared Rust resolver;
+5. preserve exact exit status and diagnostics;
+6. add a GitHub Actions smoke test.
 
-Possible later sources include signed release archives or OS-specific package integrations. They must
-not change the renderer protocol or terminal pipeline.
+It must not implement a competing TOML merge or renderer-ranking algorithm.
 
-### 10.3 New engine role
+### Engine extension
 
-Adding a role requires:
+A new engine slot requires:
 
-1. a user-visible syntax/use case;
-2. a fixed executable or worker protocol;
-3. a pinned default implementation where applicable;
-4. platform installation and integrity rules;
-5. a native launcher mapping or direct executable;
-6. fallback behavior;
-7. cache identity review;
-8. Linux, macOS, and Windows contract tests;
-9. a real integration smoke.
+- a concrete user use case;
+- a fixed input/output protocol;
+- bounded execution and artifact validation;
+- exact-source fallback;
+- install and replacement behavior;
+- dependency and license ownership;
+- Ubuntu, macOS, and Windows tests.
 
-The installer is not a dynamic plugin registry.
+## 14. Failure policy
 
-## 11. Failure policy
-
-| Situation | Automatic setup | Explicit/preserved external selection |
+| Situation | Automatic install | Explicit or preserved external choice |
 | --- | --- | --- |
-| system engine missing | use managed role | installation error only when managed is disabled/unavailable |
-| managed download unavailable | built-in preview when allowed | error for an explicitly required managed/external role |
-| checksum mismatch | fail before extraction | fail |
-| lockfile install failure | fail without activating partial bundle | fail |
-| presenter unavailable | do not activate SVG engine | fail when explicitly required |
-| existing config invalid | fail without replacement | fail |
-| state missing | `install status` reports error | rerun installer |
-| selected executable removed later | status reports `missing` | explicit re-resolution required |
-| config/state write failure | no successful install result | correct path/permissions and rerun |
+| system layout engine missing | managed fallback | error if explicitly required |
+| system presenter missing | managed fallback | error if explicitly required |
+| managed install disabled | built-in preview | external choice remains required |
+| offline bundle incomplete | clear install error | clear install error |
+| invalid existing config | stop before child process | stop before child process |
+| selected executable removed later | status reports missing | explicit rerun/replacement required |
+| config/state write failure | no successful installation result | fix path/permissions and rerun |
 
-Config and state are written via same-directory temporary files and renamed after flush. Bundle stamps
-are written only after the app install succeeds.
+Config and state files are written via same-directory temporary files and renamed only after content is
+flushed.
 
-## 12. Security boundary
+## 15. Verification
 
-- downloads occur only during an explicit install command;
-- normal render requests never run npm, Cargo, curl, Invoke-WebRequest, or browser installation;
-- official Node archives are SHA-256 verified;
-- npm resolution is lockfile-based;
-- managed files remain under a versioned user data root;
-- no global package or PATH mutation occurs;
-- managed aliases are native binaries, not shell wrappers;
-- renderer configuration stores no shell command strings or arbitrary argument templates;
-- manifest and executable paths are validated before invocation;
-- project-local configuration is not auto-loaded;
-- render failures restore exact source unless strict mode is enabled.
+The canonical GitHub Actions workflow verifies:
 
-## 13. Verification
+- Rust formatting, Clippy, and tests on Ubuntu, macOS, and Windows;
+- PowerShell parser and Bash syntax checks;
+- Windows `PATHEXT` executable resolution;
+- the PowerShell installer with a real isolated managed bundle;
+- the cmd.exe bridge;
+- the Git Bash/MSYS path-conversion bridge;
+- real Mermaid and MathJax rendering on Windows;
+- POSIX installer contracts in the canonical Docker image;
+- isolated managed-bundle rendering in Docker;
+- compatibility wrappers and one-slot replacement;
+- WezTerm Unix and Windows examples.
 
-Rust contracts cover:
-
-- first-install resolution;
-- missing-presenter fallback;
-- explicit missing-engine failure;
-- one-slot replacement with unrelated settings preserved;
-- reset and dry-run behavior;
-- installation-state round trip;
-- re-probe replacing stale absolute paths;
-- Windows absolute path and `PATHEXT` behavior;
-- managed alias role dispatch.
-
-GitHub Actions additionally covers:
-
-```text
-Ubuntu/macOS/Windows
-  format + Clippy + all Rust tests
-
-Windows managed setup
-  PowerShell parse
-  pinned Node
-  installed Edge selection
-  isolated npm bundle
-  native .exe aliases
-  config/state verification
-  Mermaid render
-  MathJax render
-
-Canonical Docker
-  shell syntax + ShellCheck
-  Node entrypoint syntax
-  installer contract smoke
-  isolated managed engine smoke
-  real renderer checks
-```
+GitHub Actions is the merge gate. A frontend is not considered supported merely because its source
+parses; its path conversion, configuration output, inventory, and render path must execute on the
+corresponding hosted runner.
