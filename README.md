@@ -1,5 +1,16 @@
 # ptymark
 
+<!--
+@dependency-start
+contract design
+responsibility Provides the user-facing entrypoint for ptymark installation, configuration, WezTerm use, safety guarantees, and development.
+upstream design documents/ptymark-design.md defines the current minimal architecture and rejected overdesign.
+upstream environment docker/ptymark.Dockerfile defines the canonical validation environment.
+downstream implementation src/cli.rs implements the documented command surface.
+downstream test tests/cli_contract.rs validates the documented CLI behavior.
+@dependency-end
+-->
+
 `ptymark` is an alpha-stage **pre-display renderer** for terminal output. It inspects only
 the bytes travelling from a child process toward the terminal, detects explicitly delimited
 Markdown blocks, and replaces a complete block before it is written to the display.
