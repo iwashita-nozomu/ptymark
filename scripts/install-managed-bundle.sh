@@ -25,7 +25,7 @@ Options:
   --root DIR                install into DIR
   --launcher PATH           native ptymark binary used for mmdc/tex2svg/chafa aliases
   --browser PATH            use an existing Chromium-compatible browser
-  --skip-browser-download   require an existing browser; do not let Puppeteer download one
+  --skip-browser-download   require an existing browser; do not download one
   --offline                 use an existing complete bundle; perform no downloads or npm install
   --force                   reinstall the app bundle and native aliases
   -h, --help                show this help
@@ -64,7 +64,7 @@ case "$host_os" in
     default_data_root="${XDG_DATA_HOME:-${HOME:?HOME is required}/.local/share}/ptymark"
     ;;
   *)
-    printf 'managed renderer installation is unsupported on %s; use scripts/install.ps1 on Windows\n' "$host_os" >&2
+    printf 'managed renderer installation is unsupported on %s; use scripts/installer.ps1 on Windows\n' "$host_os" >&2
     exit 1
     ;;
 esac
@@ -84,6 +84,7 @@ bin_root="$managed_root/bin"
 cache_root="$managed_root/cache/puppeteer"
 stamp_path="$managed_root/bundle.stamp"
 manifest_path="$managed_root/bundle.toml"
+puppeteer_config_path="$managed_root/puppeteer-config.json"
 mkdir -p "$bin_root" "$cache_root"
 
 sha256_file() {
@@ -162,13 +163,19 @@ elif [[ "$skip_browser_download" -eq 1 ]]; then
   }
 fi
 
+browser_no_sandbox=0
+if [[ "${PTYMARK_BROWSER_NO_SANDBOX:-0}" == 1 || -f /.dockerenv ]]; then
+  browser_no_sandbox=1
+fi
+
 lock_sha="$(sha256_file "$repo_root/renderers/package-lock.json")"
 launcher_sha="$(sha256_file "$launcher")"
 expected_stamp="bundle=$bundle_id
 lock_sha=$lock_sha
 launcher_sha=$launcher_sha
 node=$node_cmd
-browser=${browser_path:-puppeteer-managed}"
+browser=${browser_path:-puppeteer-managed}
+browser_no_sandbox=$browser_no_sandbox"
 installed=0
 if [[ "$force" -eq 0 && -f "$stamp_path" ]] \
   && [[ "$(cat "$stamp_path")" == "$expected_stamp" ]] \
@@ -186,14 +193,27 @@ if [[ "$installed" -eq 0 ]]; then
   cp "$repo_root/renderers/managed/ansi-presenter.mjs" "$app_root/managed/ansi-presenter.mjs"
   export PUPPETEER_CACHE_DIR="$cache_root"
   export npm_config_cache="$managed_root/cache/npm"
-  if [[ "$skip_browser_download" -eq 1 ]]; then
+  if [[ "$skip_browser_download" -eq 1 || -n "$browser_path" ]]; then
     export PUPPETEER_SKIP_DOWNLOAD=true
   else
     unset PUPPETEER_SKIP_DOWNLOAD || true
   fi
   "$npm_cmd" ci --prefix "$app_root" --omit=dev --no-audit --no-fund
-  printf '%s' "$expected_stamp" >"$stamp_path"
+  if [[ -z "$browser_path" && "$skip_browser_download" -eq 0 ]]; then
+    "$node_cmd" "$app_root/node_modules/puppeteer/install.mjs"
+  fi
 fi
+
+"$node_cmd" - "$puppeteer_config_path" "$browser_path" "$browser_no_sandbox" <<'NODE'
+import fs from 'node:fs';
+const [output, executablePath, noSandbox] = process.argv.slice(2);
+const config = { headless: true };
+if (executablePath) config.executablePath = executablePath;
+if (noSandbox === '1') {
+  config.args = ['--no-sandbox', '--disable-setuid-sandbox'];
+}
+fs.writeFileSync(output, `${JSON.stringify(config)}\n`, 'utf8');
+NODE
 
 install -m 755 "$launcher" "$bin_root/mmdc"
 install -m 755 "$launcher" "$bin_root/tex2svg"
@@ -210,11 +230,13 @@ toml_quote() {
   printf 'node_path = '; toml_quote "$node_cmd"; echo
   printf 'app_root = '; toml_quote "$app_root"; echo
   printf 'cache_root = '; toml_quote "$cache_root"; echo
+  printf 'puppeteer_config_path = '; toml_quote "$puppeteer_config_path"; echo
   if [[ -n "$browser_path" ]]; then
     printf 'browser_path = '; toml_quote "$browser_path"; echo
   fi
-  echo 'browser_no_sandbox = false'
+  printf 'browser_no_sandbox = %s\n' "$([[ "$browser_no_sandbox" -eq 1 ]] && echo true || echo false)"
 } >"$manifest_path"
+printf '%s' "$expected_stamp" >"$stamp_path"
 
 printf 'root\t%s\n' "$managed_root"
 printf 'node\t%s\n' "$node_cmd"
