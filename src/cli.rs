@@ -1,9 +1,10 @@
 use crate::cache::{MemoryCache, NoopCache};
 use crate::config::{Config, RenderMode};
 use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
-use crate::engine::{ConfiguredRenderer, check_configured_engines};
+use crate::engine::check_configured_engines;
 use crate::pipeline::DisplayPipeline;
 use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
+use crate::routing::RoutedRenderer;
 use std::env;
 use std::ffi::OsString;
 use std::fs::File;
@@ -193,7 +194,7 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
     let renderer: Box<dyn Renderer> = if source_mode {
         Box::new(SourceRenderer)
     } else {
-        Box::new(ConfiguredRenderer::new(&config.engines))
+        Box::new(RoutedRenderer::configured(&config.engines))
     };
     let cache: Box<dyn crate::cache::ArtifactCache> =
         if source_mode || no_cache || !config.cache.enabled {
