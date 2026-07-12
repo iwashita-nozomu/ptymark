@@ -164,8 +164,10 @@ elif [[ "$skip_browser_download" -eq 1 ]]; then
 fi
 
 browser_no_sandbox=0
+browser_no_sandbox_toml=false
 if [[ "${PTYMARK_BROWSER_NO_SANDBOX:-0}" == 1 || -f /.dockerenv ]]; then
   browser_no_sandbox=1
+  browser_no_sandbox_toml=true
 fi
 
 lock_sha="$(sha256_file "$repo_root/renderers/package-lock.json")"
@@ -234,7 +236,7 @@ toml_quote() {
   if [[ -n "$browser_path" ]]; then
     printf 'browser_path = '; toml_quote "$browser_path"; echo
   fi
-  printf 'browser_no_sandbox = %s\n' "$([[ "$browser_no_sandbox" -eq 1 ]] && echo true || echo false)"
+  printf 'browser_no_sandbox = %s\n' "$browser_no_sandbox_toml"
 } >"$manifest_path"
 printf '%s' "$expected_stamp" >"$stamp_path"
 
