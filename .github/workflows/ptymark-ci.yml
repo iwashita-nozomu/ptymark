@@ -162,7 +162,7 @@ jobs:
           docker compose
           --env-file docker/ptymark-versions.env
           --file docker/ptymark-compose.yaml
-          run --rm --no-TTY dev bash tests/install_smoke.sh target/debug/ptymark
+          run --rm --no-TTY dev bash tests/install_smoke.sh
 
       - name: Check selected renderer engines
         run: >-
