@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Normalizes and validates the final installer implementation once with the pinned Rust toolchain.
+# responsibility Normalizes and validates the final installer implementation once with the pinned Rust toolchain and preserves diagnostics.
 # upstream implementation ../../src/install.rs owns installation-time engine resolution.
 # upstream test ../../tests/install_contract.rs and ../../tests/install_cli_contract.rs own installer contracts.
 # downstream workflow ./ptymark-ci.yml remains the repeatable validation path.
@@ -41,20 +41,57 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Normalize and validate installer
+      - name: Capture normalization and validation
+        shell: bash
         run: |
-          cargo fmt --all
-          cargo clippy --fix --locked --all-targets --allow-dirty --allow-staged -- -D warnings
-          cargo fmt --all
-          cargo fmt --all -- --check
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked --all-targets
+          set +e
+          cargo fmt --all >fmt.log 2>&1
+          fmt_status=$?
+          cargo clippy --fix --locked --all-targets --allow-dirty --allow-staged -- -D warnings >clippy-fix.log 2>&1
+          clippy_fix_status=$?
+          cargo fmt --all >>fmt.log 2>&1
+          cargo fmt --all -- --check >fmt-check.log 2>&1
+          fmt_check_status=$?
+          cargo clippy --locked --all-targets -- -D warnings >clippy.log 2>&1
+          clippy_status=$?
+          cargo test --locked --all-targets >test.log 2>&1
+          test_status=$?
+          git diff -- '*.rs' >rust.diff
+          printf 'fmt=%s\nclippy_fix=%s\nfmt_check=%s\nclippy=%s\ntest=%s\n' \
+            "$fmt_status" "$clippy_fix_status" "$fmt_check_status" "$clippy_status" "$test_status" \
+            >installer-normalize.status
+          cat installer-normalize.status
+          cat clippy-fix.log
+          cat clippy.log
+          cat test.log
+          exit 0
 
-      - name: Commit normalized Rust sources
+      - name: Upload installer diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-installer-normalize-diagnostics
+          path: |
+            installer-normalize.status
+            fmt.log
+            fmt-check.log
+            clippy-fix.log
+            clippy.log
+            test.log
+            rust.diff
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Commit passing normalized Rust sources
         env:
           PUSH_TOKEN: ${{ github.token }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
+          grep -Fx 'fmt=0' installer-normalize.status
+          grep -Fx 'clippy_fix=0' installer-normalize.status
+          grep -Fx 'fmt_check=0' installer-normalize.status
+          grep -Fx 'clippy=0' installer-normalize.status
+          grep -Fx 'test=0' installer-normalize.status
           if git diff --quiet -- '*.rs'; then
             echo "No Rust source changes were required"
             exit 0
