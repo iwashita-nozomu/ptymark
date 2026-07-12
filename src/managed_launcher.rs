@@ -154,10 +154,10 @@ fn run_managed_role(role: ManagedRole, executable: &Path) -> Result<i32, String>
 
     let mut command = Command::new(&manifest.node_path);
     command.arg(&script);
-    if role == ManagedRole::Mermaid {
-        if let Some(config) = manifest.puppeteer_config_path.as_deref() {
-            command.arg("--puppeteerConfigFile").arg(config);
-        }
+    if role == ManagedRole::Mermaid
+        && let Some(config) = manifest.puppeteer_config_path.as_deref()
+    {
+        command.arg("--puppeteerConfigFile").arg(config);
     }
     command
         .args(env::args_os().skip(1))
