@@ -64,9 +64,7 @@ impl ConfiguredRenderer {
         let mermaid = match config.mermaid.backend {
             MermaidEngine::Preview => EngineChoice::Preview,
             MermaidEngine::Source => EngineChoice::Source,
-            MermaidEngine::MermaidCli => {
-                EngineChoice::MermaidCli(config.mermaid.path.clone())
-            }
+            MermaidEngine::MermaidCli => EngineChoice::MermaidCli(config.mermaid.path.clone()),
         };
         let math = match config.math.backend {
             MathEngine::Preview => EngineChoice::Preview,
@@ -273,11 +271,7 @@ fn render_math_svg(program: &Path, body: &[u8]) -> Result<Vec<u8>, RenderError> 
     Ok(svg)
 }
 
-fn present_svg(
-    program: &Path,
-    svg: &[u8],
-    context: RenderContext,
-) -> Result<Vec<u8>, RenderError> {
+fn present_svg(program: &Path, svg: &[u8], context: RenderContext) -> Result<Vec<u8>, RenderError> {
     let scratch = ScratchDir::create()?;
     let input_path = scratch.path().join("artifact.svg");
     fs::write(&input_path, svg).map_err(|error| {
@@ -307,7 +301,9 @@ fn present_svg(
     ];
     let bytes = run_process(program, &arguments, None, MAX_DISPLAY_BYTES)?;
     if bytes.is_empty() {
-        return Err(RenderError::new("Chafa presenter produced no display bytes"));
+        return Err(RenderError::new(
+            "Chafa presenter produced no display bytes",
+        ));
     }
     Ok(bytes)
 }

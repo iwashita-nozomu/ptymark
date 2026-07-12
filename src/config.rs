@@ -142,20 +142,11 @@ impl Default for CacheConfig {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[derive(Default)]
 pub struct EnginesConfig {
     pub mermaid: MermaidEngineConfig,
     pub math: MathEngineConfig,
     pub presenter: PresenterConfig,
-}
-
-impl Default for EnginesConfig {
-    fn default() -> Self {
-        Self {
-            mermaid: MermaidEngineConfig::default(),
-            math: MathEngineConfig::default(),
-            presenter: PresenterConfig::default(),
-        }
-    }
 }
 
 impl EnginesConfig {
@@ -336,6 +327,10 @@ mod tests {
         let mut config = Config::default();
         config.engines.mermaid.path = PathBuf::from("tools/mmdc");
         let error = config.validate().expect_err("relative path must fail");
-        assert!(error.to_string().contains("absolute path or a bare executable name"));
+        assert!(
+            error
+                .to_string()
+                .contains("absolute path or a bare executable name")
+        );
     }
 }

@@ -15,9 +15,7 @@ pub use config::{
     RenderingConfig,
 };
 pub use detector::{FencedDetector, PassthroughDetector, SemanticDetector};
-pub use engine::{
-    ConfiguredRenderer, EngineCheck, check_configured_engines, resolve_executable,
-};
+pub use engine::{ConfiguredRenderer, EngineCheck, check_configured_engines, resolve_executable};
 pub use model::{BlockKind, SemanticBlock, StreamItem};
 pub use pipeline::{DisplayPipeline, PipelineError, PipelineReport};
 pub use render::{
