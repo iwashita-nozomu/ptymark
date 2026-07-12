@@ -1,0 +1,45 @@
+name: ptymark Re-root Helper
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ptymark-reroot-helper.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptymark-reroot-helper
+  cancel-in-progress: false
+
+jobs:
+  reroot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-root reviewed product tree
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+          REVIEWED_COMMIT: 35e8bf7b0c49d626f0366397fef1a55fe95f80be
+        run: |
+          set -euo pipefail
+          git fetch origin "$REVIEWED_COMMIT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          desired_tree="$(git rev-parse "${REVIEWED_COMMIT}^{tree}")"
+          main_commit="$(git rev-parse HEAD)"
+          new_commit="$(printf '%s\n' 'Replace merged bootstrap with reviewed portable pre-display core' | git commit-tree "$desired_tree" -p "$main_commit")"
+
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin "${new_commit}:refs/heads/agent/portable-pre-display-core-pr"
+          printf 'main=%s\nreviewed=%s\nnew=%s\n' "$main_commit" "$REVIEWED_COMMIT" "$new_commit"
