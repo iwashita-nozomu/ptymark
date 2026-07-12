@@ -1,7 +1,45 @@
+use crate::model::BlockKind;
 use std::collections::{HashMap, VecDeque};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct CacheKey(pub u64);
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct CacheKey {
+    renderer_id: String,
+    kind: BlockKind,
+    source: Vec<u8>,
+    columns: u16,
+    color: bool,
+    theme_fingerprint: u64,
+}
+
+impl CacheKey {
+    pub fn new(
+        renderer_id: impl Into<String>,
+        kind: BlockKind,
+        source: &[u8],
+        columns: u16,
+        color: bool,
+        theme_fingerprint: u64,
+    ) -> Self {
+        Self {
+            renderer_id: renderer_id.into(),
+            kind,
+            source: source.to_vec(),
+            columns,
+            color,
+            theme_fingerprint,
+        }
+    }
+
+    fn weight(&self) -> usize {
+        self.renderer_id
+            .len()
+            .saturating_add(self.source.len())
+            .saturating_add(std::mem::size_of::<BlockKind>())
+            .saturating_add(std::mem::size_of::<u16>())
+            .saturating_add(std::mem::size_of::<bool>())
+            .saturating_add(std::mem::size_of::<u64>())
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CacheStats {
@@ -14,7 +52,7 @@ pub struct CacheStats {
 }
 
 pub trait ArtifactCache: Send {
-    fn get(&mut self, key: CacheKey) -> Option<Vec<u8>>;
+    fn get(&mut self, key: &CacheKey) -> Option<Vec<u8>>;
     fn put(&mut self, key: CacheKey, bytes: Vec<u8>) -> bool;
     fn clear(&mut self);
     fn stats(&self) -> CacheStats;
@@ -26,7 +64,7 @@ pub struct NoopCache {
 }
 
 impl ArtifactCache for NoopCache {
-    fn get(&mut self, _key: CacheKey) -> Option<Vec<u8>> {
+    fn get(&mut self, _key: &CacheKey) -> Option<Vec<u8>> {
         self.stats.misses = self.stats.misses.saturating_add(1);
         None
     }
@@ -43,10 +81,16 @@ impl ArtifactCache for NoopCache {
 }
 
 #[derive(Debug)]
+struct CacheEntry {
+    bytes: Vec<u8>,
+    weight: usize,
+}
+
+#[derive(Debug)]
 pub struct MemoryCache {
     max_entries: usize,
     max_bytes: usize,
-    entries: HashMap<CacheKey, Vec<u8>>,
+    entries: HashMap<CacheKey, CacheEntry>,
     order: VecDeque<CacheKey>,
     bytes: usize,
     stats: CacheStats,
@@ -64,18 +108,18 @@ impl MemoryCache {
         }
     }
 
-    fn touch(&mut self, key: CacheKey) {
-        if let Some(index) = self.order.iter().position(|candidate| *candidate == key) {
+    fn touch(&mut self, key: &CacheKey) {
+        if let Some(index) = self.order.iter().position(|candidate| candidate == key) {
             self.order.remove(index);
         }
-        self.order.push_back(key);
+        self.order.push_back(key.clone());
     }
 
     fn evict_oldest(&mut self) {
         if let Some(key) = self.order.pop_front()
-            && let Some(bytes) = self.entries.remove(&key)
+            && let Some(entry) = self.entries.remove(&key)
         {
-            self.bytes = self.bytes.saturating_sub(bytes.len());
+            self.bytes = self.bytes.saturating_sub(entry.weight);
             self.stats.evictions = self.stats.evictions.saturating_add(1);
         }
     }
@@ -87,8 +131,8 @@ impl MemoryCache {
 }
 
 impl ArtifactCache for MemoryCache {
-    fn get(&mut self, key: CacheKey) -> Option<Vec<u8>> {
-        let value = self.entries.get(&key).cloned();
+    fn get(&mut self, key: &CacheKey) -> Option<Vec<u8>> {
+        let value = self.entries.get(key).map(|entry| entry.bytes.clone());
         if value.is_some() {
             self.stats.hits = self.stats.hits.saturating_add(1);
             self.touch(key);
@@ -100,20 +144,21 @@ impl ArtifactCache for MemoryCache {
     }
 
     fn put(&mut self, key: CacheKey, bytes: Vec<u8>) -> bool {
-        if self.max_entries == 0 || self.max_bytes == 0 || bytes.len() > self.max_bytes {
+        let weight = key.weight().saturating_add(bytes.len());
+        if self.max_entries == 0 || self.max_bytes == 0 || weight > self.max_bytes {
             return false;
         }
 
         if let Some(previous) = self.entries.remove(&key) {
-            self.bytes = self.bytes.saturating_sub(previous.len());
-            if let Some(index) = self.order.iter().position(|candidate| *candidate == key) {
+            self.bytes = self.bytes.saturating_sub(previous.weight);
+            if let Some(index) = self.order.iter().position(|candidate| candidate == &key) {
                 self.order.remove(index);
             }
         }
 
-        self.bytes = self.bytes.saturating_add(bytes.len());
-        self.entries.insert(key, bytes);
-        self.order.push_back(key);
+        self.bytes = self.bytes.saturating_add(weight);
+        self.entries.insert(key.clone(), CacheEntry { bytes, weight });
+        self.order.push_back(key.clone());
         self.stats.insertions = self.stats.insertions.saturating_add(1);
 
         while self.entries.len() > self.max_entries || self.bytes > self.max_bytes {
@@ -138,30 +183,46 @@ impl ArtifactCache for MemoryCache {
 #[cfg(test)]
 mod tests {
     use super::{ArtifactCache, CacheKey, MemoryCache, NoopCache};
+    use crate::model::BlockKind;
 
-    #[test]
-    fn memory_cache_is_lru_and_bounded() {
-        let mut cache = MemoryCache::new(2, 8);
-        assert!(cache.put(CacheKey(1), b"one".to_vec()));
-        assert!(cache.put(CacheKey(2), b"two".to_vec()));
-        assert_eq!(cache.get(CacheKey(1)), Some(b"one".to_vec()));
-        assert!(cache.put(CacheKey(3), b"tri".to_vec()));
-        assert_eq!(cache.get(CacheKey(2)), None);
-        assert_eq!(cache.get(CacheKey(1)), Some(b"one".to_vec()));
-        assert_eq!(cache.get(CacheKey(3)), Some(b"tri".to_vec()));
+    fn key(number: u8) -> CacheKey {
+        CacheKey::new(
+            "test/renderer-v1",
+            BlockKind::Math,
+            &[number],
+            80,
+            false,
+            0,
+        )
     }
 
     #[test]
-    fn oversized_entries_are_rejected() {
-        let mut cache = MemoryCache::new(2, 3);
-        assert!(!cache.put(CacheKey(1), b"four".to_vec()));
+    fn memory_cache_is_lru_and_bounded() {
+        let mut cache = MemoryCache::new(2, 256);
+        let first = key(1);
+        let second = key(2);
+        let third = key(3);
+        assert!(cache.put(first.clone(), b"one".to_vec()));
+        assert!(cache.put(second.clone(), b"two".to_vec()));
+        assert_eq!(cache.get(&first), Some(b"one".to_vec()));
+        assert!(cache.put(third.clone(), b"tri".to_vec()));
+        assert_eq!(cache.get(&second), None);
+        assert_eq!(cache.get(&first), Some(b"one".to_vec()));
+        assert_eq!(cache.get(&third), Some(b"tri".to_vec()));
+    }
+
+    #[test]
+    fn key_material_counts_toward_the_byte_limit() {
+        let mut cache = MemoryCache::new(2, 8);
+        assert!(!cache.put(key(1), b"x".to_vec()));
         assert_eq!(cache.stats().entries, 0);
     }
 
     #[test]
     fn noop_cache_never_stores() {
         let mut cache = NoopCache::default();
-        assert!(!cache.put(CacheKey(1), b"value".to_vec()));
-        assert_eq!(cache.get(CacheKey(1)), None);
+        let key = key(1);
+        assert!(!cache.put(key.clone(), b"value".to_vec()));
+        assert_eq!(cache.get(&key), None);
     }
 }
