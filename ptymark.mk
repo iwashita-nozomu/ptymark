@@ -15,8 +15,8 @@ ptymark-check-local:
 	cargo test --locked --all-targets
 	cargo build --locked
 	lua5.4 tests/plugin_smoke.lua
-	bash -n scripts/check-ptymark-renderers.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
-	shellcheck scripts/check-ptymark-renderers.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+	bash -n scripts/check-ptymark-renderers.sh scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+	shellcheck scripts/check-ptymark-renderers.sh scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
 	node --check renderers/managed/mathjax-cli.mjs
 	node --check renderers/managed/ansi-presenter.mjs
 	bash tests/install_smoke.sh
