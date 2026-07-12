@@ -13,6 +13,7 @@ upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resol
 upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
 downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
 downstream design ./ptymark-installer.md installation-time engine resolution and replacement contract
+downstream compatibility ./shell-plugin-compatibility.md shell and rich-plugin coexistence matrix
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
 -->
@@ -39,9 +40,14 @@ seed this file, but derived repositories own their local index.
 - [ptymark Design](./ptymark-design.md): current pre-display architecture,
   terminal-safety invariants, render decision policy, typed engine handoff,
   installed-engine contracts, cache identity, extension rules, and test strategy.
-- [ptymark Installer Design](./ptymark-installer.md): core installation,
-  installation-time engine resolution, absolute-path snapshots, idempotent
-  replacement, failure policy, and the resolver extension boundary.
+- [ptymark Installer Design](./ptymark-installer.md): source and packaged core
+  installation, OS/shell frontends, installation-time engine resolution,
+  absolute-path snapshots, managed renderer isolation, idempotent replacement,
+  failure policy, and resolver extension boundary.
+- [Shell And Rich-Plugin Compatibility](./shell-plugin-compatibility.md): behavior
+  profiles, verification levels, unchanged-profile and environment contracts,
+  and twenty reviewed integrations each for Bash, Zsh, Fish, PowerShell, and
+  Nushell.
 
 ## Ownership Matrix
 
@@ -73,8 +79,6 @@ file is a template-owned active contract, edit the root regular file.
   / config schema / hooks / MCP / skills / subagents reference.
 - [AgentCanon GitHub Remote](../vendor/agent-canon/documents/agent-canon-github-remote.md): GitHub canonical
   remote and submodule update workflow.
-  repository instructions, path-specific instructions, custom agents, MCP, setup
-  workflow, and PR template routing.
 
 ## Coding Policy References
 
