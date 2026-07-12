@@ -11,6 +11,7 @@ upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-c
 upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md runtime profile and validation routing policy
 upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md audit resolution ledger
 upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
+downstream design ./ptymark-design.md ptymark pre-display rendering contract
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
 -->
@@ -25,13 +26,18 @@ seed this file, but derived repositories own their local index.
 
 - This file owns the root `documents/` index and separates AgentCanon-owned
   shared policy sources from template-owned and project-owned regular files.
-- Use the ownership matrix first, then follow canon runtime references, coding
-  policy references, template-owned active contracts, and tooling/artifact
-  references.
+- Use the ownership matrix first, then follow project, canon runtime, coding
+  policy, template-owned active contract, and tooling/artifact references.
 - Read it when choosing whether to edit `vendor/agent-canon/documents/` or a root
   `documents/` regular file.
 - It is an index and ownership guide, not the source of the policies linked from
   the referenced documents.
+
+## Project-Owned Documents
+
+- [ptymark Design](./ptymark-design.md): current minimal architecture, safety
+  invariants, configuration boundary, rejected overdesign, extension rules, and
+  test strategy.
 
 ## Ownership Matrix
 
