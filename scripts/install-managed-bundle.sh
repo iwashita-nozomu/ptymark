@@ -7,6 +7,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 source "$repo_root/renderers/managed-bundle.env"
 
 managed_root=""
+launcher=""
 browser_path=""
 skip_browser_download=0
 offline=0
@@ -17,14 +18,16 @@ usage() {
 Usage: bash scripts/install-managed-bundle.sh [OPTIONS]
 
 Install the pinned Mermaid/MathJax/ANSI renderer bundle without modifying the
-user's PATH or global npm installation.
+user's PATH or global npm installation. The renderer commands are native copies
+of the ptymark binary, so user content is never forwarded through a shell.
 
 Options:
   --root DIR                install into DIR
+  --launcher PATH           native ptymark binary used for mmdc/tex2svg/chafa aliases
   --browser PATH            use an existing Chromium-compatible browser
   --skip-browser-download   require an existing browser; do not let Puppeteer download one
   --offline                 use an existing complete bundle; perform no downloads or npm install
-  --force                   reinstall the app bundle and wrappers
+  --force                   reinstall the app bundle and native aliases
   -h, --help                show this help
 EOF
 }
@@ -35,39 +38,20 @@ need_value() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --root)
-      need_value "$1" "${2:-}"
-      managed_root="$2"
-      shift 2
-      ;;
-    --browser)
-      need_value "$1" "${2:-}"
-      browser_path="$2"
-      shift 2
-      ;;
-    --skip-browser-download)
-      skip_browser_download=1
-      shift
-      ;;
-    --offline)
-      offline=1
-      shift
-      ;;
-    --force)
-      force=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      printf 'unknown managed-bundle option: %s\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
+    --root) need_value "$1" "${2:-}"; managed_root="$2"; shift 2 ;;
+    --launcher) need_value "$1" "${2:-}"; launcher="$2"; shift 2 ;;
+    --browser) need_value "$1" "${2:-}"; browser_path="$2"; shift 2 ;;
+    --skip-browser-download) skip_browser_download=1; shift ;;
+    --offline) offline=1; shift ;;
+    --force) force=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'unknown managed-bundle option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+[[ -n "$launcher" ]] || { echo '--launcher is required' >&2; exit 2; }
+[[ -x "$launcher" ]] || { printf 'launcher is not executable: %s\n' "$launcher" >&2; exit 1; }
+launcher="$(cd "$(dirname "$launcher")" && pwd -P)/$(basename "$launcher")"
 
 host_os="$(uname -s)"
 case "$host_os" in
@@ -99,6 +83,7 @@ app_root="$managed_root/app"
 bin_root="$managed_root/bin"
 cache_root="$managed_root/cache/puppeteer"
 stamp_path="$managed_root/bundle.stamp"
+manifest_path="$managed_root/bundle.toml"
 mkdir -p "$bin_root" "$cache_root"
 
 sha256_file() {
@@ -151,6 +136,7 @@ else
   node_cmd="$runtime_root/bin/node"
   npm_cmd="$runtime_root/bin/npm"
 fi
+node_cmd="$(cd "$(dirname "$node_cmd")" && pwd -P)/$(basename "$node_cmd")"
 
 if [[ -n "$browser_path" ]]; then
   browser_path="$(cd "$(dirname "$browser_path")" && pwd -P)/$(basename "$browser_path")"
@@ -177,8 +163,10 @@ elif [[ "$skip_browser_download" -eq 1 ]]; then
 fi
 
 lock_sha="$(sha256_file "$repo_root/renderers/package-lock.json")"
+launcher_sha="$(sha256_file "$launcher")"
 expected_stamp="bundle=$bundle_id
 lock_sha=$lock_sha
+launcher_sha=$launcher_sha
 node=$node_cmd
 browser=${browser_path:-puppeteer-managed}"
 installed=0
@@ -207,28 +195,26 @@ if [[ "$installed" -eq 0 ]]; then
   printf '%s' "$expected_stamp" >"$stamp_path"
 fi
 
-quote_sh() {
-  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\''/g")"
-}
+install -m 755 "$launcher" "$bin_root/mmdc"
+install -m 755 "$launcher" "$bin_root/tex2svg"
+install -m 755 "$launcher" "$bin_root/chafa"
 
-write_wrapper() {
-  local destination="$1"
-  local script="$2"
-  {
-    echo '#!/usr/bin/env sh'
-    echo 'set -eu'
-    printf 'export PUPPETEER_CACHE_DIR='; quote_sh "$cache_root"; echo
-    if [[ -n "$browser_path" ]]; then
-      printf 'export PUPPETEER_EXECUTABLE_PATH='; quote_sh "$browser_path"; echo
-    fi
-    printf 'exec '; quote_sh "$node_cmd"; printf ' '; quote_sh "$script"; echo ' "$@"'
-  } >"$destination"
-  chmod 755 "$destination"
+toml_quote() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
 }
-
-write_wrapper "$bin_root/mmdc" "$app_root/node_modules/@mermaid-js/mermaid-cli/src/cli.js"
-write_wrapper "$bin_root/tex2svg" "$app_root/managed/mathjax-cli.mjs"
-write_wrapper "$bin_root/chafa" "$app_root/managed/ansi-presenter.mjs"
+{
+  echo 'schema_version = 1'
+  printf 'node_path = '; toml_quote "$node_cmd"; echo
+  printf 'app_root = '; toml_quote "$app_root"; echo
+  printf 'cache_root = '; toml_quote "$cache_root"; echo
+  if [[ -n "$browser_path" ]]; then
+    printf 'browser_path = '; toml_quote "$browser_path"; echo
+  fi
+  echo 'browser_no_sandbox = false'
+} >"$manifest_path"
 
 printf 'root\t%s\n' "$managed_root"
 printf 'node\t%s\n' "$node_cmd"
