@@ -113,7 +113,17 @@ function Get-ProfileSnapshot {
     }
 }
 
+$OriginalHome = $env:HOME
+$OriginalUserProfile = $env:USERPROFILE
+$OriginalAppData = $env:APPDATA
+$OriginalLocalAppData = $env:LOCALAPPDATA
 try {
+  $env:HOME = $HomeRoot
+  $env:USERPROFILE = $HomeRoot
+  $env:APPDATA = Join-Path $SmokeRoot 'appdata'
+  $env:LOCALAPPDATA = Join-Path $SmokeRoot 'localappdata'
+  New-Item -ItemType Directory -Force -Path $env:APPDATA, $env:LOCALAPPDATA | Out-Null
+
   $BeforeProfiles = @(Get-ProfileSnapshot)
   $Config = Join-Path $SmokeRoot 'config.toml'
   $State = Join-Path $SmokeRoot 'state.toml'
@@ -143,6 +153,10 @@ try {
   }
 }
 finally {
+  $env:HOME = $OriginalHome
+  $env:USERPROFILE = $OriginalUserProfile
+  $env:APPDATA = $OriginalAppData
+  $env:LOCALAPPDATA = $OriginalLocalAppData
   Remove-Item $SmokeRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
