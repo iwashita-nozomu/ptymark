@@ -18,126 +18,250 @@ child output bytes
     |
     v
 TerminalOutputGate
-    | SafeText                    | RawTerminalBytes
-    v                             +------------------------------+
-SemanticDetector                                                 |
-    | Passthrough / SemanticBlock                                |
-    v                                                            |
-DisplayPipeline                                                  |
-    | semantic block                                             |
-    v                                                            |
-RenderService                                                    |
-    +--> ArtifactCache                                           |
-    +--> selected Renderer                                       |
-           |                                                     |
-           +-- built-in preview/source -> display bytes          |
-           |                                                     |
-           +-- installed layout engine -> SVG                    |
-                                           |                     |
-                                           v                     |
-                                      Chafa presenter             |
-                                           | terminal-safe bytes |
-                                           +---------> stdout <---+
+    | SafeText                         | RawTerminalBytes
+    v                                  +------------------------------+
+SemanticDetector                                                      |
+    | Passthrough / SemanticBlock                                     |
+    v                                                                 |
+DisplayPipeline                                                       |
+    | semantic block                                                  |
+    v                                                                 |
+RenderService <--------------------> ArtifactCache                     |
+    |                                                                 |
+    v                                                                 |
+RoutedRenderer                                                        |
+    |                                                                 |
+    +--> RenderDecider                                                |
+    |      DecisionRequest                                            |
+    |          -> RenderDecision                                      |
+    |                                                                 |
+    +--> EngineHandoff                                                |
+           EngineRequest                                              |
+               -> EngineResponse                                      |
+               -> RenderArtifact                                      |
+                         | terminal-safe bytes                         |
+                         +-------------------------------> stdout <----+
 ```
 
-The durable components are:
+The durable boundaries are:
 
-1. `TerminalOutputGate`;
-2. `SemanticDetector`;
-3. `DisplayPipeline`;
-4. `RenderService` plus `Renderer`;
-5. independent `ArtifactCache`;
-6. a concrete SVG presenter used only by external engines.
+1. `TerminalOutputGate` protects existing terminal behavior;
+2. `SemanticDetector` creates complete semantic blocks;
+3. `RenderDecider` selects a logical route without performing I/O;
+4. `EngineHandoff` owns transfer to a concrete renderer implementation;
+5. `ArtifactCache` is independent of decision and execution;
+6. `DisplayPipeline` commits rendered bytes or exact source once.
 
-There is no runtime registry or provider graph. Concrete components are directly constructed from the
-validated configuration.
+There is no general plugin registry or provider catalog. The first implementation uses concrete
+configured decision and handoff objects, while the public traits permit later substitution without
+changing the terminal pipeline.
 
-## 3. Invariants
+## 3. Terminal and stream invariants
 
-### 3.1 Terminal compatibility
+### 3.1 Byte-exact bypass
 
 Concatenating all `TerminalOutputGate` segments reproduces the input exactly.
 
-The safety gate marks a line as raw when it sees:
+The gate marks a line or sequence as raw when it sees:
 
-- ESC-based control sequences;
+- ESC-based terminal controls;
 - C0 controls other than newline and tab;
 - carriage return or backspace;
 - OSC, DCS, APC, PM, and related string controls;
 - alternate-screen entry until a safe line boundary after exit.
 
-Raw bytes never enter the semantic detector. An engine or presenter is never allowed to inspect input
-bytes, signal state, termios, resize events, or existing terminal-control output.
+Raw bytes never enter the semantic detector, decision stage, handoff stage, or cache.
 
-### 3.2 Detection
+### 3.2 Explicit detection only
 
-The built-in detector recognizes only line-bounded explicit forms:
+The built-in detector recognizes only line-bounded forms:
 
 - ` ```mermaid ... ``` `;
 - `$$ ... $$`;
 - ` ```math|latex|tex ... ``` `.
 
-A candidate remains buffered only while it can still be an opening fence. Ordinary lines are
-released as soon as the prefix is no longer a valid opener.
+A candidate remains buffered only while it can still be an opener or a complete block. Incomplete,
+unsafe, non-UTF-8, or oversized input is emitted as exact source. Detection is independent of chunk
+boundaries.
 
-An incomplete, unsafe, non-UTF-8, or oversized block is emitted as its exact source. Detection is
-independent of input chunk boundaries.
+### 3.3 Single commit
 
-### 3.3 Rendering and commit
+For every complete block, the pipeline commits exactly one of:
 
-A renderer receives:
-
-```text
-SemanticBlock
-  kind
-  exact source bytes
-  body bytes
-
-RenderContext
-  terminal columns
-  color permission
-  theme fingerprint
-```
-
-A renderer returns a `RenderArtifact` containing display bytes or an error. It does not write stdout
-directly.
-
-The pipeline commits exactly one of:
-
-- cached display bytes;
-- newly rendered display bytes;
-- original source after a non-strict error;
+- cached final display bytes;
+- newly rendered final display bytes;
+- exact source after a non-strict failure;
 - an error before replacement bytes in strict mode.
 
-An external layout engine does not produce final terminal bytes. It produces SVG, which is validated
-and then handed to a presenter. This prevents Mermaid, MathJax, browser code, or another layout engine
-from owning terminal escape sequences.
+Neither a decider nor an engine handoff writes directly to terminal stdout.
 
-### 3.4 Cache
+## 4. Decision contract
 
-`ArtifactCache` is an independent object with `get`, `put`, `clear`, and `stats`.
+### 4.1 Request
 
-The key includes complete values, not only a hash:
+`DecisionRequest` contains only data that is safe and relevant to rendering policy:
 
-- selected renderer identity, including configured executable paths;
+```text
+DecisionRequest
+  SemanticBlock
+    kind
+    exact source bytes
+    semantic body bytes
+  RenderContext
+    terminal columns
+    color permission
+    theme fingerprint
+```
+
+It intentionally excludes:
+
+- raw terminal control sequences;
+- keyboard input;
+- PTY descriptors;
+- signal state;
+- child environment and process control;
+- mutable configuration files.
+
+### 4.2 Result
+
+`RenderDecision` currently selects one `RenderRoute`:
+
+```text
+Preview
+Source
+ConfiguredEngine
+```
+
+The route is logical. It does not contain shell text, arbitrary argv, executable discovery results,
+or terminal bytes.
+
+### 4.3 Policy behavior
+
+`RenderDecider` implementations must be deterministic and side-effect free. The configured policy
+currently maps each semantic kind to the corresponding configured backend:
+
+```text
+Mermaid + preview       -> Preview
+Mermaid + source        -> Source
+Mermaid + mermaid-cli   -> ConfiguredEngine
+Math + preview          -> Preview
+Math + source           -> Source
+Math + mathjax-cli      -> ConfiguredEngine
+```
+
+A future policy may consider additional explicit request fields, such as terminal capabilities,
+block metadata, size thresholds, or user-selected quality mode. When a new field can change output,
+it must also participate in renderer identity or cache identity.
+
+Environment-dependent automatic selection is not added implicitly. A new heuristic requires:
+
+1. a user-visible reason;
+2. deterministic precedence;
+3. diagnostics explaining the selected route;
+4. cache-key review;
+5. fallback tests.
+
+## 5. Engine handoff contract
+
+### 5.1 Typed request
+
+After a decision is made, `RoutedRenderer` creates an `EngineRequest`:
+
+```text
+EngineRequest
+  RenderDecision
+  SemanticBlock
+    exact source
+    body
+    semantic kind
+  RenderContext
+```
+
+The exact source and body remain separate. An adapter does not need to reparse terminal output, and
+source fallback can remain lossless.
+
+### 5.2 Typed response
+
+`EngineHandoff` returns an `EngineResponse`:
+
+```text
+EngineResponse
+  engine_id
+  RenderArtifact
+    final display bytes
+    cacheability
+```
+
+`engine_id` provides a stable attribution point for future diagnostics, timing, and failure reports.
+The first `RenderService` consumes the final artifact; it does not yet expose per-engine metrics.
+
+### 5.3 Current handoff
+
+`ConfiguredHandoff` owns three concrete destinations:
+
+```text
+Preview route
+  -> builtin/preview-v1
+
+Source route
+  -> builtin/source-v1
+
+ConfiguredEngine route
+  -> ConfiguredRenderer
+       Mermaid CLI or MathJax-compatible layout
+       -> validated SVG
+       -> Chafa symbols presenter
+       -> terminal-safe bytes
+```
+
+This keeps existing installed-engine behavior while removing backend selection from the terminal
+pipeline.
+
+### 5.4 Future handoff implementations
+
+A later implementation can replace `EngineHandoff` without modifying `DisplayPipeline`,
+`TerminalOutputGate`, `SemanticDetector`, or `ArtifactCache`. Examples include:
+
+- a persistent Mermaid or MathJax worker;
+- an in-process engine;
+- a typed SVG artifact pipeline with a capability-aware presenter;
+- a bounded remote renderer with an explicit trust policy;
+- a test handoff that records requests without running a process.
+
+A new handoff must still return final display bytes or a failure. It may not emit partial bytes to
+stdout.
+
+## 6. Renderer identity and cache
+
+`RoutedRenderer` derives its identity from both components:
+
+```text
+render decision ID
+engine handoff ID
+```
+
+The configured decision ID includes selected logical backends. The configured handoff ID includes
+installed-engine and presenter paths through the underlying configured renderer identity.
+
+The cache key stores complete values, not only a hash:
+
+- routed renderer identity;
 - semantic kind;
 - exact source bytes;
 - terminal columns;
 - color permission;
 - theme fingerprint.
 
-The initial cache is process-local and bounded by both entry count and total key-plus-value byte
-weight. A no-op implementation provides private or deterministic behavior without changing renderer
-selection.
-
-Only successful final display bytes are cached. Engine failures, malformed SVG, presenter failures,
+The initial cache is process-local and bounded by entry count and total key-plus-value bytes. A
+no-op implementation provides deterministic or private behavior. Failed decisions, failed handoffs,
 source fallback, and strict errors are not cached.
 
-Persistent cache, TTL, multi-tier storage, and serialization are excluded from the first merge.
+Persistent cache, TTL, serialization, and tiering remain out of scope until measured on the real PTY
+path.
 
-## 4. Configuration
+## 7. Configuration
 
-The schema controls only implemented behavior:
+The schema controls implemented behavior only:
 
 ```toml
 schema_version = 1
@@ -174,45 +298,18 @@ The schema deliberately excludes:
 - profile inheritance;
 - automatic project configuration;
 - arbitrary command strings and argv templates;
-- user-defined semantic kinds;
-- terminal capability forcing;
+- user-defined semantic kinds from untrusted files;
 - persistent cache paths;
-- scheduler and cancellation settings;
+- scheduling and cancellation settings;
 - hot reload.
 
-A later change adds a field only together with runtime behavior and acceptance tests that use it.
+A later field is added only with implemented behavior and acceptance tests.
 
-## 5. Rendering-engine design
+## 8. Installed engine protocols
 
-### 5.1 Concrete slots, not a registry
+### 8.1 Mermaid CLI
 
-There are two semantic engine slots:
-
-```text
-Mermaid slot
-  preview
-  source
-  mermaid-cli
-
-Math slot
-  preview
-  source
-  mathjax-cli
-```
-
-The slots are part of the product contract because their protocols are known. The implementation does
-not accept an arbitrary executable plus arbitrary arguments. This avoids recreating a plugin system,
-shell language, trust store, engine-ranking policy, or general protocol negotiation before any of
-those are needed.
-
-The built-in choices have no external dependencies:
-
-- `preview`: terminal-safe textual representation;
-- `source`: exact original fenced source.
-
-### 5.2 Mermaid CLI adapter
-
-The `mermaid-cli` backend expects the `mmdc` interface:
+The `mermaid-cli` adapter expects:
 
 ```text
 stdin                  Mermaid body
@@ -220,119 +317,72 @@ argv                   --input - --output TEMP.svg
 temporary output file  SVG artifact
 ```
 
-The adapter:
+The adapter verifies UTF-8, uses a unique temporary directory, invokes `mmdc` without a shell,
+bounds execution and output, validates SVG, removes temporary files, and passes the artifact to the
+presenter.
 
-1. verifies UTF-8 input;
-2. creates a private unique temporary directory;
-3. invokes `mmdc` directly without a shell;
-4. waits with a fixed timeout;
-5. bounds stdout and stderr;
-6. reads the SVG with an artifact size limit;
-7. verifies that the artifact contains an SVG element;
-8. removes the temporary directory;
-9. passes the SVG to the presenter.
+### 8.2 MathJax-compatible CLI
 
-Browser lifecycle and Mermaid layout remain owned by Mermaid CLI.
-
-### 5.3 MathJax CLI-compatible adapter
-
-The `mathjax-cli` backend expects a narrow `tex2svg` interface:
+The `mathjax-cli` adapter expects:
 
 ```text
 argv[1]  one TeX expression
 stdout   SVG artifact
 ```
 
-The known compatibility implementation is the `tex2svg` command from `mathjax-node-cli`. A wrapper
-around a newer MathJax installation may be selected when it implements the same contract.
+The known compatibility implementation is `tex2svg` from `mathjax-node-cli`. A wrapper around a
+newer MathJax release may be selected when it follows the same narrow contract. The initial adapter
+limits the expression to 32 KiB because it is passed as one argument.
 
-The first adapter limits the expression to 32 KiB because it is passed as one argument. A stdin or
-persistent-worker protocol is not added until real runtime measurements justify it.
+### 8.3 Chafa presenter
 
-### 5.4 SVG presenter
-
-External engines return SVG. The first presenter is Chafa with fixed arguments equivalent to:
+External engines produce SVG, not terminal display bytes. Chafa is invoked with a fixed safe profile:
 
 ```text
-chafa
-  --format symbols
-  --probe off
-  --polite on
-  --relative off
-  --animate off
-  --colors full|none
-  --size COLUMNSx
-  ARTIFACT.svg
+--format symbols
+--probe off
+--polite on
+--relative off
+--animate off
+--colors full|none
+--size COLUMNSx
 ```
 
-Design reasons:
+This avoids capability-blind pixel protocols and cursor-relative image placement. A future pixel
+presenter belongs in a new handoff or presenter implementation; it must not change engine syntax.
 
-- `symbols` is broadly compatible ANSI/Unicode output;
-- terminal probing is disabled inside the pre-display path;
-- relative cursor manipulation is disabled;
-- animation is disabled;
-- width comes from `RenderContext`;
-- engines never emit Kitty, iTerm2, Sixel, or WezTerm-specific escapes.
+### 8.4 Executable resolution and installation
 
-A future pixel presenter must be a separate implementation with capability detection, multiplexer
-passthrough, placement, deletion, resize, and fallback tests. It must not change an engine adapter.
-
-### 5.5 Path resolution
-
-Each executable path is either:
+Each executable is either:
 
 1. an absolute path, used exactly; or
-2. a bare executable name, resolved through the process `PATH`.
+2. a bare name resolved through the `ptymark` process `PATH`.
 
-Relative paths containing directory components are rejected because their meaning would depend on the
-child command's working directory.
+Relative paths with directories are rejected. There is no implicit `npx`, package-manager command,
+project-local search, or automatic install.
 
-Examples:
-
-```toml
-path = "mmdc"
-path = "/opt/homebrew/bin/mmdc"
-```
-
-Resolution is intentionally conventional. There is no application-specific search directory,
-project-local executable discovery, implicit `npx`, package-manager invocation, or auto-install.
-
-GUI terminal applications may have a different `PATH` from an interactive shell. The installation
-document therefore recommends absolute paths for WezTerm sessions.
-
-### 5.6 Installation ownership
-
-The native `ptymark` installation and optional engine installation are separate:
+Installation ownership remains explicit:
 
 ```text
-ptymark binary       user installs with Cargo or a future release package
-mmdc                 user installs and updates through npm or another supported Mermaid route
-tex2svg              user installs or supplies as a compatible wrapper
-chafa                user installs and updates through the OS package manager
+ptymark binary  Cargo or future release package
+mmdc            user-managed Mermaid CLI installation
+tex2svg         user-managed compatible MathJax CLI or wrapper
+chafa           user-managed OS package
 ```
 
-`ptymark` does not install, update, download, or remove external engines during rendering. It also
-does not download Chromium or fonts.
+`ptymark config check` validates schema and path form. `ptymark engine check` resolves only selected
+external tools.
 
-This keeps licensing, security updates, browser policy, package-manager ownership, and offline use
-visible to the user.
+## 9. Process and failure policy
 
-### 5.7 Verification flow
+External processes are invoked directly with fixed argv. No shell is used.
 
-Two checks have distinct purposes:
+Initial limits:
 
-```text
-ptymark config check
-  syntax, schema, value limits, path form
-
-ptymark engine check
-  selected backend inventory, PATH resolution, executable-bit verification
-```
-
-`engine check` resolves only selected external engines. A configured but unselected default path does
-not become a runtime dependency.
-
-### 5.8 Failure policy
+- 5-second wall-clock timeout per process;
+- 8 MiB layout artifact;
+- 8 MiB final display output;
+- 64 KiB diagnostic output.
 
 Missing executables, non-zero exits, timeout, oversized output, malformed SVG, and presenter failure
 are renderer errors.
@@ -340,147 +390,90 @@ are renderer errors.
 - normal mode restores exact source;
 - strict mode returns the error before replacement bytes;
 - failed results are not cached;
-- the child-output stream remains ordered.
+- stream order is preserved.
 
-Fixed initial bounds:
+## 10. Extension rules
 
-- 5-second wall-clock timeout per external process;
-- 8 MiB layout artifact;
-- 8 MiB final display bytes;
-- 64 KiB diagnostic output.
+### 10.1 Extend decision behavior
 
-## 6. WezTerm integration
+Implement a new `RenderDecider` when selection policy changes but engine protocols do not. Required
+evidence:
 
-The WezTerm plugin is a launcher, not a renderer. It appends a launch-menu item and key binding that
-start the native binary.
+- the new input field or rule;
+- deterministic route selection tests;
+- cache identity review;
+- a documented fallback;
+- no access to raw terminal or PTY control state.
 
-```text
-WezTerm Lua
-  choose binary, config path, shell, cwd, key
+### 10.2 Extend engine handoff
 
-TOML
-  choose renderer backends and executable paths
+Implement a new `EngineHandoff` when invocation, worker lifetime, artifact transport, or presentation
+changes. Required evidence:
 
-Rust binary
-  validate config, own stream processing, execute known adapters
-```
+- a stable handoff ID;
+- a fixed request/response protocol;
+- bounded resource use;
+- installation and version ownership;
+- protocol-faithful fake tests;
+- at least one real integration smoke test;
+- exact-source fallback.
 
-Lua does not duplicate the engine schema. Engine paths stay in the same TOML used by CLI preview and
-the future PTY host.
+### 10.3 Add a route
 
-Absolute binary and engine paths are recommended where the GUI process does not inherit the shell
-`PATH`.
+Add a new `RenderRoute` only when neither existing route can express the behavior. A new route must
+arrive with both a decider case and a handoff implementation. Unimplemented route names are not
+reserved in configuration.
 
-## 7. Rejected overdesign
+### 10.4 Avoid premature registries
 
-### Provider and runtime catalogs
+The trait boundary supports embedding and testing without requiring a dynamic registry. A registry
+becomes justified only when there are multiple independently installed implementations that users
+must enumerate or select at runtime. Until then, direct construction remains simpler and safer.
 
-A provider graph for detector, engine, cache, and presenter construction added indirection without a
-second embedding application. Direct construction remains sufficient.
-
-### General engine registry and arbitrary process definitions
-
-Concrete Mermaid and math adapters are justified by real installation and protocol contracts. A
-general registry, candidate ranking, arbitrary command string, arbitrary argv template, and doctor
-framework are still excluded.
-
-### Profile inheritance and project trust
-
-Single-file explicit configuration covers current behavior. Automatic project configuration would
-create an executable trust boundary now that paths can select installed programs. Project-local
-configuration therefore remains explicit through `--config`.
-
-### Persistent cache and cache schema
-
-Only in-memory reuse exists. Disk formats, migration, privacy metadata, and tiered storage remain
-speculative.
-
-### Scheduler, cancellation, and backpressure configuration
-
-Rendering is synchronous in the preview path. Scheduling policy belongs with the asynchronous PTY
-runtime and cannot be validated before that runtime exists.
-
-### Pixel image protocol before a presenter contract
-
-Raw SVG is not terminal output. Direct Kitty, iTerm2, Sixel, or WezTerm image placement is deferred
-until one protocol is capability-checked end to end. Chafa symbols provide a safe first presenter.
-
-### Performance gate before the production PTY path
-
-Renderer benchmarks become meaningful after external adapters are on the interactive PTY path.
-Correctness, process bounds, and real Docker smoke tests are the current merge gates.
-
-### Release automation before releasable behavior
-
-A release workflow is deferred until command mode hosts a PTY and runtime dependency expectations are
-stable.
-
-## 8. Extension rules
-
-A new backend or component is justified only when all of the following exist:
-
-1. a user-visible use case;
-2. a concrete installation route;
-3. a fixed input/output protocol;
-4. a test using either the real engine or a protocol-faithful fake;
-5. a failure fallback;
-6. dependency, license, and security ownership;
-7. cache identity inputs;
-8. documentation of terminal compatibility.
-
-Examples:
-
-- add a current-MathJax adapter when its executable packaging is defined;
-- add a persistent Mermaid worker after startup cost is measured on the PTY path;
-- add a pixel presenter when one terminal protocol is capability-checked end to end;
-- add a persistent cache only if repeated real engine work remains material after worker reuse;
-- add a PTY host when input, signals, resize, and exit status have compatibility tests.
-
-## 9. Test strategy
+## 11. Test strategy
 
 Required layers:
 
 ```text
 unit
-  detector state machine
   terminal safety gate
+  detector state machine
+  configured decision mapping
+  typed decision-to-handoff transfer
   cache bounds and complete keys
-  built-in renderer behavior
-  path validation and executable resolution
-  Mermaid/MathJax adapter protocol with fake executables
-  Chafa presenter protocol with a fake executable
+  executable resolution
+  engine and presenter process protocols
 
 integration
+  custom RenderDecider substitution
+  custom EngineHandoff substitution
+  exact source/body/context preservation
   chunk-boundary independence
-  source fallback
+  source fallback and strict failure
   alternate-screen preservation
-  CLI config validation
-  engine check with absolute paths
-  configured external rendering through the pipeline
+  CLI configuration and engine checks
+  configured external rendering
   child exit status
   WezTerm append-only behavior
 
 canonical Docker
   Rust format, Clippy, all tests
-  Lua plugin smoke
   real Mermaid CLI SVG generation
   real Chafa symbol presentation
-  real ptymark Mermaid selection through TOML
-  MathJax library SVG correctness smoke
+  real configured Mermaid path through ptymark
+  MathJax SVG correctness smoke
 
 native GitHub Actions
   Linux and macOS Rust checks
 ```
 
-No test may assert that an interactive PTY host or pixel presenter already exists.
+No test may assert that an interactive PTY host, persistent worker, or pixel presenter already exists.
 
-## 10. Next issues
+## 12. Next sequence
 
-The post-merge sequence is:
-
-1. child PTY host and terminal compatibility suite;
-2. connect configured engines to the child-output path without changing input behavior;
-3. choose and test one capability-checked WezTerm pixel presentation path;
-4. add resize generation and cancellation;
-5. measure cold, warm, and cache-hit latency on that real path;
+1. connect the pre-display pipeline to a child PTY without changing input behavior;
+2. carry terminal capability context into `DecisionRequest` only after it is measured and tested;
+3. introduce a typed intermediate artifact if a second presenter requires it;
+4. add resize generation and cancellation to the PTY runtime;
+5. measure cold, warm, and cache-hit latency on the real path;
 6. add persistent workers or cache only when measurements justify them.
