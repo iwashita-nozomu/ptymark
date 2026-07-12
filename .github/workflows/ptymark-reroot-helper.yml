@@ -14,6 +14,7 @@ concurrency:
   group: ptymark-reroot-helper
   cancel-in-progress: false
 
+# This second commit intentionally triggers the workflow after it already exists on main.
 jobs:
   reroot:
     runs-on: ubuntu-24.04
