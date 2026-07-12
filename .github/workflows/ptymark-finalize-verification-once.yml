@@ -9,10 +9,12 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: ptymark-finalize-verification-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   finalize:
@@ -84,18 +86,42 @@ make ptymark-check
           PY
 
       - name: Validate final source contracts
+        id: validation
+        continue-on-error: true
+        shell: bash
         run: |
-          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
-          rustup override set 1.97.0
-          cargo fmt --all -- --check
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked --all-targets
-          tools/bin/agent-canon docs check documents/ptymark-design.md documents/README.md verification/README.md README.md
-          if find .github/workflows -maxdepth 1 -name '*-once.yml' -print -quit | grep -q .; then
-            echo 'one-shot workflow remains after finalization' >&2
-            find .github/workflows -maxdepth 1 -name '*-once.yml' -print >&2
-            exit 1
-          fi
+          set -o pipefail
+          {
+            rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+            rustup override set 1.97.0
+            cargo fmt --all -- --check
+            cargo clippy --locked --all-targets -- -D warnings
+            cargo test --locked --all-targets
+            tools/bin/agent-canon docs check documents/ptymark-design.md documents/README.md verification/README.md README.md
+            if find .github/workflows -maxdepth 1 -name '*-once.yml' -print -quit | grep -q .; then
+              echo 'one-shot workflow remains after finalization' >&2
+              find .github/workflows -maxdepth 1 -name '*-once.yml' -print >&2
+              exit 1
+            fi
+          } 2>&1 | tee finalization.log
+
+      - name: Report finalizer failure
+        if: steps.validation.outcome != 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            printf '### One-shot verification finalizer diagnostic\n\n'
+            printf '```text\n'
+            tail -n 140 finalization.log
+            printf '\n```\n'
+          } > finalization-comment.md
+          gh pr comment 23 --repo "$GITHUB_REPOSITORY" --body-file finalization-comment.md
+
+      - name: Require finalizer validation
+        if: always()
+        run: test '${{ steps.validation.outcome }}' = success
 
       - name: Commit final verification source
         env:
