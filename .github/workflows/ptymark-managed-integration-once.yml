@@ -1,4 +1,4 @@
-name: ptymark Managed Launcher Integration Once
+name: ptymark Portable Tests Fix Once
 
 on:
   push:
@@ -11,61 +11,33 @@ permissions:
   contents: write
 
 jobs:
-  integrate:
+  fix:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           persist-credentials: false
           fetch-depth: 0
-      - name: Integrate native launcher and installers
+      - name: Make absolute-path test platform aware
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
-          cli = Path('src/cli.rs')
-          source = cli.read_text(encoding='utf-8')
-          old = '''pub fn main_entry() -> ! {
-              match run_from(env::args_os().skip(1).collect()) {
-          '''
-          new = '''pub fn main_entry() -> ! {
-              if let Some(result) = crate::managed_launcher::run_if_managed_alias() {
-                  match result {
-                      Ok(code) => process::exit(code),
-                      Err(message) => {
-                          eprintln!("ptymark managed launcher: {message}");
-                          process::exit(2);
-                      }
-                  }
-              }
-              match run_from(env::args_os().skip(1).collect()) {
+          path = Path('src/config.rs')
+          source = path.read_text(encoding='utf-8')
+          old = '        config.engines.mermaid.path = PathBuf::from("/opt/homebrew/bin/mmdc");\n'
+          new = '''        config.engines.mermaid.path = if cfg!(windows) {
+              PathBuf::from(r"C:\\Program Files\\ptymark\\mmdc.exe")
+          } else {
+              PathBuf::from("/opt/homebrew/bin/mmdc")
+          };
           '''
           if old not in source:
-              raise SystemExit('main_entry marker not found')
-          cli.write_text(source.replace(old, new, 1), encoding='utf-8')
-
-          install_sh = Path('scripts/install.sh')
-          source = install_sh.read_text(encoding='utf-8')
-          old = 'bundle_args=(--root "$managed_root")'
-          new = 'bundle_args=(--root "$managed_root" --launcher "$binary")'
-          if old not in source:
-              raise SystemExit('Unix managed bundle args marker not found')
-          install_sh.write_text(source.replace(old, new, 1), encoding='utf-8')
-
-          install_ps = Path('scripts/install.ps1')
-          source = install_ps.read_text(encoding='utf-8')
-          source = source.replace("'bin\\mmdc.cmd'", "'bin\\mmdc.exe'")
-          source = source.replace("'bin\\tex2svg.cmd'", "'bin\\tex2svg.exe'")
-          source = source.replace("'bin\\chafa.cmd'", "'bin\\chafa.exe'")
-          old = "$BundleArgs = @('-Root', $ManagedRoot)"
-          new = "$BundleArgs = @('-Root', $ManagedRoot, '-Launcher', $Binary)"
-          if old not in source:
-              raise SystemExit('Windows managed bundle args marker not found')
-          install_ps.write_text(source.replace(old, new, 1), encoding='utf-8')
+              raise SystemExit('absolute-path test marker not found')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
           PY
-      - name: Normalize and validate Rust
+      - name: Normalize and validate
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
@@ -73,18 +45,13 @@ jobs:
           cargo fmt --all -- --check
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked --all-targets
-      - name: Validate scripts
-        run: |
-          bash -n scripts/install.sh scripts/install-managed-bundle.sh
-          node --check renderers/managed/mathjax-cli.mjs
-          node --check renderers/managed/ansi-presenter.mjs
-      - name: Commit integration
+      - name: Commit portable test
         env:
           PUSH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/cli.rs src/managed_launcher.rs scripts/install.sh scripts/install.ps1
-          git commit -m "Integrate native managed renderer launchers"
+          git add src/config.rs
+          git commit -m "Make configuration contracts portable"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${GITHUB_REF_NAME}"
