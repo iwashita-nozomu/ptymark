@@ -1,4 +1,11 @@
 # syntax=docker/dockerfile:1.7
+# @dependency-start
+# contract environment
+# responsibility Builds the canonical ptymark Rust, WezTerm-plugin, and selected-renderer validation environment.
+# upstream environment ./ptymark-versions.env pins the compiler and Node base image.
+# upstream environment ../renderers/package-lock.json pins the renderer dependency graph.
+# downstream workflow ../.github/workflows/ptymark-ci.yml runs the canonical checks.
+# @dependency-end
 ARG NODE_IMAGE=node:24.18.0-bookworm
 FROM ${NODE_IMAGE}
 
@@ -42,16 +49,18 @@ RUN mkdir -p \
         /home/node/.rustup \
         /home/node/.cache
 
-COPY --chown=node:node renderers/package.json /opt/ptymark-renderers/package.json
+COPY --chown=node:node \
+    renderers/package.json \
+    renderers/package-lock.json \
+    /opt/ptymark-renderers/
 COPY --chown=node:node renderers/check.mjs /opt/ptymark-renderers/check.mjs
 
 USER node
 
-RUN npm install \
+RUN npm ci \
         --prefix /opt/ptymark-renderers \
         --omit=dev \
         --ignore-scripts \
-        --no-package-lock \
     && npm cache clean --force
 
 RUN curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
