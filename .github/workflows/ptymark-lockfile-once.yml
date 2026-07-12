@@ -37,11 +37,11 @@ jobs:
       - name: Generate and validate lockfile
         run: |
           docker run --rm \
-            --user "$(id -u):$(id -g)" \
             --volume "$PWD:/workspace" \
             --workdir /workspace/renderers \
             node:24.18.0-bookworm \
-            bash -lc 'npm install --package-lock-only --ignore-scripts && npm ci --ignore-scripts'
+            npm install --package-lock-only --ignore-scripts
+          sudo chown "$(id -u):$(id -g)" renderers/package-lock.json
           test -s renderers/package-lock.json
           python3 - <<'PY'
           import json
