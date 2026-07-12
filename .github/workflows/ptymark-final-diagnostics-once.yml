@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   repository-ci-log:
@@ -45,9 +47,20 @@ jobs:
           path: repository-ci.log
           if-no-files-found: error
           retention-days: 7
-      - name: Record result
+      - name: Report repository CI tail
         if: always()
-        run: printf 'repository_ci_outcome=%s\n' '${{ steps.repository_ci.outcome }}'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            printf '### One-shot repository CI diagnostic\n\n'
+            printf 'Outcome: `%s`\n\n' '${{ steps.repository_ci.outcome }}'
+            printf '```text\n'
+            tail -n 120 repository-ci.log
+            printf '\n```\n'
+          } > diagnostic-comment.md
+          gh pr comment 23 --repo "$GITHUB_REPOSITORY" --body-file diagnostic-comment.md
 
   windows-package-log:
     runs-on: windows-latest
@@ -94,7 +107,24 @@ jobs:
             dist/**
           if-no-files-found: warn
           retention-days: 7
-      - name: Record result
+      - name: Report Windows package tail
         if: always()
         shell: pwsh
-        run: Write-Output "package_outcome=${{ steps.package.outcome }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Tail = if (Test-Path diagnostics/windows-package.log) {
+            (Get-Content diagnostics/windows-package.log -Tail 120) -join "`n"
+          } else {
+            'diagnostic log was not created'
+          }
+          @"
+          ### One-shot Windows package diagnostic
+
+          Outcome: ``${{ steps.package.outcome }}``
+
+          ``````text
+          $Tail
+          ``````
+          "@ | Set-Content -Encoding utf8 diagnostic-comment.md
+          gh pr comment 23 --repo $env:GITHUB_REPOSITORY --body-file diagnostic-comment.md
