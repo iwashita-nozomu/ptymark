@@ -1,0 +1,48 @@
+name: ptymark Re-root PR Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-reroot-pr-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptymark-reroot-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reroot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/minimal-pre-display-core
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create one-commit branch on current main
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # HEAD is only the temporary workflow commit. Its parent is the reviewed
+          # product tree and intentionally excludes this one-shot workflow.
+          desired_commit="$(git rev-parse HEAD^)"
+          desired_tree="$(git rev-parse "${desired_commit}^{tree}")"
+          main_commit="$(git rev-parse origin/main)"
+          new_commit="$(printf '%s\n' 'Replace merged bootstrap with reviewed portable pre-display core' | git commit-tree "$desired_tree" -p "$main_commit")"
+
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin "${new_commit}:refs/heads/agent/portable-pre-display-core-pr"
+
+          printf 'main=%s\nreviewed=%s\nnew=%s\n' "$main_commit" "$desired_commit" "$new_commit"
