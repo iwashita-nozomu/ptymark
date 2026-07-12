@@ -12,6 +12,7 @@ upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matri
 upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md audit resolution ledger
 upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
 downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
+downstream design ./ptymark-installer.md installation-time engine resolution and replacement contract
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
 -->
@@ -38,6 +39,9 @@ seed this file, but derived repositories own their local index.
 - [ptymark Design](./ptymark-design.md): current pre-display architecture,
   terminal-safety invariants, render decision policy, typed engine handoff,
   installed-engine contracts, cache identity, extension rules, and test strategy.
+- [ptymark Installer Design](./ptymark-installer.md): core installation,
+  installation-time engine resolution, absolute-path snapshots, idempotent
+  replacement, failure policy, and the resolver extension boundary.
 
 ## Ownership Matrix
 
