@@ -4,8 +4,9 @@ on:
   push:
     branches:
       - agent/minimal-pre-display-core
-    paths:
-      - .github/workflows/ptymark-windows-diagnostic-once.yml
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -17,7 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
