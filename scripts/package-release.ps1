@@ -104,13 +104,14 @@ foreach ($Entry in $Profiles.GetEnumerator()) {
 }
 
 function Get-ProfileSnapshot {
-  Get-ChildItem $HomeRoot -Recurse -File |
-    Sort-Object FullName |
-    ForEach-Object {
-      $Relative = [System.IO.Path]::GetRelativePath($HomeRoot, $_.FullName)
-      $Hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
-      "$Relative`t$Hash"
+  foreach ($ProfilePath in $Profiles.Keys) {
+    if (-not (Test-Path $ProfilePath -PathType Leaf)) {
+      throw "Shell profile disappeared during package smoke: $ProfilePath"
     }
+    $Relative = [System.IO.Path]::GetRelativePath($HomeRoot, $ProfilePath)
+    $Hash = (Get-FileHash -Algorithm SHA256 $ProfilePath).Hash.ToLowerInvariant()
+    "$Relative`t$Hash"
+  }
 }
 
 $OriginalHome = $env:HOME
