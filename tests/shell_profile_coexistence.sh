@@ -18,11 +18,21 @@ mkdir -p \
   "$home/.config/nushell" \
   "$home/.config/powershell"
 
-printf '%s\n' 'source "$HOME/.bash_plugins"' >"$home/.bashrc"
-printf '%s\n' 'source "$ZDOTDIR/plugins.zsh"' >"$home/.zshrc"
-printf '%s\n' 'source ~/.config/fish/plugins.fish' >"$home/.config/fish/config.fish"
-printf '%s\n' 'source ~/.config/nushell/plugins.nu' >"$home/.config/nushell/config.nu"
-printf '%s\n' 'Import-Module PSReadLine' >"$home/.config/powershell/Microsoft.PowerShell_profile.ps1"
+cat >"$home/.bashrc" <<'EOF_BASH_PROFILE'
+source "$HOME/.bash_plugins"
+EOF_BASH_PROFILE
+cat >"$home/.zshrc" <<'EOF_ZSH_PROFILE'
+source "$ZDOTDIR/plugins.zsh"
+EOF_ZSH_PROFILE
+cat >"$home/.config/fish/config.fish" <<'EOF_FISH_PROFILE'
+source ~/.config/fish/plugins.fish
+EOF_FISH_PROFILE
+cat >"$home/.config/nushell/config.nu" <<'EOF_NUSHELL_PROFILE'
+source ~/.config/nushell/plugins.nu
+EOF_NUSHELL_PROFILE
+cat >"$home/.config/powershell/Microsoft.PowerShell_profile.ps1" <<'EOF_POWERSHELL_PROFILE'
+Import-Module PSReadLine
+EOF_POWERSHELL_PROFILE
 
 snapshot() {
   find "$home" -type f -print0 \
@@ -47,13 +57,15 @@ snapshot >"$root/after.sha256"
 cmp "$root/before.sha256" "$root/after.sha256"
 
 child_output="$root/child.out"
+# The command string is intentionally expanded by the child shell, not here.
+# shellcheck disable=SC2016
+child_command='printf "%s|%s|%s|%s|%s\n" "$STARSHIP_SHELL" "$ATUIN_SESSION" "$ZDOTDIR" "$FISH_CONFIG_DIR" "$NU_LIB_DIRS"'
 STARSHIP_SHELL=bash \
 ATUIN_SESSION=ptymark-compat \
 ZDOTDIR="$home" \
 FISH_CONFIG_DIR="$home/.config/fish" \
 NU_LIB_DIRS="$home/.config/nushell" \
-"$binary" --config "$config" -- sh -c \
-  'printf "%s|%s|%s|%s|%s\n" "$STARSHIP_SHELL" "$ATUIN_SESSION" "$ZDOTDIR" "$FISH_CONFIG_DIR" "$NU_LIB_DIRS"' \
+"$binary" --config "$config" -- sh -c "$child_command" \
   >"$child_output"
 expected="bash|ptymark-compat|$home|$home/.config/fish|$home/.config/nushell"
 grep -Fx "$expected" "$child_output" >/dev/null
