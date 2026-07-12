@@ -1,0 +1,329 @@
+# @dependency-start
+# contract verification
+# responsibility Defines every merge-relevant ptymark verification item in a machine-readable catalog.
+# upstream workflow ../.github/workflows/ptymark-ci.yml executes product checks and publishes evidence.
+# upstream workflow ../.github/workflows/ci.yml executes inherited repository checks.
+# downstream test ../tests/verification_manifest_contract.rs validates completeness and referenced paths.
+# downstream documentation ./README.md explains evidence levels and reproduction commands.
+# @dependency-end
+schema_version = 1
+catalog = "ptymark-merge-gates"
+
+[policy]
+all_required = true
+run_results_live_in = "GitHub Actions for the tested commit"
+canonical_product_workflow = ".github/workflows/ptymark-ci.yml"
+repository_workflow = ".github/workflows/ci.yml"
+docker_workflow = ".github/workflows/docker-build.yml"
+agent_workflow = ".github/workflows/agent-improvement-guide.yml"
+compatibility_inventory = "documents/shell-plugin-compatibility.md"
+
+[[check]]
+id = "catalog.schema"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked --test verification_manifest_contract"
+sources = ["verification/manifest.toml", "verification/README.md", "tests/verification_manifest_contract.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "rust.format"
+owner = "ptymark-ci"
+level = "static"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo fmt --all -- --check"
+sources = ["Cargo.toml", "rust-toolchain.toml", "src/lib.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "rust.clippy"
+owner = "ptymark-ci"
+level = "static"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo clippy --locked --all-targets -- -D warnings"
+sources = ["Cargo.toml", "Cargo.lock", "src/lib.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "rust.tests"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked --all-targets"
+sources = ["tests/cli_contract.rs", "tests/pipeline_contract.rs", "tests/routing_contract.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "terminal.byte-exact"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked terminal"
+sources = ["src/terminal.rs", "tests/pipeline_contract.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "terminal.alternate-screen"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked alternate_screen"
+sources = ["src/terminal.rs", "tests/shell_plugin_compatibility.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "detector.explicit-fences"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked detector"
+sources = ["src/detector.rs", "tests/pipeline_contract.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "pipeline.single-commit"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked pipeline"
+sources = ["src/pipeline.rs", "tests/pipeline_contract.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "routing.typed-handoff"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked routing"
+sources = ["src/routing.rs", "tests/routing_contract.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "cache.contract"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked cache"
+sources = ["src/cache.rs", "src/render.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "config.contract"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked config"
+sources = ["src/config.rs", "tests/cli_contract.rs", "examples/ptymark.toml"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "engine.executable-resolution"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked engine"
+sources = ["src/engine.rs", "tests/windows_contract.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "engine.user-installed"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["docker"]
+command = "bash scripts/check-ptymark-renderers.sh"
+sources = ["scripts/check-ptymark-renderers.sh", "examples/external-engines.toml", "src/engine.rs"]
+evidence = ["ptymark-selected-renderer-evidence"]
+required = true
+
+[[check]]
+id = "engine.managed-docker"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["docker"]
+command = "PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/managed_renderer_smoke.sh"
+sources = ["tests/managed_renderer_smoke.sh", "scripts/install-managed-bundle.sh", "renderers/managed/mathjax-cli.mjs", "renderers/managed/ansi-presenter.mjs"]
+evidence = ["Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "engine.managed-windows"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["windows"]
+command = "pwsh -File tests/windows_managed_renderer_smoke.ps1"
+sources = ["tests/windows_managed_renderer_smoke.ps1", "scripts/install-managed-bundle.ps1", "src/managed_launcher.rs"]
+evidence = ["ptymark-windows-managed-renderer-evidence"]
+required = true
+
+[[check]]
+id = "installer.unix"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["linux", "macos", "docker"]
+command = "bash tests/install_smoke.sh"
+sources = ["scripts/installer.sh", "distribution/install.sh", "tests/install_smoke.sh"]
+evidence = ["Canonical Docker checks", "release package smoke"]
+required = true
+
+[[check]]
+id = "installer.powershell"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["windows"]
+command = "pwsh -File scripts/installer.ps1"
+sources = ["scripts/installer.ps1", "distribution/install.ps1", "tests/windows_shell_profile_coexistence.ps1"]
+evidence = ["Windows PowerShell, cmd, WinBash, and profile coexistence"]
+required = true
+
+[[check]]
+id = "installer.cmd"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["windows"]
+command = "scripts\\installer.cmd"
+sources = ["scripts/installer.cmd", "distribution/install.cmd"]
+evidence = ["Windows PowerShell, cmd, WinBash, and profile coexistence"]
+required = true
+
+[[check]]
+id = "installer.winbash"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["windows"]
+command = "bash scripts/installer.sh"
+sources = ["scripts/installer.sh", "tests/windows_contract.rs"]
+evidence = ["Windows PowerShell, cmd, WinBash, and profile coexistence"]
+required = true
+
+[[check]]
+id = "shell.inventory"
+owner = "ptymark-ci"
+level = "compatibility"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked inventory_has_twenty_reviewed_integrations_per_shell"
+sources = ["compat/shell-integrations/bash.tsv", "compat/shell-integrations/zsh.tsv", "compat/shell-integrations/fish.tsv", "compat/shell-integrations/powershell.tsv", "compat/shell-integrations/nushell.tsv", "tests/shell_plugin_compatibility.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "shell.behavior-profiles"
+owner = "ptymark-ci"
+level = "compatibility"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked shell_plugin_compatibility"
+sources = ["tests/shell_plugin_compatibility.rs", "documents/shell-plugin-compatibility.md"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "shell.profile-coexistence-unix"
+owner = "ptymark-ci"
+level = "compatibility"
+platforms = ["linux", "docker"]
+command = "bash tests/shell_profile_coexistence.sh target/debug/ptymark"
+sources = ["tests/shell_profile_coexistence.sh", "scripts/installer.sh"]
+evidence = ["Native Rust checks (ubuntu-24.04)", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "shell.profile-coexistence-windows"
+owner = "ptymark-ci"
+level = "compatibility"
+platforms = ["windows"]
+command = "pwsh -File tests/windows_shell_profile_coexistence.ps1"
+sources = ["tests/windows_shell_profile_coexistence.ps1", "scripts/installer.ps1"]
+evidence = ["Windows PowerShell, cmd, WinBash, and profile coexistence"]
+required = true
+
+[[check]]
+id = "wezterm.plugin"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["docker"]
+command = "lua5.4 tests/plugin_smoke.lua"
+sources = ["plugin/init.lua", "examples/wezterm.lua", "tests/plugin_smoke.lua"]
+evidence = ["Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "scripts.syntax"
+owner = "ptymark-ci"
+level = "static"
+platforms = ["windows", "docker"]
+command = "bash -n and shellcheck for product scripts; PowerShell parser for ps1 files"
+sources = ["scripts/installer.sh", "scripts/installer.ps1", "scripts/package-release.sh", "scripts/package-release.ps1"]
+evidence = ["ptymark-shellcheck-evidence", "Windows PowerShell, cmd, WinBash, and profile coexistence"]
+required = true
+
+[[check]]
+id = "release.linux"
+owner = "ptymark-ci"
+level = "package"
+platforms = ["linux"]
+command = "bash scripts/package-release.sh target/release/ptymark dist"
+sources = ["scripts/package-release.sh", "distribution/install.sh"]
+evidence = ["ptymark-linux-release"]
+required = true
+
+[[check]]
+id = "release.macos"
+owner = "ptymark-ci"
+level = "package"
+platforms = ["macos"]
+command = "bash scripts/package-release.sh target/release/ptymark dist"
+sources = ["scripts/package-release.sh", "distribution/install.sh"]
+evidence = ["ptymark-macos-release"]
+required = true
+
+[[check]]
+id = "release.windows"
+owner = "ptymark-ci"
+level = "package"
+platforms = ["windows"]
+command = "pwsh -File scripts/package-release.ps1"
+sources = ["scripts/package-release.ps1", "distribution/install.ps1", "distribution/install.cmd"]
+evidence = ["ptymark-windows-release"]
+required = true
+
+[[check]]
+id = "repository.ci"
+owner = "repository-ci"
+level = "repository"
+platforms = ["repository"]
+command = "make ci"
+sources = [".github/workflows/ci.yml", "Makefile"]
+evidence = ["CI / Repository CI"]
+required = true
+
+[[check]]
+id = "repository.docker-build"
+owner = "docker-build"
+level = "repository"
+platforms = ["repository"]
+command = "bash docker/check_build.sh"
+sources = [".github/workflows/docker-build.yml", "docker/check_build.sh"]
+evidence = ["Docker Build"]
+required = true
+
+[[check]]
+id = "repository.agent-improvement-guide"
+owner = "agent-improvement-guide"
+level = "repository"
+platforms = ["repository"]
+command = "GitHub Actions workflow"
+sources = [".github/workflows/agent-improvement-guide.yml"]
+evidence = ["Agent Improvement Guide"]
+required = true
