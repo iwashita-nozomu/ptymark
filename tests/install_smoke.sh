@@ -62,8 +62,9 @@ grep -F "path = \"$fake_bin/mmdc\"" "$config" >/dev/null
 grep -F "path = \"$fake_bin/tex2svg\"" "$config" >/dev/null
 grep -F "path = \"$fake_bin/chafa\"" "$config" >/dev/null
 
-env PTYMARK_CONFIG="$config" bash -c \
-  "printf '%s' $'\\x60\\x60\\x60mermaid\\nA --> B\\n\\x60\\x60\\x60\\n' | '$binary' preview" \
+{
+  printf '%s\n' '```mermaid' 'A --> B' '```'
+} | env PTYMARK_CONFIG="$config" "$binary" preview \
   | grep -F 'installed-engine-output' >/dev/null
 
 bash scripts/install.sh \
