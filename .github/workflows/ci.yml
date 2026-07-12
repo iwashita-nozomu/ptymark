@@ -1,10 +1,11 @@
 # @dependency-start
 # contract workflow
-# responsibility Defines ci YAML configuration.
+# responsibility Runs repository CI and routes inherited AgentCanon and fresh-clone gates only when their owned surfaces change.
 # upstream implementation ../../tools/ci/run_all_checks.sh repository CI entrypoint
 # upstream implementation ../../Makefile ci target contract
 # upstream environment ../../docker/install_python_dependencies.sh central Python dependency installer
 # upstream implementation ../scripts/checkout_agent_canon_submodule.sh private AgentCanon checkout gate
+# downstream workflow ./ptymark-ci.yml owns ptymark product-specific validation
 # @dependency-end
 name: CI
 
@@ -13,6 +14,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +27,74 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  change-classification:
+    name: Classify inherited CI surfaces
+    runs-on: ubuntu-latest
+    outputs:
+      agent_canon: ${{ steps.classify.outputs.agent_canon }}
+      fresh_clone: ${{ steps.classify.outputs.fresh_clone }}
+
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "agent_canon=true" >> "$GITHUB_OUTPUT"
+            echo "fresh_clone=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+          else
+            base_sha="$PUSH_BASE_SHA"
+            head_sha="$PUSH_HEAD_SHA"
+          fi
+
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-list --max-parents=0 "$head_sha" | tail -n 1)"
+          fi
+
+          git diff --name-only "$base_sha" "$head_sha" > changed-paths.txt
+          cat changed-paths.txt
+
+          agent_canon=false
+          fresh_clone=false
+
+          while IFS= read -r path; do
+            case "$path" in
+              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools|tools/*|.github/workflows/agent-coordination.yml|.github/workflows/agent-improvement-guide.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
+                agent_canon=true
+                ;;
+            esac
+
+            case "$path" in
+              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|scripts/start_repository.sh|scripts/init_from_template.sh|documents/template-bootstrap.md|documents/template-github-remote.md|tools/ci/check_fresh_clone.sh|tests/tools/test_start_repository_script.py)
+                fresh_clone=true
+                ;;
+            esac
+          done < changed-paths.txt
+
+          echo "agent_canon=$agent_canon" >> "$GITHUB_OUTPUT"
+          echo "fresh_clone=$fresh_clone" >> "$GITHUB_OUTPUT"
+
   repository-ci:
     name: Repository CI
     runs-on: ubuntu-latest
@@ -60,6 +130,8 @@ jobs:
 
   agent-canon-pr:
     name: AgentCanon PR Gate
+    needs: change-classification
+    if: needs.change-classification.outputs.agent_canon == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -93,6 +165,8 @@ jobs:
 
   fresh-clone-acceptance:
     name: Fresh Clone Acceptance
+    needs: change-classification
+    if: needs.change-classification.outputs.fresh_clone == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
