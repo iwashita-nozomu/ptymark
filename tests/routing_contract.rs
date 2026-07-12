@@ -5,6 +5,9 @@ use ptymark::{
 };
 use std::sync::{Arc, Mutex};
 
+type Observation = (RenderRoute, BlockKind, Vec<u8>, u16);
+type Observations = Arc<Mutex<Vec<Observation>>>;
+
 struct SizeAwareDecider;
 
 impl RenderDecider for SizeAwareDecider {
@@ -23,7 +26,7 @@ impl RenderDecider for SizeAwareDecider {
 }
 
 struct RecordingHandoff {
-    seen: Arc<Mutex<Vec<(RenderRoute, BlockKind, Vec<u8>, u16)>>>,
+    seen: Observations,
 }
 
 impl EngineHandoff for RecordingHandoff {
