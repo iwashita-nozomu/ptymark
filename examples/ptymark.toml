@@ -1,0 +1,16 @@
+schema_version = 1
+
+[detection]
+mermaid = true
+math = true
+max_block_bytes = 1048576
+
+[rendering]
+mode = "preview"
+strict = false
+columns = 80
+
+[cache]
+enabled = true
+max_entries = 128
+max_bytes = 33554432
