@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -140,9 +141,8 @@ impl Default for CacheConfig {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[derive(Default)]
 pub struct EnginesConfig {
     pub mermaid: MermaidEngineConfig,
     pub math: MathEngineConfig,
@@ -203,19 +203,51 @@ impl Default for PresenterConfig {
 
 impl Config {
     pub fn load(path: Option<&Path>) -> Result<Self, ConfigError> {
-        let config = match path {
-            Some(path) => {
-                let source = fs::read_to_string(path).map_err(|error| {
-                    ConfigError::new(format!("cannot read `{}`: {error}", path.display()))
-                })?;
-                toml::from_str(&source).map_err(|error| {
-                    ConfigError::new(format!("cannot parse `{}`: {error}", path.display()))
-                })?
+        match path {
+            Some(path) => Self::load_exact(path),
+            None => {
+                let path = Self::user_config_path()?;
+                if path.is_file() {
+                    Self::load_exact(&path)
+                } else {
+                    let config = Self::default();
+                    config.validate()?;
+                    Ok(config)
+                }
             }
-            None => Self::default(),
-        };
+        }
+    }
+
+    pub fn load_exact(path: &Path) -> Result<Self, ConfigError> {
+        let source = fs::read_to_string(path).map_err(|error| {
+            ConfigError::new(format!("cannot read `{}`: {error}", path.display()))
+        })?;
+        let config: Self = toml::from_str(&source).map_err(|error| {
+            ConfigError::new(format!("cannot parse `{}`: {error}", path.display()))
+        })?;
         config.validate()?;
         Ok(config)
+    }
+
+    pub fn user_config_path() -> Result<PathBuf, ConfigError> {
+        if let Some(path) = env::var_os("PTYMARK_CONFIG") {
+            return Ok(PathBuf::from(path));
+        }
+        if let Some(path) = env::var_os("XDG_CONFIG_HOME") {
+            return Ok(PathBuf::from(path).join("ptymark/config.toml"));
+        }
+        if let Some(path) = env::var_os("APPDATA") {
+            return Ok(PathBuf::from(path).join("ptymark/config.toml"));
+        }
+        let home = env::var_os("HOME")
+            .or_else(|| env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                ConfigError::new(
+                    "cannot determine user configuration path; set HOME, XDG_CONFIG_HOME, APPDATA, or PTYMARK_CONFIG",
+                )
+            })?;
+        Ok(home.join(".config/ptymark/config.toml"))
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -288,7 +320,17 @@ impl Error for ConfigError {}
 #[cfg(test)]
 mod tests {
     use super::{CONFIG_SCHEMA_VERSION, Config, MermaidEngine};
+    use std::fs;
     use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_file(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!("ptymark-config-{label}-{nonce}.toml"))
+    }
 
     #[test]
     fn defaults_are_valid() {
@@ -309,6 +351,15 @@ mod tests {
         let mut config = Config::default();
         config.cache.max_entries = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn exact_file_loading_round_trips() {
+        let path = temp_file("round-trip");
+        let config = Config::default();
+        fs::write(&path, config.to_toml().expect("serialize")).expect("write");
+        assert_eq!(Config::load_exact(&path).expect("load"), config);
+        let _ = fs::remove_file(path);
     }
 
     #[test]
