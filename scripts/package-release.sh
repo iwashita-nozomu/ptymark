@@ -91,6 +91,7 @@ EOF_MANIFEST
 smoke_root="$(mktemp -d)"
 trap 'rm -rf "$smoke_root"' EXIT
 home="$smoke_root/home"
+installed_binary="$smoke_root/install/bin/ptymark"
 mkdir -p \
   "$home/.config/fish" \
   "$home/.config/nushell" \
@@ -130,6 +131,7 @@ HOME="$home" \
 XDG_CONFIG_HOME="$smoke_root/xdg-config" \
 XDG_STATE_HOME="$smoke_root/xdg-state" \
 XDG_DATA_HOME="$smoke_root/xdg-data" \
+PTYMARK_BINARY_DEST="$installed_binary" \
 bash "$package_root/install.sh" \
   --managed never \
   --mermaid preview \
@@ -139,10 +141,11 @@ bash "$package_root/install.sh" \
 
 profile_snapshot >"$smoke_root/profiles.after"
 cmp "$smoke_root/profiles.before" "$smoke_root/profiles.after"
-"$package_root/bin/ptymark" --version >/dev/null
-"$package_root/bin/ptymark" --config "$smoke_root/config.toml" config check >/dev/null
+test -x "$installed_binary"
+"$installed_binary" --version >/dev/null
+"$installed_binary" --config "$smoke_root/config.toml" config check >/dev/null
 printf '%s\n' '$$' 'E = mc^2' '$$' \
-  | "$package_root/bin/ptymark" --config "$smoke_root/config.toml" preview - \
+  | "$installed_binary" --config "$smoke_root/config.toml" preview - \
   >"$smoke_root/preview.out"
 grep -F 'ptymark math' "$smoke_root/preview.out" >/dev/null
 
