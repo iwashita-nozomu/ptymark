@@ -1,7 +1,8 @@
 # @dependency-start
 # contract workflow
-# responsibility Normalizes and validates the installer implementation once with the pinned Rust toolchain.
+# responsibility Normalizes and validates the final installer implementation once with the pinned Rust toolchain.
 # upstream implementation ../../src/install.rs owns installation-time engine resolution.
+# upstream test ../../tests/install_contract.rs and ../../tests/install_cli_contract.rs own installer contracts.
 # downstream workflow ./ptymark-ci.yml remains the repeatable validation path.
 # @dependency-end
 name: ptymark Installer Normalize Once
