@@ -1,9 +1,9 @@
 name: ptymark Portable Tests Fix Once
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/minimal-pre-display-core
+      - main
     paths:
       - .github/workflows/ptymark-managed-integration-once.yml
 
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
           persist-credentials: false
           fetch-depth: 0
       - name: Make absolute-path test platform aware
@@ -48,10 +48,11 @@ jobs:
       - name: Commit portable test
         env:
           PUSH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/config.rs
           git commit -m "Make configuration contracts portable"
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${HEAD_BRANCH}"
