@@ -56,16 +56,23 @@ jobs:
           node --version | Add-Content windows-environment.log
           npm --version | Add-Content windows-environment.log
           $env:PUPPETEER_SKIP_DOWNLOAD = 'true'
-          & ./scripts/install.ps1 `
-            -SkipCore `
-            -Binary ((Resolve-Path 'target/debug/ptymark.exe').Path) `
-            -Managed always `
-            -ManagedRoot (Join-Path $root 'bundle') `
-            -Config (Join-Path $root 'config.toml') `
-            -State (Join-Path $root 'state.toml') `
-            -Browser $edge `
-            -SkipBrowserDownload *>&1 | Tee-Object windows-installer.log
-          $statuses.installer = $LASTEXITCODE
+          try {
+            $installerOutput = & ./scripts/install.ps1 `
+              -SkipCore `
+              -Binary ((Resolve-Path 'target/debug/ptymark.exe').Path) `
+              -Managed always `
+              -ManagedRoot (Join-Path $root 'bundle') `
+              -Config (Join-Path $root 'config.toml') `
+              -State (Join-Path $root 'state.toml') `
+              -Browser $edge `
+              -SkipBrowserDownload *>&1
+            $installerOutput | Set-Content windows-installer.log
+            $statuses.installer = $LASTEXITCODE
+          }
+          catch {
+            ($_ | Format-List * -Force | Out-String) | Set-Content windows-installer.log
+            $statuses.installer = 1
+          }
           $statuses.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" } | Set-Content windows-status.txt
           Get-Content windows-status.txt
           exit 0
