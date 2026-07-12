@@ -1,0 +1,27 @@
+[package]
+name = "ptymark"
+version = "0.1.0-alpha.1"
+edition = "2024"
+rust-version = "1.97.0"
+description = "Pre-display renderer for explicit semantic blocks in terminal output"
+license = "Apache-2.0"
+repository = "https://github.com/iwashita-nozomu/ptymark"
+readme = "README.md"
+keywords = ["terminal", "markdown", "mermaid", "math", "wezterm"]
+categories = ["command-line-utilities"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = "symbols"
