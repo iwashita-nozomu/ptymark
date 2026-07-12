@@ -38,14 +38,25 @@ fn temp_root(label: &str) -> PathBuf {
     path
 }
 
+fn program_path(root: &Path, group: &str, name: &str) -> PathBuf {
+    let executable = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_owned()
+    };
+    root.join(group).join("bin").join(executable)
+}
+
 #[test]
 fn first_install_resolves_available_engines_and_records_absolute_paths() {
     let root = temp_root("initial");
     let config_path = root.join("config/ptymark.toml");
     let state_path = root.join("state/install.toml");
+    let mmdc = program_path(&root, "resolved", "mmdc");
+    let chafa = program_path(&root, "resolved", "chafa");
     let resolver = FakeResolver::default()
-        .with("mmdc", "/resolved/bin/mmdc")
-        .with("chafa", "/resolved/bin/chafa");
+        .with("mmdc", &mmdc)
+        .with("chafa", &chafa);
     let installer = Installer::new(resolver);
     let request = InstallRequest::new(config_path.clone(), state_path.clone());
 
@@ -54,15 +65,9 @@ fn first_install_resolves_available_engines_and_records_absolute_paths() {
         plan.config.engines.mermaid.backend,
         MermaidEngine::MermaidCli
     );
-    assert_eq!(
-        plan.config.engines.mermaid.path,
-        PathBuf::from("/resolved/bin/mmdc")
-    );
+    assert_eq!(plan.config.engines.mermaid.path, mmdc);
     assert_eq!(plan.config.engines.math.backend, MathEngine::Preview);
-    assert_eq!(
-        plan.config.engines.presenter.path,
-        PathBuf::from("/resolved/bin/chafa")
-    );
+    assert_eq!(plan.config.engines.presenter.path, chafa);
 
     plan.apply().expect("apply");
     assert_eq!(
@@ -78,7 +83,8 @@ fn first_install_resolves_available_engines_and_records_absolute_paths() {
 #[test]
 fn automatic_external_selection_falls_back_when_presenter_is_missing() {
     let root = temp_root("fallback");
-    let resolver = FakeResolver::default().with("mmdc", "/resolved/bin/mmdc");
+    let mmdc = program_path(&root, "resolved", "mmdc");
+    let resolver = FakeResolver::default().with("mmdc", mmdc);
     let installer = Installer::new(resolver);
     let request = InstallRequest::new(root.join("config.toml"), root.join("state.toml"));
 
@@ -97,8 +103,9 @@ fn explicitly_requested_missing_engine_is_an_error() {
     let root = temp_root("missing");
     let installer = Installer::new(FakeResolver::default());
     let mut request = InstallRequest::new(root.join("config.toml"), root.join("state.toml"));
-    request.mermaid = EnginePreference::External(PathBuf::from("/missing/mmdc"));
-    request.presenter = PresenterPreference::Program(PathBuf::from("/missing/chafa"));
+    request.mermaid = EnginePreference::External(program_path(&root, "missing", "mmdc"));
+    request.presenter =
+        PresenterPreference::Program(program_path(&root, "missing", "chafa"));
 
     let error = installer
         .plan(&request)
@@ -112,20 +119,23 @@ fn rerun_replaces_one_engine_without_resetting_other_user_settings() {
     let root = temp_root("replace");
     let config_path = root.join("config.toml");
     let state_path = root.join("state.toml");
+    let old_mmdc = program_path(&root, "old", "mmdc");
+    let old_chafa = program_path(&root, "old", "chafa");
+    let new_mmdc = program_path(&root, "new", "mmdc");
     let mut existing = Config::default();
     existing.detection.math = false;
     existing.engines.mermaid.backend = MermaidEngine::MermaidCli;
-    existing.engines.mermaid.path = PathBuf::from("/old/mmdc");
+    existing.engines.mermaid.path = old_mmdc;
     existing.engines.math.backend = MathEngine::Source;
-    existing.engines.presenter.path = PathBuf::from("/old/chafa");
+    existing.engines.presenter.path = old_chafa.clone();
     fs::write(&config_path, existing.to_toml().expect("serialize")).expect("write config");
 
     let resolver = FakeResolver::default()
-        .with("/new/mmdc", "/new/mmdc")
-        .with("/old/chafa", "/old/chafa");
+        .with(&new_mmdc, &new_mmdc)
+        .with(&old_chafa, &old_chafa);
     let installer = Installer::new(resolver);
     let mut request = InstallRequest::new(config_path.clone(), state_path);
-    request.mermaid = EnginePreference::External(PathBuf::from("/new/mmdc"));
+    request.mermaid = EnginePreference::External(new_mmdc.clone());
 
     let plan = installer.plan(&request).expect("replace plan");
     assert!(!plan.config.detection.math);
@@ -134,11 +144,8 @@ fn rerun_replaces_one_engine_without_resetting_other_user_settings() {
         plan.config.engines.mermaid.backend,
         MermaidEngine::MermaidCli
     );
-    assert_eq!(plan.config.engines.mermaid.path, PathBuf::from("/new/mmdc"));
-    assert_eq!(
-        plan.config.engines.presenter.path,
-        PathBuf::from("/old/chafa")
-    );
+    assert_eq!(plan.config.engines.mermaid.path, new_mmdc);
+    assert_eq!(plan.config.engines.presenter.path, old_chafa);
     let _ = fs::remove_dir_all(root);
 }
 
