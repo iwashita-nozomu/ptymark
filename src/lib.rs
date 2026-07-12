@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod detector;
 pub mod engine;
+pub mod install;
 pub mod model;
 pub mod pipeline;
 pub mod render;
@@ -17,6 +18,11 @@ pub use config::{
 };
 pub use detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 pub use engine::{ConfiguredRenderer, EngineCheck, check_configured_engines, resolve_executable};
+pub use install::{
+    INSTALL_STATE_SCHEMA_VERSION, EnginePreference, InstallError, InstallPlan, InstallRequest,
+    InstallState, InstalledComponent, Installer, PathProgramResolver, PresenterPreference,
+    ProgramResolver, ResolutionOrigin, default_install_state_path,
+};
 pub use model::{BlockKind, SemanticBlock, StreamItem};
 pub use pipeline::{DisplayPipeline, PipelineError, PipelineReport};
 pub use render::{
