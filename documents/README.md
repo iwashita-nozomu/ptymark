@@ -14,6 +14,7 @@ upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md 
 downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
 downstream design ./ptymark-installer.md installation-time engine resolution and replacement contract
 downstream compatibility ./shell-plugin-compatibility.md shell and rich-plugin coexistence matrix
+downstream verification ../verification/README.md canonical verification catalog and merge evidence policy
 downstream design ./licensing-policy.md repository license boundary
 @dependency-end
 -->
@@ -48,6 +49,9 @@ seed this file, but derived repositories own their local index.
   profiles, verification levels, unchanged-profile and environment contracts,
   and twenty reviewed integrations each for Bash, Zsh, Fish, PowerShell, and
   Nushell.
+- [Verification Catalog](../verification/README.md): machine-readable merge gates,
+  canonical commands, evidence levels, artifact names, and the rule that every
+  required check must pass for the current PR head.
 
 ## Ownership Matrix
 
