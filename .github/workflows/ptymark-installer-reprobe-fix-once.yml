@@ -49,41 +49,29 @@ jobs:
           path = Path('src/install.rs')
           source = path.read_text(encoding='utf-8')
 
-          old_slot = '''            EnginePreference::Keep | EnginePreference::Auto => {
-                      let candidate = if existing_config {
-                          existing.path
-                      } else {
-                          default_program
-                      };
-                      match self.resolver.resolve(&candidate) {
-                          Ok(resolved) => Ok(SlotPlan::external(
-                              role,
-                              external_backend,
-                              candidate,
-                              resolved,
-                              false,
-                              if existing_config {
-                                  ResolutionOrigin::Existing
-                              } else {
-                                  ResolutionOrigin::PathSearch
-                              },
-                          )),
+          old_candidate = '''                let candidate = if existing_config {
+                      existing.path
+                  } else {
+                      default_program
+                  };
           '''
-          new_slot = '''            EnginePreference::Keep | EnginePreference::Auto => {
-                      let candidate = default_program;
-                      match self.resolver.resolve(&candidate) {
-                          Ok(resolved) => Ok(SlotPlan::external(
-                              role,
-                              external_backend,
-                              candidate,
-                              resolved,
-                              false,
-                              ResolutionOrigin::PathSearch,
-                          )),
+          new_candidate = '''                let candidate = default_program;
           '''
-          if old_slot not in source:
-              raise SystemExit('slot re-probe block not found')
-          source = source.replace(old_slot, new_slot, 1)
+          if source.count(old_candidate) != 1:
+              raise SystemExit(f'expected one engine candidate block, found {source.count(old_candidate)}')
+          source = source.replace(old_candidate, new_candidate, 1)
+
+          old_origin = '''                        if existing_config {
+                              ResolutionOrigin::Existing
+                          } else {
+                              ResolutionOrigin::PathSearch
+                          },
+          '''
+          new_origin = '''                        ResolutionOrigin::PathSearch,
+          '''
+          if source.count(old_origin) < 1:
+              raise SystemExit('engine origin block not found')
+          source = source.replace(old_origin, new_origin, 1)
 
           old_presenter = '''            PresenterPreference::Keep | PresenterPreference::Auto => (
                       if existing_config {
@@ -105,8 +93,8 @@ jobs:
                       ResolutionOrigin::PathSearch,
                   ),
           '''
-          if old_presenter not in source:
-              raise SystemExit('presenter re-probe block not found')
+          if source.count(old_presenter) != 1:
+              raise SystemExit(f'expected one presenter re-probe block, found {source.count(old_presenter)}')
           source = source.replace(old_presenter, new_presenter, 1)
           path.write_text(source, encoding='utf-8')
           PY
