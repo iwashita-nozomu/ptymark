@@ -135,8 +135,15 @@ impl RenderService {
         block: &SemanticBlock,
         context: RenderContext,
     ) -> Result<RenderOutput, RenderError> {
-        let key = CacheKey(cache_fingerprint(self.renderer.id(), block, context));
-        if let Some(bytes) = self.cache.get(key) {
+        let key = CacheKey::new(
+            self.renderer.id(),
+            block.kind(),
+            block.source(),
+            context.columns,
+            context.color,
+            context.theme_fingerprint,
+        );
+        if let Some(bytes) = self.cache.get(&key) {
             return Ok(RenderOutput {
                 bytes,
                 cache_hit: true,
@@ -159,38 +166,6 @@ impl RenderService {
 
     pub fn renderer_id(&self) -> &'static str {
         self.renderer.id()
-    }
-}
-
-fn cache_fingerprint(id: &str, block: &SemanticBlock, context: RenderContext) -> u64 {
-    let mut hash = Fnv64::default();
-    hash.write(id.as_bytes());
-    hash.write(&[block.kind().cache_tag()]);
-    hash.write(block.source());
-    hash.write(&context.columns.to_le_bytes());
-    hash.write(&[u8::from(context.color)]);
-    hash.write(&context.theme_fingerprint.to_le_bytes());
-    hash.finish()
-}
-
-struct Fnv64(u64);
-
-impl Default for Fnv64 {
-    fn default() -> Self {
-        Self(0xcbf29ce484222325)
-    }
-}
-
-impl Fnv64 {
-    fn write(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.0 ^= u64::from(*byte);
-            self.0 = self.0.wrapping_mul(0x00000100000001b3);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
     }
 }
 
