@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const ENGINE_TIMEOUT: Duration = Duration::from_secs(5);
+const ENGINE_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DISPLAY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES: usize = 64 * 1024;
