@@ -13,9 +13,11 @@ ptymark-check-local:
 	cargo fmt --all -- --check
 	cargo clippy --locked --all-targets -- -D warnings
 	cargo test --locked --all-targets
+	cargo build --locked
 	lua5.4 tests/plugin_smoke.lua
-	bash -n scripts/check-ptymark-renderers.sh
-	shellcheck scripts/check-ptymark-renderers.sh
+	bash -n scripts/check-ptymark-renderers.sh scripts/install.sh tests/install_smoke.sh
+	shellcheck scripts/check-ptymark-renderers.sh scripts/install.sh tests/install_smoke.sh
+	bash tests/install_smoke.sh target/debug/ptymark
 	bash scripts/check-ptymark-renderers.sh
 
 ptymark-dev:
