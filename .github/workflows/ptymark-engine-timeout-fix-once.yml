@@ -1,0 +1,53 @@
+name: ptymark Engine Timeout Fix Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-engine-timeout-fix-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Allow bounded cold engine startup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/engine.rs')
+          source = path.read_text(encoding='utf-8')
+          old = 'const ENGINE_TIMEOUT: Duration = Duration::from_secs(5);'
+          new = 'const ENGINE_TIMEOUT: Duration = Duration::from_secs(30);'
+          if source.count(old) != 1:
+              raise SystemExit('engine timeout marker not found exactly once')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Validate Rust contracts
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+      - name: Commit timeout contract
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/engine.rs tests/install_reprobe_contract.rs
+          git commit -m 'Fix cross-platform installer and renderer startup contracts'
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
