@@ -1,3 +1,9 @@
+# @dependency-start
+# contract environment
+# responsibility Runs the canonical ptymark development image with the repository mounted at /workspace.
+# upstream environment ./ptymark.Dockerfile creates writable toolchain directories for the non-root node user.
+# downstream build ../ptymark.mk exposes the product development and validation commands.
+# @dependency-end
 services:
   dev:
     build:
@@ -13,13 +19,5 @@ services:
       PTYMARK_RENDERER_ROOT: /opt/ptymark-renderers
     volumes:
       - ..:/workspace
-      - ptymark-cargo-target:/home/node/.cache/ptymark-target
-      - ptymark-cargo-registry:/home/node/.cargo/registry
-      - ptymark-cargo-git:/home/node/.cargo/git
     stdin_open: true
     tty: true
-
-volumes:
-  ptymark-cargo-target:
-  ptymark-cargo-registry:
-  ptymark-cargo-git:
