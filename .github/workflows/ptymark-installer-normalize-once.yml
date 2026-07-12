@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Normalizes and validates the final installer implementation once with the pinned Rust toolchain and preserves diagnostics.
+# responsibility Applies the reviewed installer slot-spec refactor, then normalizes and validates it once with the pinned Rust toolchain.
 # upstream implementation ../../src/install.rs owns installation-time engine resolution.
 # upstream test ../../tests/install_contract.rs and ../../tests/install_cli_contract.rs own installer contracts.
 # downstream workflow ./ptymark-ci.yml remains the repeatable validation path.
@@ -40,6 +40,114 @@ jobs:
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
+
+      - name: Apply installer slot specification refactor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/install.rs")
+          source = path.read_text(encoding="utf-8")
+
+          marker = '''pub struct Installer<R> {
+              resolver: R,
+          }
+          '''
+          replacement = '''#[derive(Clone, Copy, Debug)]
+          struct SlotSpec {
+              role: &'static str,
+              default_program: &'static str,
+              external_backend: &'static str,
+          }
+
+          const MERMAID_SLOT: SlotSpec = SlotSpec {
+              role: "mermaid",
+              default_program: "mmdc",
+              external_backend: "mermaid-cli",
+          };
+
+          const MATH_SLOT: SlotSpec = SlotSpec {
+              role: "math",
+              default_program: "tex2svg",
+              external_backend: "mathjax-cli",
+          };
+
+          pub struct Installer<R> {
+              resolver: R,
+          }
+          '''
+          if marker not in source:
+              raise SystemExit("installer struct marker not found")
+          source = source.replace(marker, replacement, 1)
+
+          old_calls = '''        let mut mermaid = self.plan_slot(
+                      "mermaid",
+                      request.mermaid.clone(),
+                      existing,
+                      ExistingSlot::from_mermaid(&config),
+                      PathBuf::from("mmdc"),
+                      "mermaid-cli",
+                      &mut warnings,
+                  )?;
+                  let mut math = self.plan_slot(
+                      "math",
+                      request.math.clone(),
+                      existing,
+                      ExistingSlot::from_math(&config),
+                      PathBuf::from("tex2svg"),
+                      "mathjax-cli",
+                      &mut warnings,
+                  )?;
+          '''
+          new_calls = '''        let mut mermaid = self.plan_slot(
+                      MERMAID_SLOT,
+                      request.mermaid.clone(),
+                      existing,
+                      ExistingSlot::from_mermaid(&config),
+                      &mut warnings,
+                  )?;
+                  let mut math = self.plan_slot(
+                      MATH_SLOT,
+                      request.math.clone(),
+                      existing,
+                      ExistingSlot::from_math(&config),
+                      &mut warnings,
+                  )?;
+          '''
+          if old_calls not in source:
+              raise SystemExit("installer slot call block not found")
+          source = source.replace(old_calls, new_calls, 1)
+
+          old_signature = '''    fn plan_slot(
+                  &self,
+                  role: &'static str,
+                  preference: EnginePreference,
+                  existing_config: bool,
+                  existing: ExistingSlot,
+                  default_program: PathBuf,
+                  external_backend: &'static str,
+                  warnings: &mut Vec<String>,
+              ) -> Result<SlotPlan, InstallError> {
+                  match preference {
+          '''
+          new_signature = '''    fn plan_slot(
+                  &self,
+                  spec: SlotSpec,
+                  preference: EnginePreference,
+                  existing_config: bool,
+                  existing: ExistingSlot,
+                  warnings: &mut Vec<String>,
+              ) -> Result<SlotPlan, InstallError> {
+                  let role = spec.role;
+                  let external_backend = spec.external_backend;
+                  let default_program = PathBuf::from(spec.default_program);
+                  match preference {
+          '''
+          if old_signature not in source:
+              raise SystemExit("installer plan_slot signature not found")
+          source = source.replace(old_signature, new_signature, 1)
+          path.write_text(source, encoding="utf-8")
+          PY
 
       - name: Capture normalization and validation
         shell: bash
