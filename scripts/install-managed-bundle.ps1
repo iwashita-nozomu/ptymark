@@ -40,6 +40,7 @@ $BinRoot = Join-Path $Root 'bin'
 $CacheRoot = Join-Path $Root 'cache\puppeteer'
 $StampPath = Join-Path $Root 'bundle.stamp'
 $ManifestPath = Join-Path $Root 'bundle.toml'
+$PuppeteerConfigPath = Join-Path $Root 'puppeteer-config.json'
 New-Item -ItemType Directory -Force -Path $BinRoot, $CacheRoot | Out-Null
 
 function Get-CommandPath([string]$Name) {
@@ -111,6 +112,7 @@ elseif ($SkipBrowserDownload) {
   if (-not $Browser) { throw 'No Chromium-compatible browser was found while -SkipBrowserDownload is active' }
 }
 
+$BrowserNoSandbox = $env:PTYMARK_BROWSER_NO_SANDBOX -eq '1'
 $LockPath = Join-Path $RepoRoot 'renderers/package-lock.json'
 $LockSha = (Get-FileHash -Algorithm SHA256 $LockPath).Hash.ToLowerInvariant()
 $LauncherSha = (Get-FileHash -Algorithm SHA256 $Launcher).Hash.ToLowerInvariant()
@@ -121,6 +123,7 @@ $ExpectedStamp = @(
   "launcher_sha=$LauncherSha"
   "node=$NodeCommand"
   "browser=$BrowserIdentity"
+  "browser_no_sandbox=$($BrowserNoSandbox.ToString().ToLowerInvariant())"
 ) -join "`n"
 $Installed = (-not $Force) -and (Test-Path $StampPath -PathType Leaf) -and
   ((Get-Content $StampPath -Raw).TrimEnd("`r", "`n") -eq $ExpectedStamp) -and
@@ -136,12 +139,27 @@ if (-not $Installed) {
   Copy-Item (Join-Path $RepoRoot 'renderers/managed/ansi-presenter.mjs') (Join-Path $AppRoot 'managed/ansi-presenter.mjs')
   $env:PUPPETEER_CACHE_DIR = $CacheRoot
   $env:npm_config_cache = Join-Path $Root 'cache\npm'
-  if ($SkipBrowserDownload) { $env:PUPPETEER_SKIP_DOWNLOAD = 'true' }
+  if ($SkipBrowserDownload -or $Browser) { $env:PUPPETEER_SKIP_DOWNLOAD = 'true' }
   else { Remove-Item Env:PUPPETEER_SKIP_DOWNLOAD -ErrorAction SilentlyContinue }
   & $NpmCommand ci --prefix $AppRoot --omit=dev --no-audit --no-fund
   if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
-  Set-Content -Path $StampPath -Value $ExpectedStamp -NoNewline -Encoding UTF8
+  if (-not $Browser -and -not $SkipBrowserDownload) {
+    & $NodeCommand (Join-Path $AppRoot 'node_modules\puppeteer\install.mjs')
+    if ($LASTEXITCODE -ne 0) { throw "Puppeteer browser installation failed with exit code $LASTEXITCODE" }
+  }
 }
+
+$PuppeteerConfig = [ordered]@{ headless = $true }
+if ($Browser) { $PuppeteerConfig.executablePath = $Browser }
+if ($BrowserNoSandbox) {
+  $PuppeteerConfig.args = @('--no-sandbox', '--disable-setuid-sandbox')
+}
+$PuppeteerJson = $PuppeteerConfig | ConvertTo-Json -Compress
+[System.IO.File]::WriteAllText(
+  $PuppeteerConfigPath,
+  $PuppeteerJson + "`n",
+  [System.Text.UTF8Encoding]::new($false)
+)
 
 function Install-NativeAlias([string]$Destination) {
   Remove-Item $Destination -Force -ErrorAction SilentlyContinue
@@ -168,10 +186,20 @@ $Manifest = @(
   "node_path = $(Convert-ToTomlString $NodeCommand)"
   "app_root = $(Convert-ToTomlString $AppRoot)"
   "cache_root = $(Convert-ToTomlString $CacheRoot)"
+  "puppeteer_config_path = $(Convert-ToTomlString $PuppeteerConfigPath)"
 )
 if ($Browser) { $Manifest += "browser_path = $(Convert-ToTomlString $Browser)" }
-$Manifest += 'browser_no_sandbox = false'
-Set-Content -Path $ManifestPath -Value $Manifest -Encoding UTF8
+$Manifest += "browser_no_sandbox = $($BrowserNoSandbox.ToString().ToLowerInvariant())"
+[System.IO.File]::WriteAllText(
+  $ManifestPath,
+  ($Manifest -join "`n") + "`n",
+  [System.Text.UTF8Encoding]::new($false)
+)
+[System.IO.File]::WriteAllText(
+  $StampPath,
+  $ExpectedStamp,
+  [System.Text.UTF8Encoding]::new($false)
+)
 
 "root`t$Root"
 "node`t$NodeCommand"
