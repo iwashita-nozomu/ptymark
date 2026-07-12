@@ -43,6 +43,8 @@ struct ManagedBundleManifest {
     #[serde(default)]
     browser_path: Option<PathBuf>,
     #[serde(default)]
+    puppeteer_config_path: Option<PathBuf>,
+    #[serde(default)]
     browser_no_sandbox: bool,
 }
 
@@ -78,6 +80,9 @@ impl ManagedBundleManifest {
         }
         if let Some(path) = self.browser_path.as_deref() {
             validate_absolute_file("browser_path", path)?;
+        }
+        if let Some(path) = self.puppeteer_config_path.as_deref() {
+            validate_absolute_file("puppeteer_config_path", path)?;
         }
         Ok(())
     }
@@ -148,8 +153,13 @@ fn run_managed_role(role: ManagedRole, executable: &Path) -> Result<i32, String>
     })?;
 
     let mut command = Command::new(&manifest.node_path);
+    command.arg(&script);
+    if role == ManagedRole::Mermaid {
+        if let Some(config) = manifest.puppeteer_config_path.as_deref() {
+            command.arg("--puppeteerConfigFile").arg(config);
+        }
+    }
     command
-        .arg(&script)
         .args(env::args_os().skip(1))
         .env("PUPPETEER_CACHE_DIR", &manifest.cache_root);
     if let Some(browser) = manifest.browser_path.as_deref() {
