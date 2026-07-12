@@ -1,0 +1,21 @@
+integration	category	profile	verification	upstream	notes
+Fisher	plugin-manager	hook-only	contract-verified	https://github.com/jorgebucaran/fisher	Plugin installation and sourcing are not modified.
+Oh My Fish	framework	prompt-control	contract-verified	https://github.com/oh-my-fish/oh-my-fish	Framework prompt and hook output is preserved.
+Fundle	plugin-manager	hook-only	contract-verified	https://github.com/tuvistavie/fundle	Plugin loading remains shell-owned.
+Tide	prompt	right-prompt	contract-verified	https://github.com/IlanCosman/tide	Multiline/right prompt and transient prompt controls are preserved.
+Hydro	prompt	prompt-control	contract-verified	https://github.com/jorgebucaran/hydro	Prompt color and status output is preserved.
+Pure	prompt	right-prompt	contract-verified	https://github.com/pure-fish/pure	Async/right prompt updates are passed through unchanged.
+Starship	prompt	prompt-control	contract-verified	https://github.com/starship/starship	Prompt output and hooks remain shell-owned.
+Oh My Posh	prompt	prompt-control	contract-verified	https://github.com/JanDeDobbeleer/oh-my-posh	Prompt and transient output is preserved.
+fzf.fish	fuzzy-ui	alternate-screen	contract-verified	https://github.com/PatrickF1/fzf.fish	fzf UI bypasses semantic rendering.
+autopair.fish	line-editor	line-editor	contract-verified	https://github.com/jorgebucaran/autopair.fish	Interactive edits and redraws remain shell-owned.
+replay.fish	environment	hook-only	contract-verified	https://github.com/jorgebucaran/replay.fish	Environment import does not interact with display rendering.
+nvm.fish	environment	hook-only	contract-verified	https://github.com/jorgebucaran/nvm.fish	Node environment switching is not modified.
+done	notification	progress-line	contract-verified	https://github.com/franciscolourenco/done	Command-completion messages and terminal title controls are preserved.
+sponge	history	hook-only	contract-verified	https://github.com/meaningful-ooo/sponge	History cleanup hooks remain shell-owned.
+pisces	line-editor	line-editor	contract-verified	https://github.com/laughedelic/pisces	Pair insertion and command-line redraw remain shell-owned.
+bass	environment	hook-only	contract-verified	https://github.com/edc/bass	Bash environment import remains outside display processing.
+Atuin	history	alternate-screen	contract-verified	https://github.com/atuinsh/atuin	History UI bypasses rendering and bindings remain intact.
+zoxide	navigation	hook-only	contract-verified	https://github.com/ajeetdsouza/zoxide	Directory hooks remain shell-owned.
+direnv	environment	hook-only	contract-verified	https://github.com/direnv/direnv	Environment hooks remain shell-owned.
+Carapace	completion	completion-menu	contract-verified	https://github.com/carapace-sh/carapace-bin	Completion menus and cursor controls are byte-preserved.
