@@ -4,6 +4,7 @@ pub mod config;
 pub mod detector;
 pub mod engine;
 pub mod install;
+pub mod managed_launcher;
 pub mod model;
 pub mod pipeline;
 pub mod render;
@@ -23,6 +24,7 @@ pub use install::{
     InstallState, InstalledComponent, Installer, PathProgramResolver, PresenterPreference,
     ProgramResolver, ResolutionOrigin, default_install_state_path,
 };
+pub use managed_launcher::{MANAGED_BUNDLE_SCHEMA_VERSION, run_if_managed_alias};
 pub use model::{BlockKind, SemanticBlock, StreamItem};
 pub use pipeline::{DisplayPipeline, PipelineError, PipelineReport};
 pub use render::{
