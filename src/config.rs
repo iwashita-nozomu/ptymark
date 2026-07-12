@@ -162,7 +162,7 @@ impl Error for ConfigError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, CONFIG_SCHEMA_VERSION};
+    use super::{CONFIG_SCHEMA_VERSION, Config};
 
     #[test]
     fn defaults_are_valid() {

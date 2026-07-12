@@ -112,9 +112,8 @@ impl SemanticDetector for FencedDetector {
                         }
                     } else if byte == b'\n' {
                         if strip_eol(&line) == closing {
-                            items.push(StreamItem::Semantic(SemanticBlock::new(
-                                kind, source, body,
-                            )));
+                            items
+                                .push(StreamItem::Semantic(SemanticBlock::new(kind, source, body)));
                             State::LineStart(Vec::new())
                         } else {
                             body.extend_from_slice(&line);
@@ -192,21 +191,11 @@ fn build_openers(config: &DetectionConfig) -> Vec<OpenRule> {
     if config.math {
         add_rule(&mut openers, "$$", BlockKind::Math, "$$");
         for name in ["math", "latex", "tex"] {
-            add_rule(
-                &mut openers,
-                &format!("```{name}"),
-                BlockKind::Math,
-                "```",
-            );
+            add_rule(&mut openers, &format!("```{name}"), BlockKind::Math, "```");
         }
     }
     if config.mermaid {
-        add_rule(
-            &mut openers,
-            "```mermaid",
-            BlockKind::Mermaid,
-            "```",
-        );
+        add_rule(&mut openers, "```mermaid", BlockKind::Mermaid, "```");
     }
     openers
 }

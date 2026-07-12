@@ -136,10 +136,7 @@ fn next_columns(iterator: &mut impl Iterator<Item = OsString>) -> Result<u16, St
     Ok(columns)
 }
 
-fn run_preview(
-    arguments: Vec<OsString>,
-    mut config_path: Option<PathBuf>,
-) -> Result<i32, String> {
+fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Result<i32, String> {
     let mut source = false;
     let mut strict = false;
     let mut no_cache = false;
@@ -162,10 +159,7 @@ fn run_preview(
             "--no-cache" => no_cache = true,
             "--color" => color = true,
             "--columns" => columns = Some(next_columns(&mut iterator)?),
-            "--config" => set_config(
-                &mut config_path,
-                next_path(&mut iterator, "--config")?,
-            )?,
+            "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
             "-" => {
                 if input_path.replace(PathBuf::from("-")).is_some() {
                     return Err("preview accepts at most one input".to_owned());
@@ -183,12 +177,11 @@ fn run_preview(
     }
 
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
-    let detector: Box<dyn SemanticDetector> =
-        if config.detection.math || config.detection.mermaid {
-            Box::new(FencedDetector::new(&config.detection))
-        } else {
-            Box::new(PassthroughDetector)
-        };
+    let detector: Box<dyn SemanticDetector> = if config.detection.math || config.detection.mermaid {
+        Box::new(FencedDetector::new(&config.detection))
+    } else {
+        Box::new(PassthroughDetector)
+    };
 
     let source_mode = source || config.rendering.mode == RenderMode::Source;
     let renderer: Box<dyn Renderer> = if source_mode {
@@ -212,11 +205,15 @@ fn run_preview(
         color,
         theme_fingerprint: 0,
     };
-    let mut pipeline =
-        DisplayPipeline::new(detector, service, context, strict || config.rendering.strict);
+    let mut pipeline = DisplayPipeline::new(
+        detector,
+        service,
+        context,
+        strict || config.rendering.strict,
+    );
 
     let mut input: Box<dyn Read> = match input_path {
-        Some(path) if path != PathBuf::from("-") => Box::new(
+        Some(path) if path != *"-" => Box::new(
             File::open(&path)
                 .map_err(|error| format!("cannot open `{}`: {error}", path.display()))?,
         ),
@@ -258,10 +255,9 @@ fn run_config(
     let mut iterator = arguments.into_iter();
     while let Some(argument) = iterator.next() {
         match argument.to_str() {
-            Some("--config") => set_config(
-                &mut config_path,
-                next_path(&mut iterator, "--config")?,
-            )?,
+            Some("--config") => {
+                set_config(&mut config_path, next_path(&mut iterator, "--config")?)?
+            }
             Some("-h" | "--help") => {
                 print!("{HELP}");
                 return Ok(0);
@@ -290,10 +286,7 @@ fn run_config(
     }
 }
 
-fn run_command(
-    arguments: Vec<OsString>,
-    config_path: Option<PathBuf>,
-) -> Result<i32, String> {
+fn run_command(arguments: Vec<OsString>, config_path: Option<PathBuf>) -> Result<i32, String> {
     let program = arguments
         .first()
         .cloned()
@@ -315,9 +308,7 @@ fn run_command(
         let status = Command::new(&program)
             .args(&arguments[1..])
             .status()
-            .map_err(|error| {
-                format!("cannot execute `{}`: {error}", program.to_string_lossy())
-            })?;
+            .map_err(|error| format!("cannot execute `{}`: {error}", program.to_string_lossy()))?;
         Ok(status.code().unwrap_or(1))
     }
 }

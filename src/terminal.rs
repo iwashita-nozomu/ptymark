@@ -16,8 +16,12 @@ enum ParserState {
     Ground,
     Escape,
     Csi(Vec<u8>),
-    Osc { escaped: bool },
-    String { escaped: bool },
+    Osc {
+        escaped: bool,
+    },
+    String {
+        escaped: bool,
+    },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -178,8 +182,7 @@ mod tests {
 
     #[test]
     fn control_sequences_are_byte_exact() {
-        let source =
-            b"plain\x1b[31m red\x1b[0m\n\x1b]8;;https://example.com\x07link\x1b]8;;\x07\n";
+        let source = b"plain\x1b[31m red\x1b[0m\n\x1b]8;;https://example.com\x07link\x1b]8;;\x07\n";
         let mut gate = TerminalOutputGate::default();
         let mut output = Vec::new();
         for byte in source {

@@ -73,11 +73,7 @@ impl DisplayPipeline {
         }
     }
 
-    pub fn feed(
-        &mut self,
-        input: &[u8],
-        display: &mut dyn Write,
-    ) -> Result<(), PipelineError> {
+    pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PipelineError> {
         self.report.input_bytes = self.report.input_bytes.saturating_add(input.len());
 
         for segment in self.gate.feed(input) {
@@ -133,8 +129,7 @@ impl DisplayPipeline {
                             self.report.rendered_blocks =
                                 self.report.rendered_blocks.saturating_add(1);
                             if output.cache_hit {
-                                self.report.cache_hits =
-                                    self.report.cache_hits.saturating_add(1);
+                                self.report.cache_hits = self.report.cache_hits.saturating_add(1);
                             }
                         }
                         Err(error) if self.strict => {
