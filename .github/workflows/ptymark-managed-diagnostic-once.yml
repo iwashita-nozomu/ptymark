@@ -1,11 +1,12 @@
 name: ptymark Managed Renderer Diagnostic Once
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/minimal-pre-display-core
+      - main
     paths:
       - .github/workflows/ptymark-managed-diagnostic-once.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,7 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
@@ -120,7 +120,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
           persist-credentials: false
       - name: Build canonical image
         run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml build --pull
