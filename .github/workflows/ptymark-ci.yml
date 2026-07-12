@@ -378,11 +378,30 @@ jobs:
           bash -lc 'cargo build --locked && PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/managed_renderer_smoke.sh'
 
       - name: Check selected renderer engines
-        run: >-
-          docker compose
-          --env-file docker/ptymark-versions.env
-          --file docker/ptymark-compose.yaml
-          run --rm --no-TTY dev bash scripts/check-ptymark-renderers.sh
+        id: selected-renderer-check
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev \
+            bash scripts/check-ptymark-renderers.sh \
+            2>&1 | tee selected-renderer.log
+
+      - name: Upload selected renderer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-selected-renderer-evidence
+          path: selected-renderer.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Preserve selected-renderer result
+        if: always()
+        run: test '${{ steps.selected-renderer-check.outcome }}' = success
 
   release-packages:
     name: Build and smoke-test release package (${{ matrix.label }})
