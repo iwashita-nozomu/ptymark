@@ -20,23 +20,68 @@ else {
   $BinaryDestination = Join-Path $HOME '.cargo\bin\ptymark.exe'
 }
 
-$Forward = [System.Collections.Generic.List[object]]::new()
+$ValueParameters = @{
+  '-config' = 'Config'
+  '--config' = 'Config'
+  '-state' = 'State'
+  '--state' = 'State'
+  '-mermaid' = 'Mermaid'
+  '--mermaid' = 'Mermaid'
+  '-math' = 'Math'
+  '--math' = 'Math'
+  '-presenter' = 'Presenter'
+  '--presenter' = 'Presenter'
+  '-managed' = 'Managed'
+  '--managed' = 'Managed'
+  '-managedroot' = 'ManagedRoot'
+  '--managed-root' = 'ManagedRoot'
+  '-browser' = 'Browser'
+  '--browser' = 'Browser'
+}
+$SwitchParameters = @{
+  '-skipbrowserdownload' = 'SkipBrowserDownload'
+  '--skip-browser-download' = 'SkipBrowserDownload'
+  '-offline' = 'Offline'
+  '--offline' = 'Offline'
+  '-forcemanaged' = 'ForceManaged'
+  '--force-managed' = 'ForceManaged'
+  '-reprobe' = 'Reprobe'
+  '--reprobe' = 'Reprobe'
+  '-reset' = 'Reset'
+  '--reset' = 'Reset'
+  '-dryrun' = 'DryRun'
+  '--dry-run' = 'DryRun'
+  '-help' = 'Help'
+  '--help' = 'Help'
+  '-h' = 'Help'
+}
+$InvocationParameters = @{
+  SkipCore = $true
+}
+
 for ($Index = 0; $Index -lt $args.Count; $Index += 1) {
   $Argument = [string]$args[$Index]
-  switch -Regex ($Argument) {
-    '^(-BinaryDestination|--binary-destination)$' {
-      if ($Index + 1 -ge $args.Count) { throw "Missing value after $Argument" }
-      $Index += 1
-      $BinaryDestination = [string]$args[$Index]
-      continue
-    }
-    '^(-Binary|--binary|-SkipCore|--skip-core|-Root|--root)$' {
-      throw "$Argument is owned by the packaged installer; use -BinaryDestination instead"
-    }
-    default {
-      $Forward.Add($args[$Index])
-    }
+  $Key = $Argument.ToLowerInvariant()
+  if ($Key -in @('-binarydestination', '--binary-destination')) {
+    if ($Index + 1 -ge $args.Count) { throw "Missing value after $Argument" }
+    $Index += 1
+    $BinaryDestination = [string]$args[$Index]
+    continue
   }
+  if ($Key -in @('-binary', '--binary', '-skipcore', '--skip-core', '-root', '--root')) {
+    throw "$Argument is owned by the packaged installer; use -BinaryDestination instead"
+  }
+  if ($ValueParameters.ContainsKey($Key)) {
+    if ($Index + 1 -ge $args.Count) { throw "Missing value after $Argument" }
+    $Index += 1
+    $InvocationParameters[$ValueParameters[$Key]] = [string]$args[$Index]
+    continue
+  }
+  if ($SwitchParameters.ContainsKey($Key)) {
+    $InvocationParameters[$SwitchParameters[$Key]] = $true
+    continue
+  }
+  throw "Unknown packaged installer option: $Argument"
 }
 
 $BinaryDestination = [System.IO.Path]::GetFullPath($BinaryDestination)
@@ -51,6 +96,6 @@ finally {
   Remove-Item $TemporaryBinary -Force -ErrorAction SilentlyContinue
 }
 
-$ForwardArguments = $Forward.ToArray()
-& $Installer -SkipCore -Binary $BinaryDestination @ForwardArguments
+$InvocationParameters.Binary = $BinaryDestination
+& $Installer @InvocationParameters
 exit $LASTEXITCODE
