@@ -358,10 +358,7 @@ fn run_engine(
     Ok(0)
 }
 
-fn run_install(
-    mut arguments: Vec<OsString>,
-    config_path: Option<PathBuf>,
-) -> Result<i32, String> {
+fn run_install(mut arguments: Vec<OsString>, config_path: Option<PathBuf>) -> Result<i32, String> {
     let action = arguments
         .first()
         .and_then(|value| value.to_str())
@@ -436,9 +433,15 @@ fn run_install_resolve(
         .map_err(|error| error.to_string())?;
     if dry_run {
         println!("# resolved ptymark configuration");
-        print!("{}", plan.config.to_toml().map_err(|error| error.to_string())?);
+        print!(
+            "{}",
+            plan.config.to_toml().map_err(|error| error.to_string())?
+        );
         println!("# resolved installation state");
-        print!("{}", plan.state.to_toml().map_err(|error| error.to_string())?);
+        print!(
+            "{}",
+            plan.state.to_toml().map_err(|error| error.to_string())?
+        );
     } else {
         plan.apply().map_err(|error| error.to_string())?;
         for line in plan.summary_lines() {

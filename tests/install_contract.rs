@@ -50,7 +50,10 @@ fn first_install_resolves_available_engines_and_records_absolute_paths() {
     let request = InstallRequest::new(config_path.clone(), state_path.clone());
 
     let plan = installer.plan(&request).expect("plan");
-    assert_eq!(plan.config.engines.mermaid.backend, MermaidEngine::MermaidCli);
+    assert_eq!(
+        plan.config.engines.mermaid.backend,
+        MermaidEngine::MermaidCli
+    );
     assert_eq!(
         plan.config.engines.mermaid.path,
         PathBuf::from("/resolved/bin/mmdc")
@@ -62,7 +65,10 @@ fn first_install_resolves_available_engines_and_records_absolute_paths() {
     );
 
     plan.apply().expect("apply");
-    assert_eq!(Config::load_exact(&config_path).expect("config"), plan.config);
+    assert_eq!(
+        Config::load_exact(&config_path).expect("config"),
+        plan.config
+    );
     let state = InstallState::load(&state_path).expect("state");
     assert_eq!(state.components.len(), 3);
     assert_eq!(state.config_path, config_path);
@@ -94,7 +100,9 @@ fn explicitly_requested_missing_engine_is_an_error() {
     request.mermaid = EnginePreference::External(PathBuf::from("/missing/mmdc"));
     request.presenter = PresenterPreference::Program(PathBuf::from("/missing/chafa"));
 
-    let error = installer.plan(&request).expect_err("missing explicit engine");
+    let error = installer
+        .plan(&request)
+        .expect_err("missing explicit engine");
     assert!(error.to_string().contains("cannot select mermaid"));
     let _ = fs::remove_dir_all(root);
 }
@@ -122,7 +130,10 @@ fn rerun_replaces_one_engine_without_resetting_other_user_settings() {
     let plan = installer.plan(&request).expect("replace plan");
     assert!(!plan.config.detection.math);
     assert_eq!(plan.config.engines.math.backend, MathEngine::Source);
-    assert_eq!(plan.config.engines.mermaid.backend, MermaidEngine::MermaidCli);
+    assert_eq!(
+        plan.config.engines.mermaid.backend,
+        MermaidEngine::MermaidCli
+    );
     assert_eq!(plan.config.engines.mermaid.path, PathBuf::from("/new/mmdc"));
     assert_eq!(
         plan.config.engines.presenter.path,

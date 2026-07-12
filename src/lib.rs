@@ -19,7 +19,7 @@ pub use config::{
 pub use detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 pub use engine::{ConfiguredRenderer, EngineCheck, check_configured_engines, resolve_executable};
 pub use install::{
-    INSTALL_STATE_SCHEMA_VERSION, EnginePreference, InstallError, InstallPlan, InstallRequest,
+    EnginePreference, INSTALL_STATE_SCHEMA_VERSION, InstallError, InstallPlan, InstallRequest,
     InstallState, InstalledComponent, Installer, PathProgramResolver, PresenterPreference,
     ProgramResolver, ResolutionOrigin, default_install_state_path,
 };

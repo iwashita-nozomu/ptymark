@@ -173,10 +173,7 @@ impl InstallPlan {
                 .resolved_path
                 .as_deref()
                 .map_or_else(|| "built-in".to_owned(), |path| path.display().to_string());
-            format!(
-                "{}\t{}\t{}",
-                component.role, component.backend, resolved
-            )
+            format!("{}\t{}\t{}", component.role, component.backend, resolved)
         }));
         lines.extend(
             self.warnings
@@ -186,6 +183,25 @@ impl InstallPlan {
         lines
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+struct SlotSpec {
+    role: &'static str,
+    default_program: &'static str,
+    external_backend: &'static str,
+}
+
+const MERMAID_SLOT: SlotSpec = SlotSpec {
+    role: "mermaid",
+    default_program: "mmdc",
+    external_backend: "mermaid-cli",
+};
+
+const MATH_SLOT: SlotSpec = SlotSpec {
+    role: "math",
+    default_program: "tex2svg",
+    external_backend: "mathjax-cli",
+};
 
 pub struct Installer<R> {
     resolver: R,
@@ -208,25 +224,22 @@ impl<R: ProgramResolver> Installer<R> {
         let mut warnings = Vec::new();
 
         let mut mermaid = self.plan_slot(
-            "mermaid",
+            MERMAID_SLOT,
             request.mermaid.clone(),
             existing,
             ExistingSlot::from_mermaid(&config),
-            PathBuf::from("mmdc"),
-            "mermaid-cli",
             &mut warnings,
         )?;
         let mut math = self.plan_slot(
-            "math",
+            MATH_SLOT,
             request.math.clone(),
             existing,
             ExistingSlot::from_math(&config),
-            PathBuf::from("tex2svg"),
-            "mathjax-cli",
             &mut warnings,
         )?;
 
-        let any_external = mermaid.route == SlotRoute::External || math.route == SlotRoute::External;
+        let any_external =
+            mermaid.route == SlotRoute::External || math.route == SlotRoute::External;
         let required_external = (mermaid.route == SlotRoute::External && mermaid.required)
             || (math.route == SlotRoute::External && math.required);
         let presenter = self.plan_presenter(
@@ -273,14 +286,15 @@ impl<R: ProgramResolver> Installer<R> {
 
     fn plan_slot(
         &self,
-        role: &'static str,
+        spec: SlotSpec,
         preference: EnginePreference,
         existing_config: bool,
         existing: ExistingSlot,
-        default_program: PathBuf,
-        external_backend: &'static str,
         warnings: &mut Vec<String>,
     ) -> Result<SlotPlan, InstallError> {
+        let role = spec.role;
+        let external_backend = spec.external_backend;
+        let default_program = PathBuf::from(spec.default_program);
         match preference {
             EnginePreference::Keep if existing_config => match existing.route {
                 SlotRoute::Preview => Ok(SlotPlan::builtin(
@@ -400,9 +414,10 @@ impl<R: ProgramResolver> Installer<R> {
                         ResolutionOrigin::Explicit,
                     ))
                 }
-                PresenterPreference::Keep if existing_config => {
-                    Ok(PresenterPlan::inactive(existing_path, ResolutionOrigin::Existing))
-                }
+                PresenterPreference::Keep if existing_config => Ok(PresenterPlan::inactive(
+                    existing_path,
+                    ResolutionOrigin::Existing,
+                )),
                 PresenterPreference::Keep | PresenterPreference::Auto => Ok(
                     PresenterPlan::inactive(PathBuf::from("chafa"), ResolutionOrigin::BuiltIn),
                 ),
@@ -426,9 +441,7 @@ impl<R: ProgramResolver> Installer<R> {
                     ResolutionOrigin::PathSearch
                 },
             ),
-            PresenterPreference::Program(path) => {
-                (path, true, ResolutionOrigin::Explicit)
-            }
+            PresenterPreference::Program(path) => (path, true, ResolutionOrigin::Explicit),
         };
 
         match self.resolver.resolve(&candidate) {

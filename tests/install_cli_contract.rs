@@ -48,7 +48,11 @@ fn install_resolve_writes_absolute_engine_paths_and_status() {
         .arg(&chafa)
         .output()
         .expect("install resolve");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let config_text = fs::read_to_string(&config).expect("config");
     assert!(config_text.contains("backend = \"mermaid-cli\""));
