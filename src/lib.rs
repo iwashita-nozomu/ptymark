@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod detector;
 pub mod engine;
+pub mod filtered_run;
 pub mod install;
 pub mod managed_launcher;
 pub mod model;
