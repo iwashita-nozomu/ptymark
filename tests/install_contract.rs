@@ -104,8 +104,7 @@ fn explicitly_requested_missing_engine_is_an_error() {
     let installer = Installer::new(FakeResolver::default());
     let mut request = InstallRequest::new(root.join("config.toml"), root.join("state.toml"));
     request.mermaid = EnginePreference::External(program_path(&root, "missing", "mmdc"));
-    request.presenter =
-        PresenterPreference::Program(program_path(&root, "missing", "chafa"));
+    request.presenter = PresenterPreference::Program(program_path(&root, "missing", "chafa"));
 
     let error = installer
         .plan(&request)
