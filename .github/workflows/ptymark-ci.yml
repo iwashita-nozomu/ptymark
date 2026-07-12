@@ -111,9 +111,44 @@ jobs:
           --file docker/ptymark-compose.yaml
           build --pull
 
-      - name: Run product checks
+      - name: Check Rust formatting in Docker
         run: >-
           docker compose
           --env-file docker/ptymark-versions.env
           --file docker/ptymark-compose.yaml
-          run --rm --no-TTY dev make ptymark-check-local
+          run --rm --no-TTY dev cargo fmt --all -- --check
+
+      - name: Run Clippy in Docker
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run Rust tests in Docker
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --all-targets
+
+      - name: Run WezTerm plugin smoke
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
+
+      - name: Check product shell script
+        shell: bash
+        run: |
+          compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
+          "${compose[@]}" run --rm --no-TTY dev bash -n scripts/check-ptymark-renderers.sh
+          "${compose[@]}" run --rm --no-TTY dev shellcheck scripts/check-ptymark-renderers.sh
+
+      - name: Check selected renderer engines
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev bash scripts/check-ptymark-renderers.sh
