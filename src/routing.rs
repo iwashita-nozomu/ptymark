@@ -9,6 +9,7 @@ use crate::render::{
 ///
 /// The enum is intentionally small. A new route is added only with a concrete
 /// implementation, fallback behavior, and contract tests.
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum RenderRoute {
     Preview,
@@ -160,8 +161,8 @@ impl<'a> EngineRequest<'a> {
 /// Output metadata returned by the handoff stage.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EngineResponse {
-    pub engine_id: String,
-    pub artifact: RenderArtifact,
+    engine_id: String,
+    artifact: RenderArtifact,
 }
 
 impl EngineResponse {
@@ -170,6 +171,18 @@ impl EngineResponse {
             engine_id: engine_id.into(),
             artifact,
         }
+    }
+
+    pub fn engine_id(&self) -> &str {
+        &self.engine_id
+    }
+
+    pub fn artifact(&self) -> &RenderArtifact {
+        &self.artifact
+    }
+
+    pub fn into_artifact(self) -> RenderArtifact {
+        self.artifact
     }
 }
 
@@ -274,7 +287,7 @@ impl Renderer for RoutedRenderer {
         let response = self
             .handoff
             .execute(EngineRequest::new(decision, block, context))?;
-        Ok(response.artifact)
+        Ok(response.into_artifact())
     }
 }
 
