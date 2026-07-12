@@ -1,0 +1,21 @@
+integration	category	profile	verification	upstream	notes
+Bash-it	framework	prompt-control	contract-verified	https://github.com/Bash-it/bash-it	Framework and prompt hooks; ptymark does not source or rewrite shell startup files.
+Oh My Bash	framework	prompt-control	contract-verified	https://github.com/ohmybash/oh-my-bash	Prompt, aliases, and hooks remain shell-owned.
+ble.sh	line-editor	line-editor	contract-verified	https://github.com/akinomyoga/ble.sh	Readline replacement uses cursor controls and redraws; control-bearing lines bypass rendering.
+Liquidprompt	prompt	prompt-control	contract-verified	https://github.com/liquidprompt/liquidprompt	Multiline and status-rich prompts are byte-preserved.
+bash-git-prompt	prompt	prompt-control	contract-verified	https://github.com/magicmonty/bash-git-prompt	Git prompt colors and cursor sequences are byte-preserved.
+powerline-shell	prompt	prompt-control	contract-verified	https://github.com/b-ryan/powerline-shell	Powerline glyph and SGR output is preserved.
+Starship	prompt	prompt-control	contract-verified	https://github.com/starship/starship	Prompt output and shell hooks remain outside semantic detection.
+Oh My Posh	prompt	prompt-control	contract-verified	https://github.com/JanDeDobbeleer/oh-my-posh	Prompt segments, right prompts, and OSC output are preserved.
+bash-preexec	hook	hook-only	contract-verified	https://github.com/rcaloras/bash-preexec	preexec/precmd hooks are not modified or reordered.
+bash-completion	completion	completion-menu	contract-verified	https://github.com/scop/bash-completion	Completion redraw and menu control bytes bypass semantic rendering.
+fzf	fuzzy-ui	alternate-screen	contract-verified	https://github.com/junegunn/fzf	Full-screen/cursor-addressed UI is passed through unchanged.
+fzf-git.sh	fuzzy-ui	alternate-screen	contract-verified	https://github.com/junegunn/fzf-git.sh	fzf UI is passed through unchanged.
+Atuin	history	alternate-screen	contract-verified	https://github.com/atuinsh/atuin	Interactive history UI bypasses rendering; hook variables are preserved.
+zoxide	navigation	hook-only	contract-verified	https://github.com/ajeetdsouza/zoxide	Directory hooks and environment changes are shell-owned.
+direnv	environment	hook-only	contract-verified	https://github.com/direnv/direnv	Environment export hooks are not intercepted.
+autojump	navigation	hook-only	contract-verified	https://github.com/wting/autojump	Directory tracking hooks are not intercepted.
+Carapace	completion	completion-menu	contract-verified	https://github.com/carapace-sh/carapace-bin	Completion output and cursor controls remain byte-exact.
+Navi	fuzzy-ui	alternate-screen	contract-verified	https://github.com/denisidoro/navi	Interactive selector bypasses semantic rendering.
+Broot	file-navigation	alternate-screen	contract-verified	https://github.com/Canop/broot	Full-screen terminal UI bypasses semantic rendering.
+Mise	environment	hook-only	contract-verified	https://github.com/jdx/mise	Activation hooks and environment mutation remain shell-owned.
