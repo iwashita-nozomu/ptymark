@@ -44,58 +44,50 @@ jobs:
       - name: Apply re-probe semantics
         run: |
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path('src/install.rs')
           source = path.read_text(encoding='utf-8')
 
-          old_candidate = '''                let candidate = if existing_config {
-                      existing.path
-                  } else {
-                      default_program
-                  };
-          '''
-          new_candidate = '''                let candidate = default_program;
-          '''
-          if source.count(old_candidate) != 1:
-              raise SystemExit(f'expected one engine candidate block, found {source.count(old_candidate)}')
-          source = source.replace(old_candidate, new_candidate, 1)
+          source, candidate_count = re.subn(
+              r'let candidate = if existing_config \{\s*existing\.path\s*\} else \{\s*default_program\s*\};',
+              'let candidate = default_program;',
+              source,
+              count=1,
+          )
+          if candidate_count != 1:
+              raise SystemExit(f'expected one engine candidate block, found {candidate_count}')
 
-          old_origin = '''                        if existing_config {
-                              ResolutionOrigin::Existing
-                          } else {
-                              ResolutionOrigin::PathSearch
-                          },
-          '''
-          new_origin = '''                        ResolutionOrigin::PathSearch,
-          '''
-          if source.count(old_origin) < 1:
-              raise SystemExit('engine origin block not found')
-          source = source.replace(old_origin, new_origin, 1)
+          source, origin_count = re.subn(
+              r'if existing_config \{\s*ResolutionOrigin::Existing\s*\} else \{\s*ResolutionOrigin::PathSearch\s*\},',
+              'ResolutionOrigin::PathSearch,',
+              source,
+              count=1,
+          )
+          if origin_count != 1:
+              raise SystemExit(f'expected one engine origin block, found {origin_count}')
 
-          old_presenter = '''            PresenterPreference::Keep | PresenterPreference::Auto => (
-                      if existing_config {
-                          existing_path
-                      } else {
-                          PathBuf::from("chafa")
-                      },
-                      required_external,
-                      if existing_config {
-                          ResolutionOrigin::Existing
-                      } else {
-                          ResolutionOrigin::PathSearch
-                      },
-                  ),
-          '''
-          new_presenter = '''            PresenterPreference::Keep | PresenterPreference::Auto => (
-                      PathBuf::from("chafa"),
-                      required_external,
-                      ResolutionOrigin::PathSearch,
-                  ),
-          '''
-          if source.count(old_presenter) != 1:
-              raise SystemExit(f'expected one presenter re-probe block, found {source.count(old_presenter)}')
-          source = source.replace(old_presenter, new_presenter, 1)
+          presenter_pattern = re.compile(
+              r'PresenterPreference::Keep \| PresenterPreference::Auto => \(\s*'
+              r'if existing_config \{\s*existing_path\s*\} else \{\s*'
+              r'PathBuf::from\("chafa"\)\s*\},\s*required_external,\s*'
+              r'if existing_config \{\s*ResolutionOrigin::Existing\s*\} else \{\s*'
+              r'ResolutionOrigin::PathSearch\s*\},\s*\),'
+          )
+          presenter_replacement = '''PresenterPreference::Keep | PresenterPreference::Auto => (
+                  PathBuf::from("chafa"),
+                  required_external,
+                  ResolutionOrigin::PathSearch,
+              ),'''
+          source, presenter_count = presenter_pattern.subn(
+              presenter_replacement,
+              source,
+              count=1,
+          )
+          if presenter_count != 1:
+              raise SystemExit(f'expected one presenter re-probe block, found {presenter_count}')
+
           path.write_text(source, encoding='utf-8')
           PY
 
