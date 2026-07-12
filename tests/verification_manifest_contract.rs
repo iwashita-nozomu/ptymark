@@ -87,7 +87,10 @@ fn load_manifest() -> Manifest {
 
 fn assert_repository_path(root: &Path, relative: &str) {
     let path = Path::new(relative);
-    assert!(!path.is_absolute(), "catalog path must be repository-relative: {relative}");
+    assert!(
+        !path.is_absolute(),
+        "catalog path must be repository-relative: {relative}"
+    );
     assert!(
         root.join(path).exists(),
         "catalog path does not exist: {relative}"
@@ -135,7 +138,11 @@ fn verification_catalog_is_complete_and_self_consistent() {
     let mut ids = HashSet::new();
     for check in &manifest.check {
         assert!(!check.id.trim().is_empty());
-        assert!(ids.insert(check.id.as_str()), "duplicate check ID: {}", check.id);
+        assert!(
+            ids.insert(check.id.as_str()),
+            "duplicate check ID: {}",
+            check.id
+        );
         assert!(
             allowed_owners.contains(check.owner.as_str()),
             "unknown owner for {}: {}",
@@ -148,11 +155,23 @@ fn verification_catalog_is_complete_and_self_consistent() {
             check.id,
             check.level
         );
-        assert!(check.required, "all catalog checks must be required: {}", check.id);
-        assert!(!check.command.trim().is_empty(), "empty command: {}", check.id);
+        assert!(
+            check.required,
+            "all catalog checks must be required: {}",
+            check.id
+        );
+        assert!(
+            !check.command.trim().is_empty(),
+            "empty command: {}",
+            check.id
+        );
         assert!(!check.platforms.is_empty(), "no platforms: {}", check.id);
         assert!(!check.sources.is_empty(), "no source paths: {}", check.id);
-        assert!(!check.evidence.is_empty(), "no evidence mapping: {}", check.id);
+        assert!(
+            !check.evidence.is_empty(),
+            "no evidence mapping: {}",
+            check.id
+        );
 
         for platform in &check.platforms {
             assert!(
@@ -174,6 +193,9 @@ fn verification_catalog_is_complete_and_self_consistent() {
 
     assert_eq!(manifest.check.len(), REQUIRED_IDS.len());
     for required in REQUIRED_IDS {
-        assert!(ids.contains(required), "required check ID is missing: {required}");
+        assert!(
+            ids.contains(required),
+            "required check ID is missing: {required}"
+        );
     }
 }
