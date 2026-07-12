@@ -71,7 +71,10 @@ EOF_MERMAID
 "$binary" --config "$config" preview --strict --columns 48 "$root/mermaid.md" \
   >"$root/mermaid.out"
 test -s "$root/mermaid.out"
-! grep -F '```mermaid' "$root/mermaid.out" >/dev/null
+if grep -F '```mermaid' "$root/mermaid.out" >/dev/null; then
+  echo 'strict Mermaid preview left the source fence unchanged' >&2
+  exit 1
+fi
 
 cat >"$root/math.md" <<'EOF_MATH'
 $$
@@ -81,6 +84,9 @@ EOF_MATH
 "$binary" --config "$config" preview --strict --columns 48 "$root/math.md" \
   >"$root/math.out"
 test -s "$root/math.out"
-! grep -F 'E = mc^2' "$root/math.out" >/dev/null
+if grep -F 'E = mc^2' "$root/math.out" >/dev/null; then
+  echo 'strict MathJax preview left the source expression unchanged' >&2
+  exit 1
+fi
 
 printf 'ptymark managed renderer smoke: ok\n'
