@@ -2,19 +2,35 @@
 
 ## WezTerm
 
-[`wezterm.lua`](./wezterm.lua) is a complete minimal `~/.wezterm.lua` for the ptymark launcher plugin on Linux, macOS, and Windows.
+[`wezterm.lua`](./wezterm.lua) is a complete minimal `~/.wezterm.lua` for the ptymark launcher plugin on Linux, macOS, WSL, and Windows.
 
-Run the platform installer first:
+Run the platform installer first.
+
+Linux, macOS, or WSL:
 
 ```bash
-# Linux or macOS
-bash scripts/install.sh
+bash scripts/installer.sh
 ```
 
+Windows PowerShell:
+
 ```powershell
-# Windows PowerShell 7+
-pwsh -File scripts/install.ps1
+pwsh -File scripts/installer.ps1
 ```
+
+Windows cmd.exe:
+
+```bat
+scripts\installer.cmd
+```
+
+Git Bash, MSYS2, or Cygwin:
+
+```bash
+bash scripts/installer.sh
+```
+
+The Windows Bash path delegates to the PowerShell installer after converting path-valued arguments to native Windows paths. WSL remains a Linux installation.
 
 For a new WezTerm configuration:
 
@@ -32,13 +48,13 @@ When `~/.wezterm.lua` already exists, copy the `wezterm.plugin.require(...)` and
 The example chooses platform defaults:
 
 ```text
-Linux/macOS binary  ~/.cargo/bin/ptymark
-Windows binary      %USERPROFILE%/.cargo/bin/ptymark.exe
-Linux/macOS config  ~/.config/ptymark/config.toml
-Windows config      %APPDATA%/ptymark/config.toml
-key                 CTRL|SHIFT+P
-menu label          ptymark shell
-shell               $SHELL or /bin/sh; %COMSPEC% on Windows
+Linux/macOS/WSL binary  ~/.cargo/bin/ptymark
+Windows binary          %USERPROFILE%/.cargo/bin/ptymark.exe
+Linux/macOS/WSL config  ~/.config/ptymark/config.toml
+Windows config          %APPDATA%/ptymark/config.toml
+key                     CTRL|SHIFT+P
+menu label              ptymark shell
+shell                   $SHELL or /bin/sh; %COMSPEC% on Windows
 ```
 
 Override the binary or config without editing the example by setting these environment variables before WezTerm starts:
@@ -48,7 +64,7 @@ PTYMARK_BINARY
 PTYMARK_CONFIG
 ```
 
-GUI applications may not inherit the same environment as an interactive shell. Editing the example to use explicit absolute paths is therefore the most predictable setup on macOS, desktop Linux, and Windows GUI launches.
+GUI applications may not inherit the same environment as an interactive shell. Installer-generated absolute paths avoid renderer PATH ambiguity; explicit `PTYMARK_BINARY` and `PTYMARK_CONFIG` values remain the most predictable launcher setup.
 
 For local plugin development, replace the HTTPS plugin URL with an absolute file URL:
 
