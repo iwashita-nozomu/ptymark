@@ -14,3 +14,16 @@ columns = 80
 enabled = true
 max_entries = 128
 max_bytes = 33554432
+
+# Built-in preview remains dependency-free. Change a backend only after
+# installing the corresponding command and the Chafa presenter.
+[engines.mermaid]
+backend = "preview" # preview | source | mermaid-cli
+path = "mmdc"
+
+[engines.math]
+backend = "preview" # preview | source | mathjax-cli
+path = "tex2svg"
+
+[engines.presenter]
+path = "chafa"
