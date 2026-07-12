@@ -1,0 +1,80 @@
+name: ptymark Finalize Strict CI Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-finalize-strict-ci-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Make integration checks strict and portable
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/ptymark-ci.yml')
+          source = workflow.read_text(encoding='utf-8')
+          replacements = {
+              '$mermaidOutput = $mermaid | & $binary --config $config preview':
+                  '$mermaidOutput = $mermaid | & $binary --config $config preview --strict',
+              '$mathOutput = $math | & $binary --config $config preview':
+                  '$mathOutput = $math | & $binary --config $config preview --strict',
+              '| "$binary" --config "$root/config.toml" preview --columns 48 - >"$root/mermaid.out"':
+                  '| "$binary" --config "$root/config.toml" preview --strict --columns 48 - >"$root/mermaid.out"',
+              'printf "%s\\n" "$$" "E = mc^2" "$$" \\\n              | "$binary" --config "$root/config.toml" preview --columns 48 - >"$root/math.out"':
+                  'printf "%s\\n" "\\$\\$" "E = mc^2" "\\$\\$" \\\n              | "$binary" --config "$root/config.toml" preview --strict --columns 48 - >"$root/math.out"',
+          }
+          for old, new in replacements.items():
+              if source.count(old) != 1:
+                  raise SystemExit(f'CI marker not found exactly once: {old!r}')
+              source = source.replace(old, new, 1)
+          workflow.write_text(source, encoding='utf-8')
+
+          readme = Path('README.md')
+          source = readme.read_text(encoding='utf-8')
+          old = 'process timeout       5 seconds'
+          new = 'process timeout      30 seconds (cold-start ceiling)'
+          if source.count(old) != 1:
+              raise SystemExit('README timeout marker not found exactly once')
+          readme.write_text(source.replace(old, new, 1), encoding='utf-8')
+
+          design = Path('documents/ptymark-design.md')
+          source = design.read_text(encoding='utf-8')
+          old = '- 5-second wall-clock timeout per process;'
+          new = '- 30-second wall-clock cold-start ceiling per process;'
+          if source.count(old) != 1:
+              raise SystemExit('design timeout marker not found exactly once')
+          design.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Validate static contracts
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh tests/install_smoke.sh
+      - name: Commit strict integration checks
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/ptymark-ci.yml README.md documents/ptymark-design.md
+          git commit -m 'Make renderer integration checks strict and portable'
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
