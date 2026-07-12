@@ -1,8 +1,9 @@
 use crate::cache::{MemoryCache, NoopCache};
 use crate::config::{Config, RenderMode};
 use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
+use crate::engine::{ConfiguredRenderer, check_configured_engines};
 use crate::pipeline::DisplayPipeline;
-use crate::render::{PreviewRenderer, RenderContext, RenderService, Renderer, SourceRenderer};
+use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
 use std::env;
 use std::ffi::OsString;
 use std::fs::File;
@@ -17,13 +18,14 @@ USAGE:
     ptymark [--config PATH] preview [OPTIONS] [FILE|-]
     ptymark [--config PATH] config check
     ptymark [--config PATH] config show
+    ptymark [--config PATH] engine check
     ptymark [--config PATH] -- COMMAND [ARG...]
 
 PREVIEW OPTIONS:
     --source              keep complete semantic blocks as source
     --strict              fail instead of restoring source after renderer errors
     --no-cache            disable the in-memory render cache
-    --color               allow ANSI color in the built-in preview renderer
+    --color               allow ANSI color in terminal renderers
     --columns N           renderer width hint
     --config PATH         use an explicit ptymark TOML file
     -h, --help            print this help
@@ -37,6 +39,7 @@ EXAMPLES:
     printf '$$\\nE = mc^2\\n$$\\n' | ptymark preview
     ptymark preview --source README.md
     ptymark config check --config examples/ptymark.toml
+    ptymark engine check --config examples/ptymark.toml
     ptymark -- codex
 ";
 
@@ -72,13 +75,16 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
     let command = arguments
         .first()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| "missing command; use `preview`, `config`, or `-- COMMAND`".to_owned())?
+        .ok_or_else(|| {
+            "missing command; use `preview`, `config`, `engine`, or `-- COMMAND`".to_owned()
+        })?
         .to_owned();
     arguments.remove(0);
 
     match command.as_str() {
         "preview" => run_preview(arguments, config_path),
         "config" => run_config(arguments, config_path),
+        "engine" => run_engine(arguments, config_path),
         "--" => run_command(arguments, config_path),
         option if option.starts_with('-') => Err(format!("unknown option `{option}`")),
         _ => Err("child commands must follow `--`; example: `ptymark -- zsh -l`".to_owned()),
@@ -187,7 +193,7 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
     let renderer: Box<dyn Renderer> = if source_mode {
         Box::new(SourceRenderer)
     } else {
-        Box::new(PreviewRenderer)
+        Box::new(ConfiguredRenderer::new(&config.engines))
     };
     let cache: Box<dyn crate::cache::ArtifactCache> =
         if source_mode || no_cache || !config.cache.enabled {
@@ -252,27 +258,16 @@ fn run_config(
         .to_owned();
     arguments.remove(0);
 
-    let mut iterator = arguments.into_iter();
-    while let Some(argument) = iterator.next() {
-        match argument.to_str() {
-            Some("--config") => {
-                set_config(&mut config_path, next_path(&mut iterator, "--config")?)?
-            }
-            Some("-h" | "--help") => {
-                print!("{HELP}");
-                return Ok(0);
-            }
-            Some(option) => return Err(format!("unknown config option `{option}`")),
-            None => return Err("config options must be valid UTF-8".to_owned()),
-        }
-    }
-
+    parse_subcommand_config(arguments, &mut config_path, "config")?;
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
     match action.as_str() {
         "check" => {
             println!(
-                "configuration ok: schema={} renderer={:?}",
-                config.schema_version, config.rendering.mode
+                "configuration ok: schema={} renderer={:?} mermaid={} math={}",
+                config.schema_version,
+                config.rendering.mode,
+                config.engines.mermaid.backend.as_str(),
+                config.engines.math.backend.as_str()
             );
             Ok(0)
         }
@@ -284,6 +279,49 @@ fn run_config(
             "unknown config action `{action}`; use `check` or `show`"
         )),
     }
+}
+
+fn run_engine(
+    mut arguments: Vec<OsString>,
+    mut config_path: Option<PathBuf>,
+) -> Result<i32, String> {
+    let action = arguments
+        .first()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "missing engine action; use `check`".to_owned())?
+        .to_owned();
+    arguments.remove(0);
+
+    parse_subcommand_config(arguments, &mut config_path, "engine")?;
+    if action != "check" {
+        return Err(format!("unknown engine action `{action}`; use `check`"));
+    }
+
+    let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
+    for check in check_configured_engines(&config.engines).map_err(|error| error.to_string())? {
+        println!("{}", check.display_line());
+    }
+    Ok(0)
+}
+
+fn parse_subcommand_config(
+    arguments: Vec<OsString>,
+    config_path: &mut Option<PathBuf>,
+    command: &str,
+) -> Result<(), String> {
+    let mut iterator = arguments.into_iter();
+    while let Some(argument) = iterator.next() {
+        match argument.to_str() {
+            Some("--config") => set_config(config_path, next_path(&mut iterator, "--config")?)?,
+            Some("-h" | "--help") => {
+                print!("{HELP}");
+                return Ok(());
+            }
+            Some(option) => return Err(format!("unknown {command} option `{option}`")),
+            None => return Err(format!("{command} options must be valid UTF-8")),
+        }
+    }
+    Ok(())
 }
 
 fn run_command(arguments: Vec<OsString>, config_path: Option<PathBuf>) -> Result<i32, String> {
