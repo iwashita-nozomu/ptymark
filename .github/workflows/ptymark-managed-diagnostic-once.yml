@@ -89,8 +89,16 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ptymark-managed-windows-diagnostic
-          path: ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}
-          if-no-files-found: error
+          path: |
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/environment.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/installer.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/config-copy.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/state-copy.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/mermaid.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/math.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/render-error.log
+            ${{ env.PTYMARK_DIAGNOSTIC_ROOT }}/status.txt
+          if-no-files-found: warn
           retention-days: 3
       - name: Preserve Windows result
         shell: pwsh
