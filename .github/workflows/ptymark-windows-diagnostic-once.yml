@@ -1,0 +1,86 @@
+name: ptymark Windows Diagnostic Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-windows-diagnostic-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+      - name: Capture Rust and installer diagnostics
+        shell: pwsh
+        run: |
+          $statuses = [ordered]@{}
+          cargo fmt --all -- --check 2>&1 | Tee-Object windows-fmt.log
+          $statuses.fmt = $LASTEXITCODE
+          cargo clippy --locked --all-targets -- -D warnings 2>&1 | Tee-Object windows-clippy.log
+          $statuses.clippy = $LASTEXITCODE
+          cargo test --locked --all-targets 2>&1 | Tee-Object windows-test.log
+          $statuses.test = $LASTEXITCODE
+          cargo build --locked 2>&1 | Tee-Object windows-build.log
+          $statuses.build = $LASTEXITCODE
+
+          $root = Join-Path $env:RUNNER_TEMP 'ptymark-managed-diagnostic'
+          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $candidates = @()
+          if (${env:ProgramFiles(x86)}) {
+            $candidates += Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'
+          }
+          if ($env:ProgramFiles) {
+            $candidates += Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'
+          }
+          $edge = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+          "edge=$edge" | Set-Content windows-environment.log
+          node --version | Add-Content windows-environment.log
+          npm --version | Add-Content windows-environment.log
+          $env:PUPPETEER_SKIP_DOWNLOAD = 'true'
+          & ./scripts/install.ps1 `
+            -SkipCore `
+            -Binary ((Resolve-Path 'target/debug/ptymark.exe').Path) `
+            -Managed always `
+            -ManagedRoot (Join-Path $root 'bundle') `
+            -Config (Join-Path $root 'config.toml') `
+            -State (Join-Path $root 'state.toml') `
+            -Browser $edge `
+            -SkipBrowserDownload *>&1 | Tee-Object windows-installer.log
+          $statuses.installer = $LASTEXITCODE
+          $statuses.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" } | Set-Content windows-status.txt
+          Get-Content windows-status.txt
+          exit 0
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-windows-diagnostics
+          path: |
+            windows-*.log
+            windows-status.txt
+          if-no-files-found: error
+          retention-days: 3
+      - name: Preserve result
+        shell: pwsh
+        run: |
+          $failed = Get-Content windows-status.txt | Where-Object { $_ -notmatch '=0$' }
+          if ($failed) { throw ($failed -join ', ') }
