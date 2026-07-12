@@ -15,10 +15,11 @@ on:
       - "tests/**"
       - "plugin/**"
       - "renderers/**"
-      - "scripts/check-ptymark-renderers.sh"
+      - "scripts/**"
       - "docker/ptymark*"
       - "examples/**"
       - "documents/ptymark-design.md"
+      - "documents/ptymark-installer.md"
       - "README.md"
       - ".github/workflows/ptymark-ci.yml"
   pull_request:
@@ -34,10 +35,11 @@ on:
       - "tests/**"
       - "plugin/**"
       - "renderers/**"
-      - "scripts/check-ptymark-renderers.sh"
+      - "scripts/**"
       - "docker/ptymark*"
       - "examples/**"
       - "documents/ptymark-design.md"
+      - "documents/ptymark-installer.md"
       - "README.md"
       - ".github/workflows/ptymark-ci.yml"
   workflow_dispatch:
@@ -132,6 +134,13 @@ jobs:
           --file docker/ptymark-compose.yaml
           run --rm --no-TTY dev cargo test --locked --all-targets
 
+      - name: Build installer binary in Docker
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo build --locked
+
       - name: Run WezTerm plugin smoke
         run: >-
           docker compose
@@ -139,12 +148,21 @@ jobs:
           --file docker/ptymark-compose.yaml
           run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
 
-      - name: Check product shell script
+      - name: Check product shell scripts
         shell: bash
         run: |
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
-          "${compose[@]}" run --rm --no-TTY dev bash -n scripts/check-ptymark-renderers.sh
-          "${compose[@]}" run --rm --no-TTY dev shellcheck scripts/check-ptymark-renderers.sh
+          "${compose[@]}" run --rm --no-TTY dev \
+            bash -n scripts/check-ptymark-renderers.sh scripts/install.sh tests/install_smoke.sh
+          "${compose[@]}" run --rm --no-TTY dev \
+            shellcheck scripts/check-ptymark-renderers.sh scripts/install.sh tests/install_smoke.sh
+
+      - name: Run installer smoke
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev bash tests/install_smoke.sh target/debug/ptymark
 
       - name: Check selected renderer engines
         run: >-
