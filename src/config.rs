@@ -1,160 +1,391 @@
-mod model;
-mod resolve;
-mod snapshot;
-mod source;
-
-pub use model::{
-    CONFIG_SCHEMA_VERSION, CacheBackend, CacheConfig, CachePolicyConfig, ConfigFile,
-    ConfiguredExecutionModel, ConfiguredLayout, DetectionConfig, DetectionMode, DetectionPolicy,
-    DiagnosticFormat, DiagnosticLevel, DiagnosticSink, DiagnosticsConfig, DiagnosticsPolicy,
-    EngineSelectionConfig, EngineSelectionPolicy, EngineType, ExternalEngineConfig, FallbackPolicy,
-    FenceConfig, PresentationConfig, PresentationMode, PresentationPolicy, ProfileConfig,
-    RenderConfig, RenderOrdering, RenderPolicy, RendererBundleConfig, ResolvedConfig,
-    RuntimeConfig, SessionMode, UnsupportedPresentation,
-};
-pub use resolve::ConfigManager;
-pub use snapshot::ConfigSnapshot;
-pub use source::{
-    ConfigEnvironment, ConfigLocator, ConfigOrigin, ConfigRequest, ConfigSource, ConfigTrust,
-    FilesystemConfigLocator,
-};
-
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::env;
 use std::error::Error;
 use std::fmt;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub const CONFIG_SCHEMA_VERSION: u32 = 1;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ConfigErrorKind {
-    Discovery,
-    Io,
-    Parse,
-    Schema,
-    Profile,
-    Validation,
+pub enum RenderMode {
+    #[default]
+    Preview,
+    Source,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MermaidEngine {
+    #[default]
+    Preview,
+    Source,
+    MermaidCli,
+}
+
+impl MermaidEngine {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Preview => "preview",
+            Self::Source => "source",
+            Self::MermaidCli => "mermaid-cli",
+        }
+    }
+
+    pub const fn is_external(self) -> bool {
+        matches!(self, Self::MermaidCli)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MathEngine {
+    #[default]
+    Preview,
+    Source,
+    MathjaxCli,
+}
+
+impl MathEngine {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Preview => "preview",
+            Self::Source => "source",
+            Self::MathjaxCli => "mathjax-cli",
+        }
+    }
+
+    pub const fn is_external(self) -> bool {
+        matches!(self, Self::MathjaxCli)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Config {
+    pub schema_version: u32,
+    #[serde(default)]
+    pub detection: DetectionConfig,
+    #[serde(default)]
+    pub rendering: RenderingConfig,
+    #[serde(default)]
+    pub cache: CacheConfig,
+    #[serde(default)]
+    pub engines: EnginesConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            schema_version: CONFIG_SCHEMA_VERSION,
+            detection: DetectionConfig::default(),
+            rendering: RenderingConfig::default(),
+            cache: CacheConfig::default(),
+            engines: EnginesConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DetectionConfig {
+    pub mermaid: bool,
+    pub math: bool,
+    pub max_block_bytes: usize,
+}
+
+impl Default for DetectionConfig {
+    fn default() -> Self {
+        Self {
+            mermaid: true,
+            math: true,
+            max_block_bytes: 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RenderingConfig {
+    pub mode: RenderMode,
+    pub strict: bool,
+    pub columns: u16,
+}
+
+impl Default for RenderingConfig {
+    fn default() -> Self {
+        Self {
+            mode: RenderMode::Preview,
+            strict: false,
+            columns: 80,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CacheConfig {
+    pub enabled: bool,
+    pub max_entries: usize,
+    pub max_bytes: usize,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_entries: 128,
+            max_bytes: 32 * 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct EnginesConfig {
+    pub mermaid: MermaidEngineConfig,
+    pub math: MathEngineConfig,
+    pub presenter: PresenterConfig,
+}
+
+impl EnginesConfig {
+    pub const fn uses_external_engine(&self) -> bool {
+        self.mermaid.backend.is_external() || self.math.backend.is_external()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MermaidEngineConfig {
+    pub backend: MermaidEngine,
+    pub path: PathBuf,
+}
+
+impl Default for MermaidEngineConfig {
+    fn default() -> Self {
+        Self {
+            backend: MermaidEngine::Preview,
+            path: PathBuf::from("mmdc"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MathEngineConfig {
+    pub backend: MathEngine,
+    pub path: PathBuf,
+}
+
+impl Default for MathEngineConfig {
+    fn default() -> Self {
+        Self {
+            backend: MathEngine::Preview,
+            path: PathBuf::from("tex2svg"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PresenterConfig {
+    pub path: PathBuf,
+}
+
+impl Default for PresenterConfig {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("chafa"),
+        }
+    }
+}
+
+impl Config {
+    pub fn load(path: Option<&Path>) -> Result<Self, ConfigError> {
+        match path {
+            Some(path) => Self::load_exact(path),
+            None => {
+                let path = Self::user_config_path()?;
+                if path.is_file() {
+                    Self::load_exact(&path)
+                } else {
+                    let config = Self::default();
+                    config.validate()?;
+                    Ok(config)
+                }
+            }
+        }
+    }
+
+    pub fn load_exact(path: &Path) -> Result<Self, ConfigError> {
+        let source = fs::read_to_string(path).map_err(|error| {
+            ConfigError::new(format!("cannot read `{}`: {error}", path.display()))
+        })?;
+        let config: Self = toml::from_str(&source).map_err(|error| {
+            ConfigError::new(format!("cannot parse `{}`: {error}", path.display()))
+        })?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    pub fn user_config_path() -> Result<PathBuf, ConfigError> {
+        if let Some(path) = env::var_os("PTYMARK_CONFIG") {
+            return Ok(PathBuf::from(path));
+        }
+        if let Some(path) = env::var_os("XDG_CONFIG_HOME") {
+            return Ok(PathBuf::from(path).join("ptymark/config.toml"));
+        }
+        if let Some(path) = env::var_os("APPDATA") {
+            return Ok(PathBuf::from(path).join("ptymark/config.toml"));
+        }
+        let home = env::var_os("HOME")
+            .or_else(|| env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                ConfigError::new(
+                    "cannot determine user configuration path; set HOME, XDG_CONFIG_HOME, APPDATA, or PTYMARK_CONFIG",
+                )
+            })?;
+        Ok(home.join(".config/ptymark/config.toml"))
+    }
+
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.schema_version != CONFIG_SCHEMA_VERSION {
+            return Err(ConfigError::new(format!(
+                "unsupported schema_version {}; expected {}",
+                self.schema_version, CONFIG_SCHEMA_VERSION
+            )));
+        }
+        if self.detection.max_block_bytes == 0 {
+            return Err(ConfigError::new(
+                "detection.max_block_bytes must be greater than zero",
+            ));
+        }
+        if self.rendering.columns == 0 {
+            return Err(ConfigError::new(
+                "rendering.columns must be greater than zero",
+            ));
+        }
+        if self.cache.enabled && (self.cache.max_entries == 0 || self.cache.max_bytes == 0) {
+            return Err(ConfigError::new(
+                "enabled cache requires positive max_entries and max_bytes",
+            ));
+        }
+        validate_program_path("engines.mermaid.path", &self.engines.mermaid.path)?;
+        validate_program_path("engines.math.path", &self.engines.math.path)?;
+        validate_program_path("engines.presenter.path", &self.engines.presenter.path)?;
+        Ok(())
+    }
+
+    pub fn to_toml(&self) -> Result<String, ConfigError> {
+        toml::to_string_pretty(self)
+            .map_err(|error| ConfigError::new(format!("cannot serialize configuration: {error}")))
+    }
+}
+
+fn validate_program_path(label: &str, path: &Path) -> Result<(), ConfigError> {
+    if path.as_os_str().is_empty() {
+        return Err(ConfigError::new(format!("{label} cannot be empty")));
+    }
+    if !path.is_absolute() && path.components().count() != 1 {
+        return Err(ConfigError::new(format!(
+            "{label} must be an absolute path or a bare executable name"
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigError {
-    kind: ConfigErrorKind,
-    path: Option<PathBuf>,
     message: String,
 }
 
 impl ConfigError {
-    pub fn new(kind: ConfigErrorKind, path: Option<PathBuf>, message: impl Into<String>) -> Self {
+    pub fn new(message: impl Into<String>) -> Self {
         Self {
-            kind,
-            path,
             message: message.into(),
         }
-    }
-
-    pub fn discovery(message: impl Into<String>) -> Self {
-        Self::new(ConfigErrorKind::Discovery, None, message)
-    }
-
-    pub fn io(path: Option<PathBuf>, message: impl Into<String>) -> Self {
-        Self::new(ConfigErrorKind::Io, path, message)
-    }
-
-    pub fn parse(path: Option<PathBuf>, message: impl Into<String>) -> Self {
-        Self::new(ConfigErrorKind::Parse, path, message)
-    }
-
-    pub fn schema(path: Option<PathBuf>, message: impl Into<String>) -> Self {
-        Self::new(ConfigErrorKind::Schema, path, message)
-    }
-
-    pub fn profile(message: impl Into<String>) -> Self {
-        Self::new(ConfigErrorKind::Profile, None, message)
-    }
-
-    pub fn validation(message: impl Into<String>) -> Self {
-        Self::new(ConfigErrorKind::Validation, None, message)
-    }
-
-    pub const fn kind(&self) -> ConfigErrorKind {
-        self.kind
-    }
-
-    pub fn path(&self) -> Option<&std::path::Path> {
-        self.path.as_deref()
     }
 }
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(path) = &self.path {
-            write!(formatter, "{}: {}", path.display(), self.message)
-        } else {
-            formatter.write_str(&self.message)
-        }
+        formatter.write_str(&self.message)
     }
 }
 
 impl Error for ConfigError {}
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct ConfigProvenance {
-    pub selected_profile: String,
-    pub sources: Vec<ConfigSource>,
-}
+#[cfg(test)]
+mod tests {
+    use super::{CONFIG_SCHEMA_VERSION, Config, MermaidEngine};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LoadedConfig {
-    pub config: ResolvedConfig,
-    pub provenance: ConfigProvenance,
-}
-
-impl LoadedConfig {
-    /// Serialize the effective configuration for human inspection.
-    ///
-    /// Explicit external-process environment values may contain credentials or private paths, so
-    /// values are redacted while keys remain visible and explainable.
-    pub fn effective_toml(&self) -> Result<String, ConfigError> {
-        let mut redacted = self.config.clone();
-        for engine in redacted.external_engines.values_mut() {
-            for value in engine.environment.values_mut() {
-                *value = "<redacted>".to_owned();
-            }
-        }
-        toml::to_string_pretty(&redacted)
-            .map_err(|error| ConfigError::validation(format!("cannot serialize config: {error}")))
+    fn temp_file(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!("ptymark-config-{label}-{nonce}.toml"))
     }
 
-    /// Return full deterministic policy material for process-local cache/options identity.
-    ///
-    /// This value must never be printed or logged because it can include external-engine
-    /// environment values. It exists separately from `effective_toml()` to avoid cache collisions
-    /// between materially different rendering configurations.
-    pub fn fingerprint_material(&self) -> Result<Vec<u8>, ConfigError> {
-        toml::to_string(&self.config)
-            .map(String::into_bytes)
-            .map_err(|error| {
-                ConfigError::validation(format!("cannot serialize config identity: {error}"))
-            })
+    #[test]
+    fn defaults_are_valid() {
+        let config = Config::default();
+        assert_eq!(config.schema_version, CONFIG_SCHEMA_VERSION);
+        config.validate().expect("default config");
     }
 
-    pub fn provenance_toml(&self) -> Result<String, ConfigError> {
-        toml::to_string_pretty(&self.provenance).map_err(|error| {
-            ConfigError::validation(format!("cannot serialize config provenance: {error}"))
-        })
+    #[test]
+    fn unknown_keys_are_rejected() {
+        let error = toml::from_str::<Config>("schema_version = 1\nunknown = true\n")
+            .expect_err("unknown keys must fail");
+        assert!(error.to_string().contains("unknown field"));
     }
-}
 
-impl ResolvedConfig {
-    /// Apply the process-local private-session override without weakening terminal safety.
-    ///
-    /// The override affects only pre-display services. It never changes input, termios, signal
-    /// forwarding, resize forwarding, child environment, or exit-status behavior.
-    pub fn apply_private_override(&mut self) {
-        self.cache.backend = CacheBackend::None;
-        self.cache.private = true;
-        self.diagnostics.sink = DiagnosticSink::Stderr;
-        self.diagnostics.path = None;
-        self.diagnostics.include_source = false;
-        self.diagnostics.metrics = false;
+    #[test]
+    fn enabled_cache_requires_limits() {
+        let mut config = Config::default();
+        config.cache.max_entries = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn exact_file_loading_round_trips() {
+        let path = temp_file("round-trip");
+        let config = Config::default();
+        fs::write(&path, config.to_toml().expect("serialize")).expect("write");
+        assert_eq!(Config::load_exact(&path).expect("load"), config);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn engine_paths_accept_absolute_paths_and_bare_names() {
+        let mut config = Config::default();
+        config.engines.mermaid.backend = MermaidEngine::MermaidCli;
+        config.engines.mermaid.path = PathBuf::from("mmdc");
+        config.validate().expect("bare executable name");
+
+        config.engines.mermaid.path = if cfg!(windows) {
+            PathBuf::from(r"C:\Program Files\ptymark\mmdc.exe")
+        } else {
+            PathBuf::from("/opt/homebrew/bin/mmdc")
+        };
+        config.validate().expect("absolute executable path");
+    }
+
+    #[test]
+    fn relative_engine_paths_with_directories_are_rejected() {
+        let mut config = Config::default();
+        config.engines.mermaid.path = PathBuf::from("tools/mmdc");
+        let error = config.validate().expect_err("relative path must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("absolute path or a bare executable name")
+        );
     }
 }

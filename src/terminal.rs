@@ -4,19 +4,14 @@ pub enum OutputSegment {
     RawTerminalBytes(Vec<u8>),
 }
 
-pub trait DisplayOutputGate: Send {
-    fn feed(&mut self, input: &[u8]) -> Vec<OutputSegment>;
-    fn finish(&mut self) -> Vec<OutputSegment>;
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum AlternateEvent {
+enum AlternateScreenEvent {
     Enter,
     Leave,
 }
 
 #[derive(Clone, Debug, Default)]
-enum ControlState {
+enum ParserState {
     #[default]
     Ground,
     Escape,
@@ -31,55 +26,55 @@ enum ControlState {
 
 #[derive(Clone, Debug, Default)]
 struct ControlParser {
-    state: ControlState,
+    state: ParserState,
 }
 
 impl ControlParser {
     fn is_ground(&self) -> bool {
-        matches!(self.state, ControlState::Ground)
+        matches!(self.state, ParserState::Ground)
     }
 
-    fn feed(&mut self, byte: u8) -> Option<AlternateEvent> {
+    fn feed(&mut self, byte: u8) -> Option<AlternateScreenEvent> {
         match &mut self.state {
-            ControlState::Ground => {
+            ParserState::Ground => {
                 if byte == 0x1b {
-                    self.state = ControlState::Escape;
+                    self.state = ParserState::Escape;
                 }
                 None
             }
-            ControlState::Escape => {
+            ParserState::Escape => {
                 match byte {
-                    b'[' => self.state = ControlState::Csi(vec![0x1b, b'[']),
-                    b']' => self.state = ControlState::Osc { escaped: false },
+                    b'[' => self.state = ParserState::Csi(vec![0x1b, b'[']),
+                    b']' => self.state = ParserState::Osc { escaped: false },
                     b'P' | b'_' | b'^' | b'X' => {
-                        self.state = ControlState::String { escaped: false }
+                        self.state = ParserState::String { escaped: false };
                     }
-                    0x1b => self.state = ControlState::Escape,
-                    _ => self.state = ControlState::Ground,
+                    0x1b => self.state = ParserState::Escape,
+                    _ => self.state = ParserState::Ground,
                 }
                 None
             }
-            ControlState::Csi(bytes) => {
+            ParserState::Csi(bytes) => {
                 bytes.push(byte);
                 if (0x40..=0x7e).contains(&byte) {
-                    let event = alternate_event(bytes);
-                    self.state = ControlState::Ground;
+                    let event = alternate_screen_event(bytes);
+                    self.state = ParserState::Ground;
                     event
                 } else {
                     None
                 }
             }
-            ControlState::Osc { escaped } => {
+            ParserState::Osc { escaped } => {
                 if byte == 0x07 || (*escaped && byte == b'\\') {
-                    self.state = ControlState::Ground;
+                    self.state = ParserState::Ground;
                 } else {
                     *escaped = byte == 0x1b;
                 }
                 None
             }
-            ControlState::String { escaped } => {
+            ParserState::String { escaped } => {
                 if *escaped && byte == b'\\' {
-                    self.state = ControlState::Ground;
+                    self.state = ParserState::Ground;
                 } else {
                     *escaped = byte == 0x1b;
                 }
@@ -89,40 +84,26 @@ impl ControlParser {
     }
 }
 
-fn alternate_event(sequence: &[u8]) -> Option<AlternateEvent> {
-    if sequence.len() < 4 || sequence[0..2] != [0x1b, b'['] {
+fn alternate_screen_event(sequence: &[u8]) -> Option<AlternateScreenEvent> {
+    if sequence.len() < 4 || sequence.get(..2) != Some(&[0x1b, b'[']) {
         return None;
     }
     let final_byte = *sequence.last()?;
     if !matches!(final_byte, b'h' | b'l') {
         return None;
     }
-    let parameters = &sequence[2..sequence.len() - 1];
-    let parameters = parameters.strip_prefix(b"?")?;
-    let manages_alternate_screen = parameters
+    let parameters = sequence.get(2..sequence.len() - 1)?.strip_prefix(b"?")?;
+    let alternate = parameters
         .split(|byte| *byte == b';')
         .any(|parameter| matches!(parameter, b"47" | b"1047" | b"1049"));
-    if !manages_alternate_screen {
+    if !alternate {
         return None;
     }
     Some(if final_byte == b'h' {
-        AlternateEvent::Enter
+        AlternateScreenEvent::Enter
     } else {
-        AlternateEvent::Leave
+        AlternateScreenEvent::Leave
     })
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct TerminalOutputGate {
-    raw_until_newline: bool,
-    alternate_screen: bool,
-    parser: ControlParser,
-}
-
-impl TerminalOutputGate {
-    pub const fn is_alternate_screen(&self) -> bool {
-        self.alternate_screen
-    }
 }
 
 fn is_unsafe_control(byte: u8) -> bool {
@@ -138,8 +119,15 @@ fn push_segment(segments: &mut Vec<OutputSegment>, raw: bool, byte: u8) {
     }
 }
 
-impl DisplayOutputGate for TerminalOutputGate {
-    fn feed(&mut self, input: &[u8]) -> Vec<OutputSegment> {
+#[derive(Clone, Debug, Default)]
+pub struct TerminalOutputGate {
+    raw_until_newline: bool,
+    alternate_screen: bool,
+    parser: ControlParser,
+}
+
+impl TerminalOutputGate {
+    pub fn feed(&mut self, input: &[u8]) -> Vec<OutputSegment> {
         let mut segments = Vec::new();
 
         for &byte in input {
@@ -149,17 +137,17 @@ impl DisplayOutputGate for TerminalOutputGate {
                 self.alternate_screen || self.raw_until_newline || parser_active || unsafe_control;
             push_segment(&mut segments, raw, byte);
 
-            if unsafe_control && !matches!(byte, b'\n' | b'\t') {
+            if unsafe_control {
                 self.raw_until_newline = true;
             }
 
             if let Some(event) = self.parser.feed(byte) {
                 match event {
-                    AlternateEvent::Enter => {
+                    AlternateScreenEvent::Enter => {
                         self.alternate_screen = true;
                         self.raw_until_newline = true;
                     }
-                    AlternateEvent::Leave => {
+                    AlternateScreenEvent::Leave => {
                         self.alternate_screen = false;
                         self.raw_until_newline = true;
                     }
@@ -174,14 +162,14 @@ impl DisplayOutputGate for TerminalOutputGate {
         segments
     }
 
-    fn finish(&mut self) -> Vec<OutputSegment> {
-        Vec::new()
+    pub const fn is_alternate_screen(&self) -> bool {
+        self.alternate_screen
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DisplayOutputGate, OutputSegment, TerminalOutputGate};
+    use super::{OutputSegment, TerminalOutputGate};
 
     fn flatten(segments: Vec<OutputSegment>) -> Vec<u8> {
         segments
@@ -193,20 +181,19 @@ mod tests {
     }
 
     #[test]
-    fn gate_is_byte_exact_for_terminal_sequences() {
+    fn control_sequences_are_byte_exact() {
         let source = b"plain\x1b[31m red\x1b[0m\n\x1b]8;;https://example.com\x07link\x1b]8;;\x07\n";
         let mut gate = TerminalOutputGate::default();
         let mut output = Vec::new();
-        for chunk in source.chunks(1) {
-            output.extend(flatten(gate.feed(chunk)));
+        for byte in source {
+            output.extend(flatten(gate.feed(&[*byte])));
         }
-        output.extend(flatten(gate.finish()));
         assert_eq!(output, source);
     }
 
     #[test]
-    fn alternate_screen_is_raw_until_safe_line_boundary() {
-        let source = b"\x1b[?1049h$$\nE = mc^2\n$$\n\x1b[?1049lafter\nplain\n";
+    fn alternate_screen_is_never_safe_text() {
+        let source = b"\x1b[?1049h$$\nE = mc^2\n$$\n\x1b[?1049lplain\n";
         let mut gate = TerminalOutputGate::default();
         let segments = gate.feed(source);
         assert_eq!(flatten(segments), source);

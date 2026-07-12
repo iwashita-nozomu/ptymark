@@ -3,11 +3,11 @@ name = "ptymark"
 version = "0.1.0-alpha.1"
 edition = "2024"
 rust-version = "1.97.0"
-description = "Pre-display semantic renderer for terminal streams"
+description = "Pre-display renderer for explicit semantic blocks in terminal output"
 license = "Apache-2.0"
 repository = "https://github.com/iwashita-nozomu/ptymark"
 readme = "README.md"
-keywords = ["terminal", "pty", "markdown", "wezterm", "mermaid"]
+keywords = ["terminal", "markdown", "mermaid", "math", "wezterm"]
 categories = ["command-line-utilities"]
 
 [lib]

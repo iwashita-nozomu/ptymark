@@ -1,0 +1,21 @@
+integration	category	profile	verification	upstream	notes
+nu_scripts	module-pack	safe-text	contract-verified	https://github.com/nushell/nu_scripts	Modules and completions remain shell-owned; structured output is serialized by Nushell before ptymark sees bytes.
+Nupm	plugin-manager	hook-only	contract-verified	https://github.com/nushell/nupm	Package and module loading do not interact with display rendering.
+Starship	prompt	prompt-control	contract-verified	https://github.com/starship/starship	Prompt output and hooks remain shell-owned.
+Oh My Posh	prompt	right-prompt	contract-verified	https://github.com/JanDeDobbeleer/oh-my-posh	Prompt and transient output is byte-preserved.
+Atuin	history	alternate-screen	contract-verified	https://github.com/atuinsh/atuin	History UI bypasses semantic rendering.
+zoxide	navigation	hook-only	contract-verified	https://github.com/ajeetdsouza/zoxide	Directory hooks remain shell-owned.
+Carapace	completion	completion-menu	contract-verified	https://github.com/carapace-sh/carapace-bin	External completion output remains shell-owned.
+direnv	environment	hook-only	contract-verified	https://github.com/direnv/direnv	Environment integration does not alter display bytes.
+Mise	environment	hook-only	contract-verified	https://github.com/jdx/mise	Activation hooks remain shell-owned.
+fzf	fuzzy-ui	alternate-screen	contract-verified	https://github.com/junegunn/fzf	Full-screen selector bypasses semantic rendering.
+Navi	fuzzy-ui	alternate-screen	contract-verified	https://github.com/denisidoro/navi	Interactive selector bypasses rendering.
+Broot	file-navigation	alternate-screen	contract-verified	https://github.com/Canop/broot	Full-screen terminal UI bypasses rendering.
+nu_plugin_gstat	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_gstat	Structured plugin output is formatted by Nushell; terminal controls remain preserved.
+nu_plugin_query	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_query	Structured plugin output does not interfere with the display gate.
+nu_plugin_polars	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_polars	Table output is ordinary terminal text unless the formatter emits controls.
+nu_plugin_formats	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_formats	Imported data is rendered by Nushell before ptymark sees bytes.
+nu_plugin_inc	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_inc	Value transformation has no terminal control ownership.
+nu_plugin_custom_values	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_custom_values	Custom values are formatted by Nushell and passed through.
+nu_plugin_example	plugin	safe-text	contract-verified	https://github.com/nushell/nushell/tree/main/crates/nu_plugin_example	Plugin protocol does not interact with terminal byte processing.
+Pay Respects	command-correction	safe-text	contract-verified	https://github.com/iffse/pay-respects	Correction suggestions are ordinary output and remain unchanged.

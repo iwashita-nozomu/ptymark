@@ -1,11 +1,11 @@
 # @dependency-start
 # contract workflow
-# responsibility Defines repository CI and routes template/AgentCanon gates by changed surface.
+# responsibility Runs repository CI and routes inherited AgentCanon and fresh-clone gates only when their owned surfaces change.
 # upstream implementation ../../tools/ci/run_all_checks.sh repository CI entrypoint
 # upstream implementation ../../Makefile ci target contract
 # upstream environment ../../docker/install_python_dependencies.sh central Python dependency installer
 # upstream implementation ../scripts/checkout_agent_canon_submodule.sh private AgentCanon checkout gate
-# downstream workflow ./ptymark-ci.yml runs ptymark product-specific Docker and native checks
+# downstream workflow ./ptymark-ci.yml owns ptymark product-specific validation
 # @dependency-end
 name: CI
 
@@ -28,24 +28,19 @@ concurrency:
 
 jobs:
   change-classification:
-    name: Classify CI surfaces
+    name: Classify inherited CI surfaces
     runs-on: ubuntu-latest
     outputs:
-      agent-canon: ${{ steps.classify.outputs.agent_canon }}
-      fresh-clone: ${{ steps.classify.outputs.fresh_clone }}
+      agent_canon: ${{ steps.classify.outputs.agent_canon }}
+      fresh_clone: ${{ steps.classify.outputs.fresh_clone }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository history
         uses: actions/checkout@v4
         with:
           submodules: false
           persist-credentials: false
           fetch-depth: 0
-
-      - name: Checkout AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Classify changed paths
         id: classify
@@ -85,13 +80,13 @@ jobs:
 
           while IFS= read -r path; do
             case "$path" in
-              vendor/agent-canon|vendor/agent-canon/*|.gitmodules|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools|tools/*|.github/workflows/agent-coordination.yml|.github/workflows/agent-improvement-guide.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
+              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools|tools/*|.github/workflows/agent-coordination.yml|.github/workflows/agent-improvement-guide.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
                 agent_canon=true
                 ;;
             esac
 
             case "$path" in
-              scripts/start_repository.sh|scripts/init_from_template.sh|documents/template-bootstrap.md|documents/template-github-remote.md|tools/ci/check_fresh_clone.sh|tests/tools/test_start_repository_script.py|.gitmodules|vendor/agent-canon)
+              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|scripts/start_repository.sh|scripts/init_from_template.sh|documents/template-bootstrap.md|documents/template-github-remote.md|tools/ci/check_fresh_clone.sh|tests/tools/test_start_repository_script.py)
                 fresh_clone=true
                 ;;
             esac
@@ -136,7 +131,7 @@ jobs:
   agent-canon-pr:
     name: AgentCanon PR Gate
     needs: change-classification
-    if: needs.change-classification.outputs.agent-canon == 'true'
+    if: needs.change-classification.outputs.agent_canon == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -171,7 +166,7 @@ jobs:
   fresh-clone-acceptance:
     name: Fresh Clone Acceptance
     needs: change-classification
-    if: needs.change-classification.outputs.fresh-clone == 'true'
+    if: needs.change-classification.outputs.fresh_clone == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -202,34 +197,3 @@ jobs:
 
       - name: Run fresh clone acceptance
         run: make fresh-clone-check
-
-  reroot-portable-core:
-    name: Generate clean portable-core PR branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout current main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Create one-commit branch from reviewed tree
-        env:
-          PUSH_TOKEN: ${{ github.token }}
-          REVIEWED_COMMIT: 35e8bf7b0c49d626f0366397fef1a55fe95f80be
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git fetch origin refs/heads/agent/minimal-pre-display-core:refs/remotes/origin/agent/minimal-pre-display-core
-          git cat-file -e "${REVIEWED_COMMIT}^{commit}"
-          desired_tree="$(git rev-parse "${REVIEWED_COMMIT}^{tree}")"
-          main_commit="$(git rev-parse HEAD)"
-          new_commit="$(printf '%s\n' 'Replace merged bootstrap with reviewed portable pre-display core' | git commit-tree "$desired_tree" -p "$main_commit")"
-          git push --force origin "${new_commit}:refs/heads/agent/portable-pre-display-core-pr"
-          printf 'main=%s\nreviewed=%s\nnew=%s\n' "$main_commit" "$REVIEWED_COMMIT" "$new_commit"

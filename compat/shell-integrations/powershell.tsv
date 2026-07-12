@@ -1,0 +1,21 @@
+integration	category	profile	verification	upstream	notes
+PSReadLine	line-editor	line-editor	contract-verified	https://github.com/PowerShell/PSReadLine	Prediction, syntax color, and line redraw controls are preserved.
+posh-git	prompt	prompt-control	contract-verified	https://github.com/dahlbyk/posh-git	Git prompt and tab completion output is preserved.
+Oh My Posh	prompt	right-prompt	contract-verified	https://github.com/JanDeDobbeleer/oh-my-posh	Prompt, transient prompt, and right prompt output is preserved.
+Starship	prompt	prompt-control	contract-verified	https://github.com/starship/starship	Prompt output and profile hook remain shell-owned.
+Terminal-Icons	display	safe-text	contract-verified	https://github.com/devblackops/Terminal-Icons	Glyph and SGR-rich listing output passes through unless it contains explicit standalone fences.
+PSFzf	fuzzy-ui	alternate-screen	contract-verified	https://github.com/kelleyma49/PSFzf	fzf UI and key bindings remain shell-owned.
+CompletionPredictor	prediction	line-editor	contract-verified	https://github.com/PowerShell/CompletionPredictor	PSReadLine prediction rendering is byte-preserved.
+Az.Tools.Predictor	prediction	line-editor	contract-verified	https://github.com/Azure/azure-powershell	Predictive suggestions use PSReadLine and remain byte-preserved.
+WinGet CommandNotFound	command-discovery	safe-text	contract-verified	https://github.com/microsoft/winget-command-not-found	Command-not-found suggestions are ordinary output and are preserved.
+PSCompletions	completion	completion-menu	contract-verified	https://github.com/abgox/PSCompletions	Completion output and menus remain shell-owned.
+Inshellisense	completion	alternate-screen	contract-verified	https://github.com/microsoft/inshellisense	Interactive completion UI bypasses semantic rendering.
+Atuin	history	alternate-screen	contract-verified	https://github.com/atuinsh/atuin	History UI bypasses rendering and profile hooks remain intact.
+zoxide	navigation	hook-only	contract-verified	https://github.com/ajeetdsouza/zoxide	Directory hook and environment behavior remain shell-owned.
+direnv	environment	hook-only	contract-verified	https://github.com/direnv/direnv	Environment export hook is not modified.
+Carapace	completion	completion-menu	contract-verified	https://github.com/carapace-sh/carapace-bin	Completion rendering is byte-preserved.
+fzf	fuzzy-ui	alternate-screen	contract-verified	https://github.com/junegunn/fzf	Full-screen/cursor-addressed UI bypasses rendering.
+Navi	fuzzy-ui	alternate-screen	contract-verified	https://github.com/denisidoro/navi	Interactive selector bypasses rendering.
+Broot	file-navigation	alternate-screen	contract-verified	https://github.com/Canop/broot	Full-screen terminal UI bypasses rendering.
+Mise	environment	hook-only	contract-verified	https://github.com/jdx/mise	Activation and environment hooks remain shell-owned.
+Pscx	shell-extension	safe-text	contract-verified	https://github.com/Pscx/Pscx	Additional commands and formatters do not alter ptymark's stream contract.
