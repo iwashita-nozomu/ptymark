@@ -184,12 +184,15 @@ pub fn check_configured_engines(config: &EnginesConfig) -> Result<Vec<EngineChec
 
 pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
     if path.is_absolute() {
-        return executable_candidate(path).ok_or_else(|| {
-            RenderError::new(format!(
-                "configured executable `{}` does not exist or is not executable",
-                path.display()
-            ))
-        });
+        for candidate in executable_candidates(path) {
+            if let Some(candidate) = executable_candidate(&candidate) {
+                return Ok(candidate);
+            }
+        }
+        return Err(RenderError::new(format!(
+            "configured executable `{}` does not exist or is not executable",
+            path.display()
+        )));
     }
 
     if path.components().count() != 1 {
@@ -202,9 +205,10 @@ pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
     let search_path = env::var_os("PATH")
         .ok_or_else(|| RenderError::new("PATH is not set; use an absolute engine path"))?;
     for directory in env::split_paths(&search_path) {
-        let candidate = directory.join(path);
-        if let Some(candidate) = executable_candidate(&candidate) {
-            return Ok(candidate);
+        for candidate in executable_candidates(&directory.join(path)) {
+            if let Some(candidate) = executable_candidate(&candidate) {
+                return Ok(candidate);
+            }
         }
     }
 
@@ -212,6 +216,29 @@ pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
         "executable `{}` was not found in PATH; set its absolute path in the ptymark configuration",
         path.display()
     )))
+}
+
+fn executable_candidates(path: &Path) -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        if path.extension().is_some() {
+            return vec![path.to_path_buf()];
+        }
+        let mut candidates = vec![path.to_path_buf()];
+        let extensions =
+            env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
+        for extension in extensions.to_string_lossy().split(';') {
+            let extension = extension.trim().trim_start_matches('.');
+            if !extension.is_empty() {
+                candidates.push(path.with_extension(extension));
+            }
+        }
+        candidates
+    }
+    #[cfg(not(windows))]
+    {
+        vec![path.to_path_buf()]
+    }
 }
 
 fn executable_candidate(path: &Path) -> Option<PathBuf> {

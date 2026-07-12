@@ -669,6 +669,10 @@ pub fn default_install_state_path() -> Result<PathBuf, InstallError> {
     if let Some(path) = env::var_os("PTYMARK_INSTALL_STATE") {
         return Ok(PathBuf::from(path));
     }
+    #[cfg(windows)]
+    if let Some(path) = env::var_os("LOCALAPPDATA") {
+        return Ok(PathBuf::from(path).join("ptymark/state/install.toml"));
+    }
     if let Some(path) = env::var_os("XDG_STATE_HOME") {
         return Ok(PathBuf::from(path).join("ptymark/install.toml"));
     }
