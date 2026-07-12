@@ -1,0 +1,47 @@
+name: ptymark Managed Bundle Lock Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-managed-lock-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Update lockfile without browser download
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+        run: npm install --package-lock-only --ignore-scripts --prefix renderers
+      - name: Validate managed entrypoints
+        run: |
+          node --check renderers/managed/mathjax-cli.mjs
+          node --check renderers/managed/ansi-presenter.mjs
+      - name: Commit lockfile
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add renderers/package-lock.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Lock managed renderer bundle dependencies"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
