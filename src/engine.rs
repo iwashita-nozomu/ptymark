@@ -4,7 +4,7 @@ use crate::render::{
     PreviewRenderer, RenderArtifact, RenderContext, RenderError, Renderer, SourceRenderer,
 };
 use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -257,7 +257,7 @@ fn render_math_svg(program: &Path, body: &[u8]) -> Result<Vec<u8>, RenderError> 
     if math.is_empty() {
         return Err(RenderError::new("math input is empty"));
     }
-    if math.as_bytes().len() > MAX_MATH_ARGUMENT_BYTES {
+    if math.len() > MAX_MATH_ARGUMENT_BYTES {
         return Err(RenderError::new(format!(
             "math input exceeds the {} byte mathjax-cli argument limit",
             MAX_MATH_ARGUMENT_BYTES
