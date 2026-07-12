@@ -9,7 +9,7 @@ node "$renderer_root/check.mjs"
 
 cat >"$work_dir/diagram.mmd" <<'MMD'
 flowchart LR
-  Output --> SafetyGate --> Detector --> Renderer --> Display
+  Output --> SafetyGate --> Detector --> Renderer --> Presenter --> Display
 MMD
 
 mmdc \
@@ -20,4 +20,16 @@ mmdc \
 test -s "$work_dir/diagram.svg"
 grep -F '<svg' "$work_dir/diagram.svg" >/dev/null
 
-printf 'ptymark Mermaid smoke: ok\n'
+chafa \
+  --format symbols \
+  --probe off \
+  --polite on \
+  --relative off \
+  --animate off \
+  --colors none \
+  --size 60x \
+  "$work_dir/diagram.svg" \
+  >"$work_dir/diagram.txt"
+
+test -s "$work_dir/diagram.txt"
+printf 'ptymark Mermaid + Chafa smoke: ok\n'
