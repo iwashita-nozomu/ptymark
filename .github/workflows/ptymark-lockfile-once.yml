@@ -1,0 +1,66 @@
+# @dependency-start
+# contract workflow
+# responsibility Generates the renderer package lock with the pinned Node image once and commits only a validated lockfile.
+# upstream environment ../../renderers/package.json declares exact direct renderer dependencies.
+# downstream environment ../../docker/ptymark.Dockerfile consumes the generated lock with npm ci.
+# @dependency-end
+name: ptymark Renderer Lockfile Once
+
+on:
+  push:
+    branches:
+      - agent/minimal-pre-display-core
+    paths:
+      - .github/workflows/ptymark-lockfile-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptymark-renderer-lockfile-once-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Generate and validate lockfile
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace" \
+            --workdir /workspace/renderers \
+            node:24.18.0-bookworm \
+            bash -lc 'npm install --package-lock-only --ignore-scripts && npm ci --ignore-scripts'
+          test -s renderers/package-lock.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          package = json.loads(Path('renderers/package.json').read_text())
+          lock = json.loads(Path('renderers/package-lock.json').read_text())
+          assert lock['lockfileVersion'] == 3
+          for name, version in package['dependencies'].items():
+              assert lock['packages'][f'node_modules/{name}']['version'] == version
+          PY
+
+      - name: Commit lockfile
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add renderers/package-lock.json
+          git commit -m "Lock renderer smoke dependencies"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
