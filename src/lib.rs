@@ -1,16 +1,18 @@
 pub mod cache;
 pub mod cli;
+mod command;
 pub mod config;
 pub mod detector;
 pub mod engine;
-pub mod filtered_run;
+mod filtered_run;
 pub mod install;
-pub mod interactive;
+mod interactive;
 pub mod managed_launcher;
 pub mod model;
 pub mod pipeline;
 pub mod render;
 pub mod routing;
+pub mod runtime;
 pub mod terminal;
 
 pub use cache::{ArtifactCache, CacheKey, CacheStats, MemoryCache, NoopCache};
@@ -37,4 +39,5 @@ pub use routing::{
     ConfiguredDecider, ConfiguredHandoff, DecisionRequest, EngineHandoff, EngineRequest,
     EngineResponse, RenderDecider, RenderDecision, RenderRoute, RoutedRenderer,
 };
+pub use runtime::{PipelineFactory, PipelineOptions};
 pub use terminal::{OutputSegment, TerminalOutputGate};
