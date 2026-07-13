@@ -1,5 +1,6 @@
 name: ptymark Source Snapshot Once
 
+# Temporary source-export workflow for release hardening. Removed before review completion.
 on:
   pull_request:
     branches:
