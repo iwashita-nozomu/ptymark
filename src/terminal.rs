@@ -123,6 +123,7 @@ fn push_segment(segments: &mut Vec<OutputSegment>, raw: bool, byte: u8) {
 pub struct TerminalOutputGate {
     raw_until_newline: bool,
     alternate_screen: bool,
+    pending_carriage_return: bool,
     parser: ControlParser,
 }
 
@@ -131,39 +132,73 @@ impl TerminalOutputGate {
         let mut segments = Vec::new();
 
         for &byte in input {
-            let parser_active = !self.parser.is_ground();
-            let unsafe_control = is_unsafe_control(byte);
-            let raw =
-                self.alternate_screen || self.raw_until_newline || parser_active || unsafe_control;
-            push_segment(&mut segments, raw, byte);
-
-            if unsafe_control {
-                self.raw_until_newline = true;
-            }
-
-            if let Some(event) = self.parser.feed(byte) {
-                match event {
-                    AlternateScreenEvent::Enter => {
-                        self.alternate_screen = true;
-                        self.raw_until_newline = true;
-                    }
-                    AlternateScreenEvent::Leave => {
-                        self.alternate_screen = false;
-                        self.raw_until_newline = true;
-                    }
+            if self.pending_carriage_return {
+                self.pending_carriage_return = false;
+                if byte == b'\n'
+                    && !self.alternate_screen
+                    && !self.raw_until_newline
+                    && self.parser.is_ground()
+                {
+                    push_segment(&mut segments, false, b'\r');
+                    push_segment(&mut segments, false, b'\n');
+                    continue;
                 }
+                self.process_byte(b'\r', &mut segments);
             }
 
-            if byte == b'\n' && !self.alternate_screen && self.parser.is_ground() {
-                self.raw_until_newline = false;
+            if byte == b'\r'
+                && !self.alternate_screen
+                && !self.raw_until_newline
+                && self.parser.is_ground()
+            {
+                self.pending_carriage_return = true;
+            } else {
+                self.process_byte(byte, &mut segments);
             }
         }
 
         segments
     }
 
+    pub fn finish(&mut self) -> Vec<OutputSegment> {
+        let mut segments = Vec::new();
+        if self.pending_carriage_return {
+            self.pending_carriage_return = false;
+            self.process_byte(b'\r', &mut segments);
+        }
+        segments
+    }
+
     pub const fn is_alternate_screen(&self) -> bool {
         self.alternate_screen
+    }
+
+    fn process_byte(&mut self, byte: u8, segments: &mut Vec<OutputSegment>) {
+        let parser_active = !self.parser.is_ground();
+        let unsafe_control = is_unsafe_control(byte);
+        let raw = self.alternate_screen || self.raw_until_newline || parser_active || unsafe_control;
+        push_segment(segments, raw, byte);
+
+        if unsafe_control {
+            self.raw_until_newline = true;
+        }
+
+        if let Some(event) = self.parser.feed(byte) {
+            match event {
+                AlternateScreenEvent::Enter => {
+                    self.alternate_screen = true;
+                    self.raw_until_newline = true;
+                }
+                AlternateScreenEvent::Leave => {
+                    self.alternate_screen = false;
+                    self.raw_until_newline = true;
+                }
+            }
+        }
+
+        if byte == b'\n' && !self.alternate_screen && self.parser.is_ground() {
+            self.raw_until_newline = false;
+        }
     }
 }
 
@@ -188,6 +223,7 @@ mod tests {
         for byte in source {
             output.extend(flatten(gate.feed(&[*byte])));
         }
+        output.extend(flatten(gate.finish()));
         assert_eq!(output, source);
     }
 
@@ -198,5 +234,49 @@ mod tests {
         let segments = gate.feed(source);
         assert_eq!(flatten(segments), source);
         assert!(!gate.is_alternate_screen());
+    }
+
+    #[test]
+    fn crlf_is_safe_text_even_when_split_across_chunks() {
+        let source = b"$$\r\nE = mc^2\r\n$$\r\n";
+        let mut gate = TerminalOutputGate::default();
+        let mut segments = Vec::new();
+        for byte in source {
+            segments.extend(gate.feed(&[*byte]));
+        }
+        segments.extend(gate.finish());
+        assert!(
+            segments
+                .iter()
+                .all(|segment| matches!(segment, OutputSegment::SafeText(_)))
+        );
+        assert_eq!(flatten(segments), source);
+    }
+
+    #[test]
+    fn bare_carriage_return_keeps_progress_output_raw_until_newline() {
+        let mut gate = TerminalOutputGate::default();
+        let segments = gate.feed(b"10%\r20%\nplain\n");
+        assert_eq!(
+            segments,
+            vec![
+                OutputSegment::SafeText(b"10%".to_vec()),
+                OutputSegment::RawTerminalBytes(b"\r20%\n".to_vec()),
+                OutputSegment::SafeText(b"plain\n".to_vec()),
+            ]
+        );
+    }
+
+    #[test]
+    fn trailing_carriage_return_is_flushed_as_raw() {
+        let mut gate = TerminalOutputGate::default();
+        assert_eq!(
+            gate.feed(b"progress\r"),
+            vec![OutputSegment::SafeText(b"progress".to_vec())]
+        );
+        assert_eq!(
+            gate.finish(),
+            vec![OutputSegment::RawTerminalBytes(b"\r".to_vec())]
+        );
     }
 }
