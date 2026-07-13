@@ -12,6 +12,7 @@ upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matri
 upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md audit resolution ledger
 upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
 downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
+downstream design ./interactive-session.md native PTY and Windows ConPTY interactive session contract
 downstream design ./filtered-command.md non-interactive child-stdout filtering contract
 downstream design ./ptymark-installer.md installation-time engine resolution and replacement contract
 downstream compatibility ./shell-plugin-compatibility.md shell and rich-plugin coexistence matrix
@@ -42,6 +43,9 @@ seed this file, but derived repositories own their local index.
 - [ptymark Design](./ptymark-design.md): current pre-display architecture,
   terminal-safety invariants, render decision policy, typed engine handoff,
   installed-engine contracts, cache identity, extension rules, and test strategy.
+- [Interactive PTY And ConPTY Session](./interactive-session.md): the practical
+  `ptymark -- COMMAND` path, parent raw mode, native child terminal allocation,
+  input and resize forwarding, real-process evidence, and protected TUI behavior.
 - [Filtered Command Execution](./filtered-command.md): the pipe-based
   `ptymark run -- COMMAND` contract, stdout-only filtering boundary, inherited
   stdin/stderr behavior, exit-status preservation, and explicit PTY limitations.
