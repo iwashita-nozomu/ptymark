@@ -1,0 +1,433 @@
+name: ptymark Finalize Interactive MVP Once
+
+on:
+  push:
+    branches:
+      - agent/filter-command-stdout
+    paths:
+      - .github/workflows/ptymark-interactive-mvp-finalize-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptymark-interactive-mvp-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/filter-command-stdout
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Apply reviewed MVP completion changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding="utf-8")
+
+          def write(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding="utf-8")
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              text = read(path)
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement marker, found {count}: {old[:100]!r}")
+              write(path, text.replace(old, new, 1))
+
+          def replace_all_exact(path: str, old: str, new: str, expected: int) -> None:
+              text = read(path)
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} markers, found {count}: {old[:100]!r}")
+              write(path, text.replace(old, new))
+
+          # The resize helper exists solely to drive a real Unix PTY integration test.
+          interactive = read("src/interactive.rs")
+          marker = "    fn resize(&self, size: PtySize) -> Result<(), String> {"
+          if "#[cfg(all(test, unix))]\n    fn resize" not in interactive:
+              if interactive.count(marker) != 1:
+                  raise SystemExit("src/interactive.rs: resize marker mismatch")
+              interactive = interactive.replace(
+                  marker,
+                  "    #[cfg(all(test, unix))]\n" + marker,
+                  1,
+              )
+              write("src/interactive.rs", interactive)
+
+          # User-facing status and actual interactive usage.
+          readme = read("README.md")
+          implemented_marker = "- stream and file rendering through `ptymark preview`;\n"
+          if "native Unix PTY and Windows ConPTY" not in readme:
+              if readme.count(implemented_marker) != 1:
+                  raise SystemExit("README.md: implemented marker mismatch")
+              readme = readme.replace(
+                  implemented_marker,
+                  implemented_marker
+                  + "- interactive child execution through native Unix PTY and Windows ConPTY via `ptymark -- COMMAND`;\n"
+                  + "- non-interactive child-stdout filtering through `ptymark run -- COMMAND`;\n",
+                  1,
+              )
+          readme = readme.replace(
+              "- the interactive child-PTY host behind `ptymark -- COMMAND`;\n",
+              "",
+          )
+          readme = readme.replace("- Windows ConPTY hosting.\n", "")
+          old_status = (
+              "`ptymark -- COMMAND` currently validates configuration and transparently executes the command. The\n"
+              "command shape is reserved for the later PTY host. The reusable display pipeline and its terminal\n"
+              "safety contracts are implemented and tested independently.\n"
+          )
+          new_status = (
+              "`ptymark -- COMMAND` now launches the child inside the platform-native PTY or ConPTY, forwards\n"
+              "keyboard bytes, propagates terminal-size changes, routes child output through the safety and\n"
+              "rendering pipeline, and returns the child exit status. Full-screen and cursor-addressed output\n"
+              "remains byte-exact and is deliberately not interpreted as Markdown.\n"
+          )
+          if old_status in readme:
+              readme = readme.replace(old_status, new_status, 1)
+          elif new_status not in readme:
+              raise SystemExit("README.md: interactive status marker missing")
+
+          usage_marker = "## Install from a GitHub Actions package\n"
+          if "## Run an interactive command" not in readme:
+              if readme.count(usage_marker) != 1:
+                  raise SystemExit("README.md: install section marker mismatch")
+              usage = '''## Run an interactive command
+
+Use the native PTY/ConPTY host for a shell, Codex, or another terminal-aware command:
+
+```bash
+ptymark -- "$SHELL" -l
+ptymark -- codex
+```
+
+On Windows PowerShell:
+
+```powershell
+ptymark.exe -- pwsh.exe -NoLogo
+```
+
+The child receives a real terminal. Input bytes, Ctrl+C through terminal line discipline, terminal
+resize, ANSI/OSC controls, alternate-screen applications, and the child exit status are preserved.
+Only complete explicit Mermaid and block-math fences emitted in safe line-oriented output are
+rendered. Full-screen TUIs remain usable but their alternate-screen contents bypass semantic
+rendering.
+
+For batch tools whose stdout may be redirected, use the pipe-oriented mode:
+
+```bash
+ptymark run -- command-that-prints-markdown
+```
+
+`run` inherits stdin and stderr but pipes stdout; it is not intended for interactive shells or TUIs.
+
+'''
+              readme = readme.replace(usage_marker, usage + usage_marker, 1)
+          write("README.md", readme)
+
+          # Architecture text must describe the implementation that now exists.
+          design = read("documents/ptymark-design.md")
+          old_scope = (
+              "The product does not own keyboard input, termios, signal routing, PTY sizing,\n"
+              "process supervision, shell startup files, prompt definitions, completion\n"
+              "bindings, mouse reports, bracketed paste, or terminal emulation.\n\n"
+              "The current `ptymark preview` command exercises the implemented display\n"
+              "pipeline. `ptymark -- COMMAND` currently validates configuration and performs a\n"
+              "transparent launch; the interactive PTY host and Windows ConPTY host remain\n"
+              "separate follow-up work.\n"
+          )
+          new_scope = (
+              "For one interactive session, ptymark owns a narrow native PTY/ConPTY proxy: it\n"
+              "forwards keyboard bytes, mirrors terminal size, supervises the direct child, and\n"
+              "filters child output before display. It does not implement terminal emulation,\n"
+              "rewrite shell startup files, define prompts or completion bindings, or inspect\n"
+              "mouse and bracketed-paste payloads as semantic text.\n\n"
+              "`ptymark preview` exercises the same display pipeline on a file or stream.\n"
+              "`ptymark run -- COMMAND` filters pipe-oriented stdout. `ptymark -- COMMAND` uses\n"
+              "the platform-native Unix PTY or Windows ConPTY for terminal-aware commands.\n"
+          )
+          if old_scope in design:
+              design = design.replace(old_scope, new_scope, 1)
+          elif new_scope not in design:
+              raise SystemExit("documents/ptymark-design.md: scope marker missing")
+
+          durable_marker = "Durable boundaries:\n"
+          if "Native interactive host:" not in design:
+              if design.count(durable_marker) != 1:
+                  raise SystemExit("documents/ptymark-design.md: durable marker mismatch")
+              host_text = '''Native interactive host:
+
+```text
+parent stdin  -> raw byte forwarding -> native PTY/ConPTY master -> child
+terminal size -> resize monitor      -> native PTY/ConPTY master -> child
+child output  -> DisplayPipeline     -> parent stdout
+child status  -> ptymark exit status
+```
+
+The host delegates terminal allocation to `portable-pty`, which uses the operating-system PTY on
+Unix and ConPTY on Windows. There is no fake terminal in the production path or its integration
+tests.
+
+'''
+              design = design.replace(durable_marker, host_text + durable_marker, 1)
+          design = design.replace(
+              "- carriage return or backspace;",
+              "- bare carriage return or backspace; CRLF line endings remain safe text;",
+          )
+          design = design.replace(
+              "Transparent command launch must preserve\n",
+              "Native PTY/ConPTY command launch must preserve\n",
+          )
+          design = design.replace(
+              "The plugin does not implement the future PTY interception host. Image placement\n"
+              "and pane capability queries remain separate work.\n",
+              "The plugin launches the implemented native PTY/ConPTY host through `ptymark --`.\n"
+              "Image placement and pane capability queries remain separate work.\n",
+          )
+          design = design.replace(
+              "Persistent cache, serialization, TTL, and tiering remain deferred until the\n"
+              "interactive PTY path is measured.\n",
+              "Persistent cache, serialization, TTL, and tiering remain deferred until the initial\n"
+              "interactive PTY/ConPTY path has production measurements.\n",
+          )
+          design = design.replace(
+              "A package job must execute the package-local installer with managed rendering\n"
+              "disabled, validate the generated configuration, run the packaged binary, and\n"
+              "render a built-in preview before uploading the archive.\n",
+              "A package job must execute the package-local installer with managed rendering\n"
+              "disabled, validate the generated configuration, run the packaged binary through\n"
+              "the native PTY/ConPTY host, and render a built-in preview before upload.\n",
+          )
+          write("documents/ptymark-design.md", design)
+
+          # Ensure the document index owns the new interactive contract.
+          documents = read("documents/README.md")
+          if "Interactive Session Host" not in documents:
+              filtered = (
+                  "- [Filtered Command Execution](./filtered-command.md): the pipe-based\n"
+                  "  `ptymark run -- COMMAND` contract, stdout-only filtering boundary, inherited\n"
+                  "  stdin/stderr behavior, exit-status preservation, and explicit PTY limitations.\n"
+              )
+              if documents.count(filtered) != 1:
+                  raise SystemExit("documents/README.md: filtered command marker mismatch")
+              documents = documents.replace(
+                  filtered,
+                  filtered
+                  + "- [Interactive Session Host](./interactive-session.md): native Unix PTY and Windows\n"
+                  + "  ConPTY allocation, input forwarding, resize propagation, child lifecycle,\n"
+                  + "  terminal-safe rendering, and real-process verification.\n",
+                  1,
+              )
+              write("documents/README.md", documents)
+
+          # Machine-readable verification: real native sessions, signals, and resize are merge gates.
+          manifest = read("verification/manifest.toml")
+          if 'id = "pty.native-session"' not in manifest:
+              insertion = '''[[check]]
+id = "pty.native-session"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked --test interactive_pty_contract -- --nocapture"
+sources = ["src/interactive.rs", "tests/interactive_pty_contract.rs", "src/terminal.rs", "documents/interactive-session.md"]
+evidence = ["Native Rust checks", "Canonical Docker checks", "release package smoke"]
+required = true
+
+[[check]]
+id = "pty.signal-resize-unix"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["linux", "macos", "docker"]
+command = "cargo test --locked ctrl_c_byte_reaches_the_foreground_process_group real_unix_pty_resize_reaches_the_child"
+sources = ["src/interactive.rs", "tests/interactive_pty_contract.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+'''
+              marker = '[[check]]\nid = "terminal.byte-exact"\n'
+              if manifest.count(marker) != 1:
+                  raise SystemExit("verification/manifest.toml: terminal marker mismatch")
+              manifest = manifest.replace(marker, insertion + marker, 1)
+              write("verification/manifest.toml", manifest)
+
+          contract = read("tests/verification_manifest_contract.rs")
+          if '"pty.native-session"' not in contract:
+              marker = '    "rust.tests",\n'
+              if contract.count(marker) != 1:
+                  raise SystemExit("verification contract: rust.tests marker mismatch")
+              contract = contract.replace(
+                  marker,
+                  marker
+                  + '    "pty.native-session",\n'
+                  + '    "pty.signal-resize-unix",\n',
+                  1,
+              )
+              write("tests/verification_manifest_contract.rs", contract)
+
+          verification = read("verification/README.md")
+          if "`pty.native-session`" not in verification:
+              verification += '''
+
+## Native PTY/ConPTY MVP evidence
+
+- `pty.native-session` runs real child processes inside the operating-system Unix PTY or Windows
+  ConPTY. It verifies terminal detection, semantic rendering of child output, alternate-screen
+  bypass, and child exit-status preservation; no fake PTY is accepted as evidence.
+- `pty.signal-resize-unix` verifies a real foreground process receives Ctrl+C through terminal line
+  discipline and that a real Unix PTY reports a resized row/column geometry to its child.
+
+Managed-renderer smoke tests additionally run Mermaid and MathJax through the real session host, and
+release-package smoke tests execute the packaged binary through the same native host.
+'''
+              write("verification/README.md", verification)
+
+          # CI explicitly names the real-session evidence instead of relying only on all-targets.
+          workflow = read(".github/workflows/ptymark-ci.yml")
+          doc_marker = '      - "documents/ptymark-design.md"\n'
+          doc_replacement = (
+              doc_marker
+              + '      - "documents/interactive-session.md"\n'
+              + '      - "documents/filtered-command.md"\n'
+          )
+          if '      - "documents/interactive-session.md"\n' not in workflow:
+              count = workflow.count(doc_marker)
+              if count != 2:
+                  raise SystemExit(f"ptymark CI: expected two design path markers, found {count}")
+              workflow = workflow.replace(doc_marker, doc_replacement)
+
+          native_marker = (
+              "      - name: Run tests\n"
+              "        run: cargo test --locked --all-targets\n"
+          )
+          if "Run real PTY and ConPTY MVP tests" not in workflow:
+              if workflow.count(native_marker) != 1:
+                  raise SystemExit("ptymark CI: native test marker mismatch")
+              workflow = workflow.replace(
+                  native_marker,
+                  native_marker
+                  + "\n      - name: Run real PTY and ConPTY MVP tests\n"
+                  + "        run: cargo test --locked --test interactive_pty_contract -- --nocapture\n",
+                  1,
+              )
+
+          docker_marker = '''      - name: Run Rust tests in Docker
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --all-targets
+'''
+          if "Run real PTY MVP tests in Docker" not in workflow:
+              if workflow.count(docker_marker) != 1:
+                  raise SystemExit("ptymark CI: Docker test marker mismatch")
+              workflow = workflow.replace(
+                  docker_marker,
+                  docker_marker
+                  + '''
+      - name: Run real PTY MVP tests in Docker
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          run --rm --no-TTY dev cargo test --locked --test interactive_pty_contract -- --nocapture
+''',
+                  1,
+              )
+          write(".github/workflows/ptymark-ci.yml", workflow)
+
+          # Windows package must carry the contracts and prove the packaged executable uses ConPTY.
+          package_ps1 = read("scripts/package-release.ps1")
+          design_copy = (
+              "Copy-Required (Join-Path $RepoRoot 'documents\\ptymark-design.md') "
+              "(Join-Path $PackageRoot 'documents\\ptymark-design.md')\n"
+          )
+          if "documents\\interactive-session.md" not in package_ps1:
+              if package_ps1.count(design_copy) != 1:
+                  raise SystemExit("package-release.ps1: design copy marker mismatch")
+              package_ps1 = package_ps1.replace(
+                  design_copy,
+                  design_copy
+                  + "Copy-Required (Join-Path $RepoRoot 'documents\\interactive-session.md') (Join-Path $PackageRoot 'documents\\interactive-session.md')\n"
+                  + "Copy-Required (Join-Path $RepoRoot 'documents\\filtered-command.md') (Join-Path $PackageRoot 'documents\\filtered-command.md')\n",
+                  1,
+              )
+
+          preview_marker = '''  if ($LASTEXITCODE -ne 0 -or $PreviewOutput -notmatch 'ptymark math') {
+    throw 'Packaged preview smoke failed'
+  }
+'''
+          if "Packaged ConPTY rendering smoke failed" not in package_ps1:
+              if package_ps1.count(preview_marker) != 1:
+                  raise SystemExit("package-release.ps1: preview marker mismatch")
+              conpty_smoke = '''
+
+  $Pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
+  $InteractiveScript = @'
+[Console]::Out.Write((@('before','$$','E = mc^2','$$','after') -join "`n") + "`n")
+'@
+  $InteractiveOutput = (& $PackagedBinary --config $Config -- $Pwsh -NoLogo -NoProfile -NonInteractive -Command $InteractiveScript) -join "`n"
+  if ($LASTEXITCODE -ne 0 -or $InteractiveOutput -notmatch 'ptymark math' -or $InteractiveOutput -match '\$\$') {
+    throw "Packaged ConPTY rendering smoke failed: $InteractiveOutput"
+  }
+'''
+              package_ps1 = package_ps1.replace(preview_marker, preview_marker + conpty_smoke, 1)
+          write("scripts/package-release.ps1", package_ps1)
+
+          wezterm = read("examples/wezterm.lua")
+          apply_marker = "ptymark.apply_to_config(config, {\n"
+          if "native PTY/ConPTY host" not in wezterm:
+              if wezterm.count(apply_marker) != 1:
+                  raise SystemExit("examples/wezterm.lua: apply marker mismatch")
+              wezterm = wezterm.replace(
+                  apply_marker,
+                  "-- The plugin launches `ptymark -- SHELL`; that route now uses the native PTY/ConPTY host.\n"
+                  + apply_marker,
+                  1,
+              )
+              write("examples/wezterm.lua", wezterm)
+          PY
+
+      - name: Update locked dependency graph and format
+        run: |
+          cargo check --all-targets
+          cargo fmt --all
+
+      - name: Validate native PTY MVP
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          cargo test --locked --test interactive_pty_contract -- --nocapture
+          cargo build --locked
+          bash tests/shell_profile_coexistence.sh target/debug/ptymark
+
+      - name: Smoke-test packaged Linux executable through a real PTY
+        run: |
+          cargo build --locked --release
+          rm -rf dist
+          bash scripts/package-release.sh target/release/ptymark dist
+
+      - name: Remove one-shot workflow and commit
+        run: |
+          rm .github/workflows/ptymark-interactive-mvp-finalize-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Complete native PTY and ConPTY MVP'
+          git push origin HEAD:agent/filter-command-stdout
