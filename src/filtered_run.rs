@@ -1,16 +1,12 @@
-use crate::cache::{ArtifactCache, MemoryCache, NoopCache};
-use crate::config::{Config, RenderMode};
-use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
-use crate::pipeline::DisplayPipeline;
-use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
-use crate::routing::RoutedRenderer;
+use crate::command::ChildCommand;
+use crate::config::Config;
+use crate::runtime::{PipelineFactory, PipelineOptions};
 use std::ffi::OsString;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
-pub const HELP: &str = "\
-
+pub(crate) const HELP: &str = "\
 FILTERED COMMAND RUNNER:
     ptymark [--config PATH] run [OPTIONS] -- COMMAND [ARG...]
 
@@ -30,50 +26,11 @@ EXAMPLE:
     ptymark run -- command-that-prints-markdown
 ";
 
-pub fn is_top_level_help(arguments: &[OsString]) -> bool {
-    matches!(
-        arguments.first().and_then(|value| value.to_str()),
-        Some("-h" | "--help")
-    )
-}
-
-pub fn run_from(mut arguments: Vec<OsString>) -> Option<Result<i32, String>> {
-    let mut config_path = None;
-
-    while matches!(
-        arguments.first().and_then(|value| value.to_str()),
-        Some("--config")
-    ) {
-        arguments.remove(0);
-        let path = match arguments.first().cloned() {
-            Some(path) => path,
-            None => return Some(Err("missing value after `--config`".to_owned())),
-        };
-        arguments.remove(0);
-        if config_path.replace(PathBuf::from(path)).is_some() {
-            return Some(Err("`--config` may be specified only once".to_owned()));
-        }
-    }
-
-    if !matches!(
-        arguments.first().and_then(|value| value.to_str()),
-        Some("run")
-    ) {
-        return None;
-    }
-    arguments.remove(0);
-    Some(run_filtered(arguments, config_path))
-}
-
-fn run_filtered(
+pub(crate) fn run(
     arguments: Vec<OsString>,
     mut config_path: Option<PathBuf>,
 ) -> Result<i32, String> {
-    let mut source = false;
-    let mut strict = false;
-    let mut no_cache = false;
-    let mut color = false;
-    let mut columns = None;
+    let mut options = PipelineOptions::default();
     let mut command = Vec::new();
     let mut iterator = arguments.into_iter();
 
@@ -86,16 +43,14 @@ fn run_filtered(
                 print!("{HELP}");
                 return Ok(0);
             }
-            "--source" => source = true,
-            "--strict" => strict = true,
-            "--no-cache" => no_cache = true,
-            "--color" => color = true,
-            "--columns" => columns = Some(next_columns(&mut iterator)?),
+            "--source" => options.source = true,
+            "--strict" => options.strict = true,
+            "--no-cache" => options.no_cache = true,
+            "--color" => options.color = true,
+            "--columns" => options.columns = Some(next_columns(&mut iterator)?),
             "--config" => {
                 let path = PathBuf::from(next_value(&mut iterator, "--config")?);
-                if config_path.replace(path).is_some() {
-                    return Err("`--config` may be specified only once".to_owned());
-                }
+                set_config(&mut config_path, path)?;
             }
             "--" => {
                 command.extend(iterator);
@@ -109,25 +64,17 @@ fn run_filtered(
         }
     }
 
-    let program = command
-        .first()
-        .cloned()
-        .ok_or_else(|| "missing child command after `run --`".to_owned())?;
+    let command = ChildCommand::from_argv(command, "missing child command after `run --`")?;
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
-    let mut pipeline = build_pipeline(&config, source, strict, no_cache, color, columns);
+    let mut pipeline = PipelineFactory::new(&config).build(options);
 
-    let mut child = Command::new(&program)
-        .args(&command[1..])
+    let mut child = Command::new(command.program())
+        .args(command.arguments())
         .stdin(Stdio::inherit())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|error| {
-            format!(
-                "cannot execute `{}`: {error}",
-                program.to_string_lossy()
-            )
-        })?;
+        .map_err(|error| format!("cannot execute `{}`: {error}", command.display_name()))?;
     let mut child_stdout = child
         .stdout
         .take()
@@ -158,56 +105,17 @@ fn run_filtered(
         return Err(error.to_string());
     }
     display.flush().map_err(|error| error.to_string())?;
-    let status = child.wait().map_err(|error| {
-        format!(
-            "cannot wait for `{}`: {error}",
-            program.to_string_lossy()
-        )
-    })?;
+    let status = child
+        .wait()
+        .map_err(|error| format!("cannot wait for `{}`: {error}", command.display_name()))?;
     Ok(status.code().unwrap_or(1))
 }
 
-pub(crate) fn build_pipeline(
-    config: &Config,
-    source: bool,
-    strict: bool,
-    no_cache: bool,
-    color: bool,
-    columns: Option<u16>,
-) -> DisplayPipeline {
-    let detector: Box<dyn SemanticDetector> =
-        if config.detection.math || config.detection.mermaid {
-            Box::new(FencedDetector::new(&config.detection))
-        } else {
-            Box::new(PassthroughDetector)
-        };
-    let source_mode = source || config.rendering.mode == RenderMode::Source;
-    let renderer: Box<dyn Renderer> = if source_mode {
-        Box::new(SourceRenderer)
-    } else {
-        Box::new(RoutedRenderer::configured(&config.engines))
-    };
-    let cache: Box<dyn ArtifactCache> =
-        if source_mode || no_cache || !config.cache.enabled {
-            Box::new(NoopCache::default())
-        } else {
-            Box::new(MemoryCache::new(
-                config.cache.max_entries,
-                config.cache.max_bytes,
-            ))
-        };
-    let service = RenderService::new(renderer, cache);
-    let context = RenderContext {
-        columns: columns.unwrap_or(config.rendering.columns),
-        color,
-        theme_fingerprint: 0,
-    };
-    DisplayPipeline::new(
-        detector,
-        service,
-        context,
-        strict || config.rendering.strict,
-    )
+fn set_config(target: &mut Option<PathBuf>, path: PathBuf) -> Result<(), String> {
+    if target.replace(path).is_some() {
+        return Err("`--config` may be specified only once".to_owned());
+    }
+    Ok(())
 }
 
 fn next_value(
