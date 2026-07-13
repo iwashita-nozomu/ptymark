@@ -1,6 +1,7 @@
+use crate::command::ChildCommand;
 use crate::config::Config;
-use crate::filtered_run::build_pipeline;
 use crate::pipeline::DisplayPipeline;
+use crate::runtime::{PipelineFactory, PipelineOptions};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 use portable_pty::{
     Child as PtyChild, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
@@ -18,58 +19,11 @@ use std::time::Duration;
 const DEFAULT_ROWS: u16 = 24;
 const RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);
 
-pub const HELP: &str = "\
-
-INTERACTIVE PTY/CONPTY HOST:
-    ptymark [--config PATH] -- COMMAND [ARG...]
-
-    Launch COMMAND inside a native pseudo-terminal. Keyboard input is forwarded to
-    the child, child output passes through the terminal safety and rendering pipeline,
-    terminal resize is propagated, and the child exit status is returned.
-
-    Full-screen and cursor-addressed interfaces remain byte-exact and are not rendered.
-
-EXAMPLES:
-    ptymark -- $SHELL -l
-    ptymark -- codex
-";
-
-pub fn run_from(mut arguments: Vec<OsString>) -> Option<Result<i32, String>> {
-    let mut config_path = None;
-
-    while matches!(
-        arguments.first().and_then(|value| value.to_str()),
-        Some("--config")
-    ) {
-        arguments.remove(0);
-        let path = match arguments.first().cloned() {
-            Some(path) => path,
-            None => return Some(Err("missing value after `--config`".to_owned())),
-        };
-        arguments.remove(0);
-        if config_path.replace(PathBuf::from(path)).is_some() {
-            return Some(Err("`--config` may be specified only once".to_owned()));
-        }
-    }
-
-    if !matches!(
-        arguments.first().and_then(|value| value.to_str()),
-        Some("--")
-    ) {
-        return None;
-    }
-    arguments.remove(0);
-    Some(run_interactive(arguments, config_path))
-}
-
-fn run_interactive(
+pub(crate) fn run(
     command: Vec<OsString>,
     config_path: Option<PathBuf>,
 ) -> Result<i32, String> {
-    if command.is_empty() {
-        return Err("missing command after `--`".to_owned());
-    }
-
+    let command = ChildCommand::from_argv(command, "missing command after `--`")?;
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
     let stdin_is_terminal = io::stdin().is_terminal();
     let stdout_is_terminal = io::stdout().is_terminal();
@@ -87,14 +41,11 @@ fn run_interactive(
         stdout_is_terminal,
     )?;
 
-    let mut pipeline = build_pipeline(
-        &config,
-        false,
-        false,
-        false,
-        stdout_is_terminal,
-        Some(initial_size.cols),
-    );
+    let mut pipeline = PipelineFactory::new(&config).build(PipelineOptions {
+        color: stdout_is_terminal,
+        columns: Some(initial_size.cols),
+        ..PipelineOptions::default()
+    });
     let output_result = pump_output(
         session.reader_mut(),
         &mut pipeline,
@@ -130,6 +81,10 @@ fn pump_output(
         match reader.read(&mut buffer) {
             Ok(0) => break,
             Ok(count) => {
+                // A resize may have arrived while the blocking read was in progress.
+                // Drain it before rendering the newly read bytes so the next complete
+                // semantic block uses the latest width.
+                apply_resize_events(pipeline, resize_events);
                 pipeline
                     .feed(&buffer[..count], &mut display)
                     .map_err(|error| error.to_string())?;
@@ -260,14 +215,14 @@ struct NativePtySession {
 }
 
 impl NativePtySession {
-    fn spawn(command: &[OsString], size: PtySize) -> Result<Self, String> {
+    fn spawn(command: &ChildCommand, size: PtySize) -> Result<Self, String> {
         let system = native_pty_system();
         let PtyPair { master, slave } = system
             .openpty(size)
             .map_err(|error| format!("cannot allocate native PTY: {error}"))?;
 
-        let mut builder = CommandBuilder::new(&command[0]);
-        builder.args(&command[1..]);
+        let mut builder = CommandBuilder::new(command.program());
+        builder.args(command.arguments());
         if env::var_os("TERM").is_none() {
             builder.env("TERM", "xterm-256color");
         }
@@ -275,7 +230,7 @@ impl NativePtySession {
         let child = slave.spawn_command(builder).map_err(|error| {
             format!(
                 "cannot execute `{}` in native PTY: {error}",
-                command[0].to_string_lossy()
+                command.display_name()
             )
         })?;
         drop(slave);
@@ -309,6 +264,7 @@ impl NativePtySession {
         Arc::clone(&self.master)
     }
 
+    #[cfg(all(test, unix))]
     fn resize(&self, size: PtySize) -> Result<(), String> {
         let master = self
             .master
@@ -408,16 +364,21 @@ impl ResizeMonitor {
 #[cfg(all(test, unix))]
 mod tests {
     use super::{NativePtySession, PtySize};
+    use crate::command::ChildCommand;
     use std::ffi::OsString;
     use std::io::Read;
 
     #[test]
     fn real_unix_pty_resize_reaches_the_child() {
-        let command = vec![
-            OsString::from("/bin/sh"),
-            OsString::from("-c"),
-            OsString::from("sleep 1; stty size"),
-        ];
+        let command = ChildCommand::from_argv(
+            vec![
+                OsString::from("/bin/sh"),
+                OsString::from("-c"),
+                OsString::from("sleep 1; stty size"),
+            ],
+            "missing child command",
+        )
+        .expect("command");
         let mut session = NativePtySession::spawn(
             &command,
             PtySize {
