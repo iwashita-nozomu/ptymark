@@ -52,16 +52,14 @@ jobs:
           cargo fmt --all
           cargo fmt --all -- --check
 
-      - name: Commit formatted refactor and remove one-time tooling
+      - name: Commit formatted non-workflow source changes
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git checkout HEAD -- .github/workflows/ptymark-ci.yml
           git rm \
-            .github/workflows/ptymark-apply-refactor-once.yml \
-            .github/workflows/ptymark-interactive-mvp-finalize-once.yml \
-            .github/workflows/ptymark-source-snapshot-once.yml \
             .refactor_runtime_once.part00 \
             .refactor_runtime_once.part01 \
             .refactor_runtime_once.part02 \
