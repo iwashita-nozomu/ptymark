@@ -167,7 +167,7 @@ fn run_filtered(
     Ok(status.code().unwrap_or(1))
 }
 
-fn build_pipeline(
+pub(crate) fn build_pipeline(
     config: &Config,
     source: bool,
     strict: bool,
