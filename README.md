@@ -26,15 +26,18 @@ child output
   -> terminal-safe display bytes
 ```
 
-The renderer does not take ownership of keyboard input, termios, signal routing, window-size
-forwarding, mouse reporting, bracketed paste, shell hooks, prompt definitions, completion bindings,
-or child exit status.
+The rendering pipeline never interprets keyboard input, signals, shell hooks, prompt definitions,
+completion bindings, mouse reports, or bracketed paste. In interactive mode, the native PTY/ConPTY
+host transports those bytes and terminal-size changes without giving them to semantic rendering, and
+restores the parent terminal mode before exit.
 
 ## Current status
 
 Implemented:
 
 - stream and file rendering through `ptymark preview`;
+- native Unix PTY and Windows ConPTY sessions through `ptymark -- COMMAND`;
+- keyboard-byte forwarding, terminal resize propagation, and child exit-status preservation;
 - complete Mermaid fences and block-math fences;
 - byte-exact bypass for ANSI, OSC, DCS-style controls, carriage-return updates, completion redraws,
   right prompts, and alternate-screen applications;
@@ -53,16 +56,15 @@ Implemented:
 
 Not implemented yet:
 
-- the interactive child-PTY host behind `ptymark -- COMMAND`;
 - WezTerm/Kitty/iTerm2/Sixel pixel placement;
 - persistent renderer workers;
-- live resize generations and cancellation;
-- persistent cache;
-- Windows ConPTY hosting.
+- cancellation of a renderer already running during a resize storm;
+- persistent cache.
 
-`ptymark -- COMMAND` currently validates configuration and transparently executes the command. The
-command shape is reserved for the later PTY host. The reusable display pipeline and its terminal
-safety contracts are implemented and tested independently.
+`ptymark -- COMMAND` is the practical interactive path. It starts the child in a native Unix PTY or
+Windows ConPTY, forwards input, propagates size changes, filters only safe child-output regions, and
+returns the child exit status. `ptymark run -- COMMAND` remains the pipe-oriented path for batch and
+log-producing commands.
 
 ## Install from a GitHub Actions package
 

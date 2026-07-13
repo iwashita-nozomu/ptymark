@@ -2,7 +2,9 @@
 @dependency-start
 contract design
 responsibility Defines the native PTY/ConPTY interactive session used by `ptymark -- COMMAND`.
-upstream implementation ../src/interactive.rs owns PTY allocation, raw mode, input forwarding, resize, output filtering, and child lifecycle.
+upstream implementation ../src/interactive.rs orchestrates one interactive command session.
+upstream implementation ../src/native_session.rs owns native PTY/ConPTY allocation, parent terminal mode, input forwarding, resize, and child lifecycle.
+upstream implementation ../src/stream.rs owns byte pumping, flush policy, interrupted reads, and platform PTY EOF handling.
 upstream design ./ptymark-design.md defines terminal-safety and pre-display rendering invariants.
 downstream test ../tests/interactive_pty_contract.rs exercises real Unix PTY and Windows ConPTY processes.
 @dependency-end
@@ -41,6 +43,33 @@ Windows                     native ConPTY
 ```
 
 No shell command string is synthesized. The executable and each argument remain separate values.
+
+## Responsibility split
+
+The runtime is intentionally split at stable ownership boundaries:
+
+```text
+interactive.rs
+    command-level orchestration and failure precedence
+
+native_session.rs
+    parent terminal state
+    native PTY / ConPTY child lifecycle
+    input forwarding
+    resize observation
+
+runtime.rs
+    detector / renderer / cache composition
+
+stream.rs
+    reader -> DisplayPipeline -> display pumping
+    standard-stream versus interactive flush and EOF policy
+```
+
+`NativeTerminalSession` is a concrete cross-platform object backed by `portable-pty`, not a speculative
+registry. A new session abstraction should be introduced only when a second materially different host
+requires substitution. `PipelineFactory` remains the public composition seam; CLI parsing and process
+ownership remain crate-internal.
 
 ## Terminal ownership
 

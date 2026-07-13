@@ -8,14 +8,9 @@ pub(crate) struct ChildCommand {
 }
 
 impl ChildCommand {
-    pub(crate) fn from_argv(
-        argv: Vec<OsString>,
-        missing_message: &str,
-    ) -> Result<Self, String> {
+    pub(crate) fn from_argv(argv: Vec<OsString>, missing_message: &str) -> Result<Self, String> {
         let mut arguments = argv.into_iter();
-        let program = arguments
-            .next()
-            .ok_or_else(|| missing_message.to_owned())?;
+        let program = arguments.next().ok_or_else(|| missing_message.to_owned())?;
         Ok(Self {
             program,
             arguments: arguments.collect(),
@@ -64,8 +59,8 @@ mod tests {
 
     #[test]
     fn rejects_an_empty_command_line() {
-        let error = ChildCommand::from_argv(Vec::new(), "missing command")
-            .expect_err("empty command");
+        let error =
+            ChildCommand::from_argv(Vec::new(), "missing command").expect_err("empty command");
         assert_eq!(error, "missing command");
     }
 }

@@ -14,7 +14,8 @@ downstream test ../tests/filtered_run_contract.rs verifies rendering, help, and 
 
 `ptymark run -- COMMAND [ARG...]` is the command-execution path for batch tools and other
 non-interactive programs whose standard output may contain complete Mermaid or block-math fences.
-It provides useful child-process integration before the interactive PTY/ConPTY host exists.
+It complements the native PTY/ConPTY path with a simpler pipe-oriented mode for commands that do
+not need terminal attachment.
 
 ```text
 child stdin  <---------------- inherited terminal or pipe
@@ -35,8 +36,8 @@ child stdout -> TerminalOutputGate -> SemanticDetector -> renderer -> parent std
 - stdout is a pipe, not a PTY.
 
 The last rule is intentional. Interactive shells, prompts, line editors, and full-screen TUIs may
-change behavior when stdout is not a terminal. They must continue to use the transparent
-`ptymark -- COMMAND` launcher until the interactive host is implemented.
+change behavior when stdout is not a terminal. They use `ptymark -- COMMAND`, which allocates the
+native Unix PTY or Windows ConPTY host.
 
 ## Usage
 
@@ -62,15 +63,9 @@ The options mirror the stream controls available to `preview`:
 The `--` separator is mandatory so child arguments can begin with `-` without being interpreted as
 ptymark options.
 
-## Deliberately deferred
+## Deliberate boundary
 
-This command does not claim to implement:
-
-- PTY or ConPTY allocation;
-- raw-mode terminal input ownership;
-- window-size propagation;
-- explicit signal forwarding or process-group supervision;
-- interactive prompt, completion, mouse, or bracketed-paste behavior.
-
-Those responsibilities remain with the interactive-host work tracked separately from this pipe-based
-batch path.
+This command intentionally does not allocate a PTY or ConPTY, change parent terminal mode, propagate
+window size, or claim interactive prompt and TUI behavior. Those responsibilities belong to the
+implemented `ptymark -- COMMAND` native-session path. Keeping the two modes separate makes pipe
+semantics explicit and avoids guessing whether a command expects a terminal.

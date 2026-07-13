@@ -1,3 +1,4 @@
+use crate::cli_args::{apply_render_option, next_path, next_value, set_once};
 use crate::config::Config;
 use crate::engine::check_configured_engines;
 use crate::install::{
@@ -5,10 +6,11 @@ use crate::install::{
     PresenterPreference, default_install_state_path,
 };
 use crate::runtime::{PipelineFactory, PipelineOptions};
+use crate::stream::PipelinePump;
 use std::env;
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process;
 
@@ -60,7 +62,7 @@ EXAMPLES:
     printf '$$\nE = mc^2\n$$\n' | ptymark preview
     ptymark preview --source README.md
     ptymark run -- command-that-prints-markdown
-    ptymark -- "$SHELL" -l
+    ptymark -- \"$SHELL\" -l
     ptymark -- codex
 ";
 
@@ -138,45 +140,9 @@ fn parse_leading_config(
             .cloned()
             .ok_or_else(|| "missing value after `--config`".to_owned())?;
         arguments.remove(0);
-        set_config(config_path, PathBuf::from(path))?;
+        set_once(config_path, PathBuf::from(path), "--config")?;
     }
     Ok(())
-}
-
-fn set_config(target: &mut Option<PathBuf>, path: PathBuf) -> Result<(), String> {
-    if target.replace(path).is_some() {
-        return Err("`--config` may be specified only once".to_owned());
-    }
-    Ok(())
-}
-
-fn next_value(
-    iterator: &mut impl Iterator<Item = OsString>,
-    option: &str,
-) -> Result<OsString, String> {
-    iterator
-        .next()
-        .ok_or_else(|| format!("missing value after `{option}`"))
-}
-
-fn next_path(
-    iterator: &mut impl Iterator<Item = OsString>,
-    option: &str,
-) -> Result<PathBuf, String> {
-    next_value(iterator, option).map(PathBuf::from)
-}
-
-fn next_columns(iterator: &mut impl Iterator<Item = OsString>) -> Result<u16, String> {
-    let value = next_value(iterator, "--columns")?
-        .into_string()
-        .map_err(|_| "`--columns` requires UTF-8 digits".to_owned())?;
-    let columns = value
-        .parse::<u16>()
-        .map_err(|_| "`--columns` requires a positive integer".to_owned())?;
-    if columns == 0 {
-        return Err("`--columns` must be greater than zero".to_owned());
-    }
-    Ok(columns)
 }
 
 fn next_engine_preference(
@@ -216,36 +182,28 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
         let text = argument
             .to_str()
             .ok_or_else(|| "preview options must be valid UTF-8".to_owned())?;
+        if apply_render_option(text, &mut iterator, &mut options, &mut config_path)? {
+            continue;
+        }
         match text {
             "-h" | "--help" => {
                 print!("{HELP}");
                 return Ok(0);
             }
-            "--source" => options.source = true,
-            "--strict" => options.strict = true,
-            "--no-cache" => options.no_cache = true,
-            "--color" => options.color = true,
-            "--columns" => options.columns = Some(next_columns(&mut iterator)?),
-            "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
             "-" => {
-                if input_path.replace(PathBuf::from("-")).is_some() {
-                    return Err("preview accepts at most one input".to_owned());
-                }
+                set_once(&mut input_path, PathBuf::from("-"), "preview input")?;
             }
             option if option.starts_with('-') => {
                 return Err(format!("unknown preview option `{option}`"));
             }
             _ => {
-                if input_path.replace(PathBuf::from(argument)).is_some() {
-                    return Err("preview accepts at most one input".to_owned());
-                }
+                set_once(&mut input_path, PathBuf::from(argument), "preview input")?;
             }
         }
     }
 
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
     let mut pipeline = PipelineFactory::new(&config).build(options);
-
     let mut input: Box<dyn Read> = match input_path {
         Some(path) if path != *"-" => Box::new(
             File::open(&path)
@@ -255,23 +213,10 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
     };
     let stdout = io::stdout();
     let mut display = stdout.lock();
-    let mut buffer = [0_u8; 8192];
 
-    loop {
-        let count = input
-            .read(&mut buffer)
-            .map_err(|error| format!("cannot read preview input: {error}"))?;
-        if count == 0 {
-            break;
-        }
-        pipeline
-            .feed(&buffer[..count], &mut display)
-            .map_err(|error| error.to_string())?;
-    }
-    pipeline
-        .finish(&mut display)
-        .map_err(|error| error.to_string())?;
-    display.flush().map_err(|error| error.to_string())?;
+    PipelinePump::standard()
+        .run(input.as_mut(), &mut display, &mut pipeline)
+        .map_err(|error| format!("cannot process preview input: {error}"))?;
     Ok(0)
 }
 
@@ -370,15 +315,16 @@ fn run_install_resolve(
                 print!("{HELP}");
                 return Ok(0);
             }
-            "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
-            "--state" => {
-                if state_path
-                    .replace(next_path(&mut iterator, "--state")?)
-                    .is_some()
-                {
-                    return Err("`--state` may be specified only once".to_owned());
-                }
-            }
+            "--config" => set_once(
+                &mut config_path,
+                next_path(&mut iterator, "--config")?,
+                "--config",
+            )?,
+            "--state" => set_once(
+                &mut state_path,
+                next_path(&mut iterator, "--state")?,
+                "--state",
+            )?,
             "--mermaid" => mermaid = next_engine_preference(&mut iterator, "--mermaid")?,
             "--math" => math = next_engine_preference(&mut iterator, "--math")?,
             "--presenter" => presenter = next_presenter_preference(&mut iterator)?,
@@ -434,14 +380,11 @@ fn run_install_status(arguments: Vec<OsString>) -> Result<i32, String> {
                 print!("{HELP}");
                 return Ok(0);
             }
-            Some("--state") => {
-                if state_path
-                    .replace(next_path(&mut iterator, "--state")?)
-                    .is_some()
-                {
-                    return Err("`--state` may be specified only once".to_owned());
-                }
-            }
+            Some("--state") => set_once(
+                &mut state_path,
+                next_path(&mut iterator, "--state")?,
+                "--state",
+            )?,
             Some(option) => return Err(format!("unknown install status option `{option}`")),
             None => return Err("install status options must be valid UTF-8".to_owned()),
         }
@@ -467,7 +410,11 @@ fn parse_subcommand_config(
     let mut iterator = arguments.into_iter();
     while let Some(argument) = iterator.next() {
         match argument.to_str() {
-            Some("--config") => set_config(config_path, next_path(&mut iterator, "--config")?)?,
+            Some("--config") => set_once(
+                config_path,
+                next_path(&mut iterator, "--config")?,
+                "--config",
+            )?,
             Some("-h" | "--help") => {
                 print!("{HELP}");
                 return Ok(());

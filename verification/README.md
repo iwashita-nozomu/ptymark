@@ -50,6 +50,10 @@ The following IDs are stable review references. Renaming or removing one require
 - `terminal.alternate-screen`
 - `detector.explicit-fences`
 - `pipeline.single-commit`
+- `runtime.pipeline-factory`
+- `runtime.stream-pump`
+- `command.filtered-run`
+- `pty.native-session`
 - `routing.typed-handoff`
 - `cache.contract`
 - `config.contract`

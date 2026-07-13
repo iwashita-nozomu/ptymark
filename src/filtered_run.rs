@@ -1,8 +1,10 @@
+use crate::cli_args::apply_render_option;
 use crate::command::ChildCommand;
 use crate::config::Config;
 use crate::runtime::{PipelineFactory, PipelineOptions};
+use crate::stream::PipelinePump;
 use std::ffi::OsString;
-use std::io::{self, Read, Write};
+use std::io;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
@@ -38,19 +40,13 @@ pub(crate) fn run(
         let text = argument.to_str().ok_or_else(|| {
             "run options must be valid UTF-8; place the child command after `--`".to_owned()
         })?;
+        if apply_render_option(text, &mut iterator, &mut options, &mut config_path)? {
+            continue;
+        }
         match text {
             "-h" | "--help" => {
                 print!("{HELP}");
                 return Ok(0);
-            }
-            "--source" => options.source = true,
-            "--strict" => options.strict = true,
-            "--no-cache" => options.no_cache = true,
-            "--color" => options.color = true,
-            "--columns" => options.columns = Some(next_columns(&mut iterator)?),
-            "--config" => {
-                let path = PathBuf::from(next_value(&mut iterator, "--config")?);
-                set_config(&mut config_path, path)?;
             }
             "--" => {
                 command.extend(iterator);
@@ -81,63 +77,17 @@ pub(crate) fn run(
         .ok_or_else(|| "child stdout pipe is unavailable".to_owned())?;
     let stdout = io::stdout();
     let mut display = stdout.lock();
-    let mut buffer = [0_u8; 8192];
 
-    loop {
-        let count = match child_stdout.read(&mut buffer) {
-            Ok(count) => count,
-            Err(error) => {
-                terminate_child(&mut child);
-                return Err(format!("cannot read child stdout: {error}"));
-            }
-        };
-        if count == 0 {
-            break;
-        }
-        if let Err(error) = pipeline.feed(&buffer[..count], &mut display) {
-            terminate_child(&mut child);
-            return Err(error.to_string());
-        }
-    }
-
-    if let Err(error) = pipeline.finish(&mut display) {
+    if let Err(error) = PipelinePump::standard().run(&mut child_stdout, &mut display, &mut pipeline)
+    {
         terminate_child(&mut child);
-        return Err(error.to_string());
+        return Err(format!("cannot process child stdout: {error}"));
     }
-    display.flush().map_err(|error| error.to_string())?;
+
     let status = child
         .wait()
         .map_err(|error| format!("cannot wait for `{}`: {error}", command.display_name()))?;
     Ok(status.code().unwrap_or(1))
-}
-
-fn set_config(target: &mut Option<PathBuf>, path: PathBuf) -> Result<(), String> {
-    if target.replace(path).is_some() {
-        return Err("`--config` may be specified only once".to_owned());
-    }
-    Ok(())
-}
-
-fn next_value(
-    iterator: &mut impl Iterator<Item = OsString>,
-    option: &str,
-) -> Result<OsString, String> {
-    iterator
-        .next()
-        .ok_or_else(|| format!("missing value after `{option}`"))
-}
-
-fn next_columns(iterator: &mut impl Iterator<Item = OsString>) -> Result<u16, String> {
-    let value = next_value(iterator, "--columns")?
-        .into_string()
-        .map_err(|_| "`--columns` requires UTF-8 digits".to_owned())?;
-    let columns = value
-        .parse::<u16>()
-        .map_err(|_| "`--columns` requires a positive integer".to_owned())?;
-    if columns == 0 {
-        return Err("`--columns` must be greater than zero".to_owned());
-    }
-    Ok(columns)
 }
 
 fn terminate_child(child: &mut Child) {

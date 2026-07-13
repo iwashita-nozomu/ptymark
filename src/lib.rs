@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod cli;
+mod cli_args;
 mod command;
 pub mod config;
 pub mod detector;
@@ -9,10 +10,12 @@ pub mod install;
 mod interactive;
 pub mod managed_launcher;
 pub mod model;
+mod native_session;
 pub mod pipeline;
 pub mod render;
 pub mod routing;
 pub mod runtime;
+mod stream;
 pub mod terminal;
 
 pub use cache::{ArtifactCache, CacheKey, CacheStats, MemoryCache, NoopCache};

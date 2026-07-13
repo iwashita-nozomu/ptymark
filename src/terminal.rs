@@ -176,7 +176,8 @@ impl TerminalOutputGate {
     fn process_byte(&mut self, byte: u8, segments: &mut Vec<OutputSegment>) {
         let parser_active = !self.parser.is_ground();
         let unsafe_control = is_unsafe_control(byte);
-        let raw = self.alternate_screen || self.raw_until_newline || parser_active || unsafe_control;
+        let raw =
+            self.alternate_screen || self.raw_until_newline || parser_active || unsafe_control;
         push_segment(segments, raw, byte);
 
         if unsafe_control {

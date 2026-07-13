@@ -151,9 +151,17 @@ fn alternate_screen_output_is_not_semantically_rendered() {
         String::from_utf8_lossy(&output.stderr)
     );
     let bytes = output.stdout;
-    assert!(bytes.windows(b"\x1b[?1049h".len()).any(|window| window == b"\x1b[?1049h"));
+    assert!(
+        bytes
+            .windows(b"\x1b[?1049h".len())
+            .any(|window| window == b"\x1b[?1049h")
+    );
     assert!(bytes.windows(2).any(|window| window == b"$$"));
-    assert!(bytes.windows(b"\x1b[?1049l".len()).any(|window| window == b"\x1b[?1049l"));
+    assert!(
+        bytes
+            .windows(b"\x1b[?1049l".len())
+            .any(|window| window == b"\x1b[?1049l")
+    );
 }
 
 #[cfg(unix)]
@@ -166,7 +174,14 @@ fn ctrl_c_byte_reaches_the_foreground_process_group() {
 
     let script = "trap 'printf \\\"INT_OK\\\\n\\\"; exit 130' INT; while :; do sleep 1; done";
     let mut child = Command::new(binary())
-        .args(["--config", "examples/ptymark.toml", "--", "/bin/sh", "-c", script])
+        .args([
+            "--config",
+            "examples/ptymark.toml",
+            "--",
+            "/bin/sh",
+            "-c",
+            script,
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
