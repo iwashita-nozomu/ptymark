@@ -1,26 +1,23 @@
-use crate::cache::{MemoryCache, NoopCache};
-use crate::config::{Config, RenderMode};
-use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
+use crate::config::Config;
 use crate::engine::check_configured_engines;
 use crate::install::{
     EnginePreference, InstallRequest, InstallState, Installer, PathProgramResolver,
     PresenterPreference, default_install_state_path,
 };
-use crate::pipeline::DisplayPipeline;
-use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
-use crate::routing::RoutedRenderer;
+use crate::runtime::{PipelineFactory, PipelineOptions};
 use std::env;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
-use std::process::{self, Command};
+use std::process;
 
 pub const HELP: &str = "\
 ptymark — pre-display renderer for terminal streams
 
 USAGE:
     ptymark [--config PATH] preview [OPTIONS] [FILE|-]
+    ptymark [--config PATH] run [OPTIONS] -- COMMAND [ARG...]
     ptymark [--config PATH] config check
     ptymark [--config PATH] config show
     ptymark [--config PATH] engine check
@@ -28,7 +25,7 @@ USAGE:
     ptymark install status [--state PATH]
     ptymark [--config PATH] -- COMMAND [ARG...]
 
-PREVIEW OPTIONS:
+RENDER OPTIONS:
     --source              keep complete semantic blocks as source
     --strict              fail instead of restoring source after renderer errors
     --no-cache            disable the in-memory render cache
@@ -36,6 +33,10 @@ PREVIEW OPTIONS:
     --columns N           renderer width hint
     --config PATH         use an explicit ptymark TOML file
     -h, --help            print this help
+
+COMMAND MODES:
+    run -- COMMAND        pipe-oriented stdout filtering for batch/log tools
+    -- COMMAND            native PTY/ConPTY host for shells, Codex, and TUIs
 
 INSTALL OPTIONS:
     --config PATH         write or update this user configuration
@@ -56,10 +57,10 @@ EXAMPLES:
     ptymark install resolve
     ptymark install resolve --mermaid /opt/homebrew/bin/mmdc
     ptymark install status
-    printf '$$\\nE = mc^2\\n$$\\n' | ptymark preview
+    printf '$$\nE = mc^2\n$$\n' | ptymark preview
     ptymark preview --source README.md
-    ptymark config check --config examples/ptymark.toml
-    ptymark engine check --config examples/ptymark.toml
+    ptymark run -- command-that-prints-markdown
+    ptymark -- "$SHELL" -l
     ptymark -- codex
 ";
 
@@ -105,7 +106,7 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         .first()
         .and_then(|value| value.to_str())
         .ok_or_else(|| {
-            "missing command; use `preview`, `config`, `engine`, `install`, or `-- COMMAND`"
+            "missing command; use `preview`, `run`, `config`, `engine`, `install`, or `-- COMMAND`"
                 .to_owned()
         })?
         .to_owned();
@@ -113,10 +114,11 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
 
     match command.as_str() {
         "preview" => run_preview(arguments, config_path),
+        "run" => crate::filtered_run::run(arguments, config_path),
         "config" => run_config(arguments, config_path),
         "engine" => run_engine(arguments, config_path),
         "install" => run_install(arguments, config_path),
-        "--" => run_command(arguments, config_path),
+        "--" => crate::interactive::run(arguments, config_path),
         option if option.starts_with('-') => Err(format!("unknown option `{option}`")),
         _ => Err("child commands must follow `--`; example: `ptymark -- zsh -l`".to_owned()),
     }
@@ -206,11 +208,7 @@ fn next_presenter_preference(
 }
 
 fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Result<i32, String> {
-    let mut source = false;
-    let mut strict = false;
-    let mut no_cache = false;
-    let mut color = false;
-    let mut columns = None;
+    let mut options = PipelineOptions::default();
     let mut input_path = None;
     let mut iterator = arguments.into_iter();
 
@@ -223,11 +221,11 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
                 print!("{HELP}");
                 return Ok(0);
             }
-            "--source" => source = true,
-            "--strict" => strict = true,
-            "--no-cache" => no_cache = true,
-            "--color" => color = true,
-            "--columns" => columns = Some(next_columns(&mut iterator)?),
+            "--source" => options.source = true,
+            "--strict" => options.strict = true,
+            "--no-cache" => options.no_cache = true,
+            "--color" => options.color = true,
+            "--columns" => options.columns = Some(next_columns(&mut iterator)?),
             "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
             "-" => {
                 if input_path.replace(PathBuf::from("-")).is_some() {
@@ -246,40 +244,7 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
     }
 
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
-    let detector: Box<dyn SemanticDetector> = if config.detection.math || config.detection.mermaid {
-        Box::new(FencedDetector::new(&config.detection))
-    } else {
-        Box::new(PassthroughDetector)
-    };
-
-    let source_mode = source || config.rendering.mode == RenderMode::Source;
-    let renderer: Box<dyn Renderer> = if source_mode {
-        Box::new(SourceRenderer)
-    } else {
-        Box::new(RoutedRenderer::configured(&config.engines))
-    };
-    let cache: Box<dyn crate::cache::ArtifactCache> =
-        if source_mode || no_cache || !config.cache.enabled {
-            Box::new(NoopCache::default())
-        } else {
-            Box::new(MemoryCache::new(
-                config.cache.max_entries,
-                config.cache.max_bytes,
-            ))
-        };
-
-    let service = RenderService::new(renderer, cache);
-    let context = RenderContext {
-        columns: columns.unwrap_or(config.rendering.columns),
-        color,
-        theme_fingerprint: 0,
-    };
-    let mut pipeline = DisplayPipeline::new(
-        detector,
-        service,
-        context,
-        strict || config.rendering.strict,
-    );
+    let mut pipeline = PipelineFactory::new(&config).build(options);
 
     let mut input: Box<dyn Read> = match input_path {
         Some(path) if path != *"-" => Box::new(
@@ -512,31 +477,4 @@ fn parse_subcommand_config(
         }
     }
     Ok(())
-}
-
-fn run_command(arguments: Vec<OsString>, config_path: Option<PathBuf>) -> Result<i32, String> {
-    let program = arguments
-        .first()
-        .cloned()
-        .ok_or_else(|| "missing command after `--`".to_owned())?;
-    Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        let error = Command::new(&program).args(&arguments[1..]).exec();
-        Err(format!(
-            "cannot execute `{}`: {error}",
-            program.to_string_lossy()
-        ))
-    }
-
-    #[cfg(not(unix))]
-    {
-        let status = Command::new(&program)
-            .args(&arguments[1..])
-            .status()
-            .map_err(|error| format!("cannot execute `{}`: {error}", program.to_string_lossy()))?;
-        Ok(status.code().unwrap_or(1))
-    }
 }
