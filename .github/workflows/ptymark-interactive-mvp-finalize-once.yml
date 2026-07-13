@@ -42,6 +42,13 @@ jobs:
             | gzip -d \
             > /tmp/refactor_runtime_once.py
           python3 /tmp/refactor_runtime_once.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/cli.rs')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace('    ptymark -- "$SHELL" -l\n', '    ptymark -- \\"$SHELL\\" -l\n', 1)
+          path.write_text(source, encoding='utf-8')
+          PY
           cargo fmt --all
 
       - name: Commit formatted source and remove one-time tooling
