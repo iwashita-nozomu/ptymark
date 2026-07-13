@@ -75,8 +75,37 @@ impl DisplayPipeline {
 
     pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PipelineError> {
         self.report.input_bytes = self.report.input_bytes.saturating_add(input.len());
+        let segments = self.gate.feed(input);
+        self.emit_segments(segments, display)
+    }
 
-        for segment in self.gate.feed(input) {
+    pub fn finish(&mut self, display: &mut dyn Write) -> Result<(), PipelineError> {
+        let segments = self.gate.finish();
+        self.emit_segments(segments, display)?;
+        let items = self.detector.finish();
+        self.emit(items, display)?;
+        display.flush()?;
+        Ok(())
+    }
+
+    pub fn report(&self) -> &PipelineReport {
+        &self.report
+    }
+
+    pub fn cache_stats(&self) -> crate::cache::CacheStats {
+        self.renderer.cache_stats()
+    }
+
+    pub fn set_columns(&mut self, columns: u16) {
+        self.context.columns = columns.max(1);
+    }
+
+    fn emit_segments(
+        &mut self,
+        segments: Vec<OutputSegment>,
+        display: &mut dyn Write,
+    ) -> Result<(), PipelineError> {
+        for segment in segments {
             match segment {
                 OutputSegment::SafeText(bytes) => {
                     let items = self.detector.feed(&bytes);
@@ -92,21 +121,6 @@ impl DisplayPipeline {
             }
         }
         Ok(())
-    }
-
-    pub fn finish(&mut self, display: &mut dyn Write) -> Result<(), PipelineError> {
-        let items = self.detector.finish();
-        self.emit(items, display)?;
-        display.flush()?;
-        Ok(())
-    }
-
-    pub fn report(&self) -> &PipelineReport {
-        &self.report
-    }
-
-    pub fn cache_stats(&self) -> crate::cache::CacheStats {
-        self.renderer.cache_stats()
     }
 
     fn emit(
@@ -156,13 +170,16 @@ mod tests {
     use crate::detector::FencedDetector;
     use crate::render::{PreviewRenderer, RenderContext, RenderService};
 
-    #[test]
-    fn semantic_block_is_replaced_before_display() {
+    fn preview_pipeline() -> DisplayPipeline {
         let detector = Box::new(FencedDetector::new(&DetectionConfig::default()));
         let renderer =
             RenderService::new(Box::new(PreviewRenderer), Box::new(NoopCache::default()));
-        let mut pipeline =
-            DisplayPipeline::new(detector, renderer, RenderContext::default(), false);
+        DisplayPipeline::new(detector, renderer, RenderContext::default(), false)
+    }
+
+    #[test]
+    fn semantic_block_is_replaced_before_display() {
+        let mut pipeline = preview_pipeline();
         let mut output = Vec::new();
 
         pipeline
@@ -178,13 +195,27 @@ mod tests {
     }
 
     #[test]
+    fn crlf_semantic_block_from_a_pty_is_rendered() {
+        let mut pipeline = preview_pipeline();
+        let source = b"before\r\n$$\r\nE = mc^2\r\n$$\r\nafter\r\n";
+        let mut output = Vec::new();
+
+        for byte in source {
+            pipeline.feed(&[*byte], &mut output).expect("feed");
+        }
+        pipeline.finish(&mut output).expect("finish");
+
+        let text = String::from_utf8(output).expect("UTF-8");
+        assert!(text.starts_with("before\r\n"));
+        assert!(text.contains("ptymark math"));
+        assert!(text.ends_with("after\r\n"));
+        assert!(!text.contains("$$"));
+    }
+
+    #[test]
     fn alternate_screen_is_lossless() {
         let source = b"\x1b[?1049h$$\nE = mc^2\n$$\n\x1b[?1049l";
-        let detector = Box::new(FencedDetector::new(&DetectionConfig::default()));
-        let renderer =
-            RenderService::new(Box::new(PreviewRenderer), Box::new(NoopCache::default()));
-        let mut pipeline =
-            DisplayPipeline::new(detector, renderer, RenderContext::default(), false);
+        let mut pipeline = preview_pipeline();
         let mut output = Vec::new();
 
         for byte in source {
