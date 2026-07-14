@@ -1,7 +1,8 @@
 use crate::command::ChildCommand;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 use portable_pty::{
-    Child as PtyChild, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
+    Child as PtyChild, ChildKiller, CommandBuilder, MasterPty, PtyPair, PtySize,
+    native_pty_system,
 };
 use std::env;
 use std::io::{self, IsTerminal, Read, Write};
@@ -14,7 +15,7 @@ use std::time::Duration;
 const DEFAULT_ROWS: u16 = 24;
 const RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);
 
-type SharedMaster = Arc<Mutex<Box<dyn MasterPty + Send>>>;
+type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ParentTerminal {
@@ -73,7 +74,8 @@ pub(crate) struct NativeTerminalSession {
     master: SharedMaster,
     reader: Box<dyn Read + Send>,
     writer: Option<Box<dyn Write + Send>>,
-    child: Box<dyn PtyChild + Send + Sync>,
+    child: Option<Box<dyn PtyChild + Send + Sync>>,
+    killer: Box<dyn ChildKiller + Send + Sync>,
 }
 
 impl NativeTerminalSession {
@@ -103,12 +105,14 @@ impl NativeTerminalSession {
         let writer = master
             .take_writer()
             .map_err(|error| format!("cannot open PTY input writer: {error}"))?;
+        let killer = child.clone_killer();
 
         Ok(Self {
-            master: Arc::new(Mutex::new(master)),
+            master: Arc::new(Mutex::new(Some(master))),
             reader,
             writer: Some(writer),
-            child,
+            child: Some(child),
+            killer,
         })
     }
 
@@ -133,20 +137,44 @@ impl NativeTerminalSession {
             .lock()
             .map_err(|_| "PTY resize lock was poisoned".to_owned())?;
         master
+            .as_ref()
+            .ok_or_else(|| "PTY master was already closed".to_owned())?
             .resize(size)
             .map_err(|error| format!("cannot resize child PTY: {error}"))
     }
 
     pub(crate) fn kill(&mut self) -> Result<(), String> {
-        self.child
+        self.killer
             .kill()
             .map_err(|error| format!("cannot terminate child process: {error}"))
     }
 
     pub(crate) fn wait(&mut self) -> Result<portable_pty::ExitStatus, String> {
         self.child
+            .as_mut()
+            .ok_or_else(|| "child process is already owned by the exit waiter".to_owned())?
             .wait()
             .map_err(|error| format!("cannot wait for child process: {error}"))
+    }
+
+    pub(crate) fn start_exit_waiter(
+        &mut self,
+    ) -> Result<JoinHandle<Result<portable_pty::ExitStatus, String>>, String> {
+        let mut child = self
+            .child
+            .take()
+            .ok_or_else(|| "child process exit waiter was already started".to_owned())?;
+        let master = Arc::clone(&self.master);
+        thread::Builder::new()
+            .name("ptymark-child-wait".to_owned())
+            .spawn(move || {
+                let result = child
+                    .wait()
+                    .map_err(|error| format!("cannot wait for child process: {error}"));
+                close_shared_master(&master);
+                result
+            })
+            .map_err(|error| format!("cannot start child process exit waiter: {error}"))
     }
 }
 
@@ -246,6 +274,18 @@ fn spawn_input_pump(
         .map_err(|error| format!("cannot start terminal input forwarding: {error}"))
 }
 
+
+fn close_shared_master(master: &SharedMaster) {
+    match master.lock() {
+        Ok(mut master) => {
+            let _ = master.take();
+        }
+        Err(poisoned) => {
+            let _ = poisoned.into_inner().take();
+        }
+    }
+}
+
 fn initial_pty_size(fallback_columns: u16, terminal_attached: bool) -> PtySize {
     if terminal_attached
         && let Ok((columns, rows)) = terminal_size()
@@ -318,6 +358,9 @@ impl ResizeMonitor {
                     }
 
                     let Ok(master) = master.lock() else {
+                        break;
+                    };
+                    let Some(master) = master.as_ref() else {
                         break;
                     };
                     if master.resize(size).is_ok() {
