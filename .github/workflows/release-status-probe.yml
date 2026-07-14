@@ -8,6 +8,7 @@ on:
 permissions:
   actions: read
   contents: read
+  attestations: read
 
 jobs:
   probe:
@@ -101,3 +102,184 @@ jobs:
           path: release-status/**
           if-no-files-found: error
           retention-days: 1
+
+  verify-assets:
+    needs: probe
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: v0.1.0-alpha.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets verification
+          gh release download "$RELEASE_TAG" --repo "$REPOSITORY" --dir release-assets
+          find release-assets -maxdepth 1 -type f -printf '%f\n' | sort | tee verification/downloaded-assets.txt
+
+      - name: Verify tag target, checksums, manifest, and package contents
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: v0.1.0-alpha.1
+          RELEASE_VERSION: 0.1.0-alpha.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha=$(gh api "repos/${REPOSITORY}/git/ref/heads/main" --jq '.object.sha')
+          tag_object_sha=$(gh api "repos/${REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha')
+          tag_object_type=$(gh api "repos/${REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.type')
+          if [[ "$tag_object_type" == tag ]]; then
+            tag_target_sha=$(gh api "repos/${REPOSITORY}/git/tags/${tag_object_sha}" --jq '.object.sha')
+          else
+            tag_target_sha=$tag_object_sha
+          fi
+          branch_sha=$(gh api "repos/${REPOSITORY}/git/ref/heads/release/${RELEASE_TAG}" --jq '.object.sha')
+          test "$tag_target_sha" = "$main_sha"
+          test "$branch_sha" = "$main_sha"
+          printf 'main_sha=%s\ntag_object_sha=%s\ntag_target_sha=%s\nrelease_branch_sha=%s\n' \
+            "$main_sha" "$tag_object_sha" "$tag_target_sha" "$branch_sha" \
+            | tee verification/release-identity.txt
+
+          (cd release-assets && sha256sum --check SHA256SUMS) | tee verification/aggregate-checksums.txt
+          for sidecar in release-assets/*.sha256; do
+            (cd release-assets && sha256sum --check "$(basename "$sidecar")")
+          done | tee verification/sidecar-checksums.txt
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          root = Path('release-assets')
+          verification = Path('verification')
+          version = os.environ['RELEASE_VERSION']
+          tag = os.environ['RELEASE_TAG']
+          expected_archives = {
+              f'ptymark-{version}-linux-x86_64.tar.gz': 'bin/ptymark',
+              f'ptymark-{version}-macos-aarch64.tar.gz': 'bin/ptymark',
+              f'ptymark-{version}-windows-x86_64.zip': 'bin/ptymark.exe',
+          }
+          expected_assets = {'SHA256SUMS', 'release-manifest.json'}
+          for archive in expected_archives:
+              expected_assets.add(archive)
+              expected_assets.add(f'{archive}.sha256')
+          actual_assets = {path.name for path in root.iterdir() if path.is_file()}
+          missing = sorted(expected_assets - actual_assets)
+          if missing:
+              raise SystemExit(f'missing release assets: {missing}')
+
+          aggregate = {}
+          for line in (root / 'SHA256SUMS').read_text().splitlines():
+              if not line.strip():
+                  continue
+              digest, name = line.split(None, 1)
+              aggregate[name.lstrip('*').strip()] = digest
+
+          report = {
+              'tag': tag,
+              'version': version,
+              'assets': {},
+              'archives': {},
+              'manifest': json.loads((root / 'release-manifest.json').read_text()),
+          }
+          required_suffixes = [
+              'README.md',
+              'CHANGELOG.md',
+              'SECURITY.md',
+              'LICENSE',
+              'PACKAGE-MANIFEST.txt',
+              'install.sh',
+              'install.ps1',
+              'install.cmd',
+              'plugin/init.lua',
+              'examples/wezterm.lua',
+              'documents/release.md',
+          ]
+
+          for archive, binary_suffix in expected_archives.items():
+              path = root / archive
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              if aggregate.get(archive) != digest:
+                  raise SystemExit(f'aggregate checksum mismatch for {archive}')
+              sidecar_line = (root / f'{archive}.sha256').read_text().strip()
+              sidecar_digest, sidecar_name = sidecar_line.split(None, 1)
+              if sidecar_digest != digest or sidecar_name.lstrip('*').strip() != archive:
+                  raise SystemExit(f'sidecar checksum mismatch for {archive}')
+
+              if archive.endswith('.zip'):
+                  with zipfile.ZipFile(path) as package:
+                      names = package.namelist()
+              else:
+                  with tarfile.open(path, 'r:gz') as package:
+                      names = package.getnames()
+              for suffix in [*required_suffixes, binary_suffix]:
+                  if not any(name == suffix or name.endswith('/' + suffix) for name in names):
+                      raise SystemExit(f'{archive} is missing {suffix}')
+              top_levels = sorted({name.split('/', 1)[0] for name in names if name})
+              if len(top_levels) != 1:
+                  raise SystemExit(f'{archive} has unexpected top-level entries: {top_levels}')
+
+              report['assets'][archive] = {
+                  'sha256': digest,
+                  'size': path.stat().st_size,
+              }
+              report['archives'][archive] = {
+                  'top_level': top_levels[0],
+                  'entry_count': len(names),
+                  'required_files_verified': [*required_suffixes, binary_suffix],
+              }
+              (verification / f'{archive}.contents.txt').write_text('\n'.join(names) + '\n')
+
+          (verification / 'asset-verification.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Smoke-test published Linux binary
+        env:
+          RELEASE_VERSION: 0.1.0-alpha.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification/linux-extracted
+          tar -xzf "release-assets/ptymark-${RELEASE_VERSION}-linux-x86_64.tar.gz" -C verification/linux-extracted
+          binary=$(find verification/linux-extracted -type f -path '*/bin/ptymark' -perm -u+x -print -quit)
+          test -n "$binary"
+          "$binary" --version | tee verification/linux-version.txt
+          test "$(cat verification/linux-version.txt)" = "ptymark ${RELEASE_VERSION}"
+          printf '%s\n' '```mermaid' 'flowchart LR' '  Release --> Verified' '```' > verification/source-input.md
+          "$binary" preview --source verification/source-input.md > verification/source-output.md
+          cmp verification/source-input.md verification/source-output.md
+          timeout 15s bash -c 'printf "plain release output\n" | "$1" --safe -- /bin/cat' _ "$binary" \
+            > verification/safe-output.txt
+          grep -Fx 'plain release output' verification/safe-output.txt >/dev/null
+
+      - name: Verify build provenance attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: 0.1.0-alpha.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          for archive in \
+            "ptymark-${RELEASE_VERSION}-linux-x86_64.tar.gz" \
+            "ptymark-${RELEASE_VERSION}-macos-aarch64.tar.gz" \
+            "ptymark-${RELEASE_VERSION}-windows-x86_64.zip"; do
+            gh attestation verify "release-assets/$archive" --repo "$REPOSITORY" \
+              | tee "verification/$archive.attestation.txt"
+          done
+
+      - name: Upload release verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-release-asset-verification
+          path: verification/**
+          if-no-files-found: error
+          retention-days: 14
