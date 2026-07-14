@@ -36,7 +36,12 @@ jobs:
         with:
           fetch-depth: 0
           submodules: false
-          persist-credentials: true
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Resolve release identity
         id: release
@@ -77,6 +82,7 @@ jobs:
         if: startsWith(github.ref, 'refs/heads/release/')
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
         run: |
@@ -91,7 +97,9 @@ jobs:
             git config user.name github-actions[bot]
             git config user.email 41898282+github-actions[bot]@users.noreply.github.com
             git tag -a "$RELEASE_TAG" "$SOURCE_SHA" -m "ptymark $RELEASE_TAG"
-            git push origin "refs/tags/$RELEASE_TAG"
+            git push \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "refs/tags/$RELEASE_TAG"
           fi
 
   build:
@@ -118,6 +126,11 @@ jobs:
           ref: ${{ needs.prepare.outputs.source_sha }}
           submodules: false
           persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
         run: |
@@ -179,6 +192,11 @@ jobs:
           fetch-depth: 0
           submodules: false
           persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Download all release archives
         uses: actions/download-artifact@v8
