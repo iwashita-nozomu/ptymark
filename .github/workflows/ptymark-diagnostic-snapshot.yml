@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/diagnose-release-ci
+  pull_request:
+    branches:
+      - agent/filter-command-stdout
 
 permissions:
   contents: read
