@@ -1,6 +1,6 @@
 # @dependency-start
 # contract configuration
-# responsibility Defines ignored generated, local, and cache artifacts for the template repository.
+# responsibility Defines ignored generated, local, cache, and credential artifacts for the template repository.
 # upstream design AGENTS.md repository closeout and artifact policy
 # upstream design vendor/agent-canon/documents/result-log-retention-and-visualization.md generated report retention policy
 # downstream implementation tools/agent_tools/bootstrap_agent_run.py writes ignored run bundles
@@ -14,6 +14,17 @@ __pycache__/
 # Virtual env
 .venv/
 venv/
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+.secrets/
 
 # Jupyter
 .ipynb_checkpoints/
