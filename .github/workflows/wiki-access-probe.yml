@@ -1,0 +1,54 @@
+name: ptymark wiki access probe
+
+on:
+  push:
+    branches:
+      - agent/wiki-access-probe-20260714
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Probe wiki Git repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -u
+          mkdir -p wiki-probe
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git"
+          set +e
+          GIT_TERMINAL_PROMPT=0 git ls-remote "$wiki_url" > wiki-probe/refs.txt 2> wiki-probe/ls-remote.stderr.txt
+          status=$?
+          set -e
+          printf 'ls_remote_status=%s\n' "$status" > wiki-probe/status.txt
+          if [[ "$status" -eq 0 ]]; then
+            GIT_TERMINAL_PROMPT=0 git clone "$wiki_url" wiki-probe/repository > wiki-probe/clone.stdout.txt 2> wiki-probe/clone.stderr.txt
+            (
+              cd wiki-probe/repository
+              git status --short --branch > ../git-status.txt
+              find . -maxdepth 2 -type f ! -path './.git/*' -printf '%P\n' | sort > ../files.txt
+              for file in *.md; do
+                [[ -f "$file" ]] || continue
+                {
+                  printf '\n===== %s =====\n' "$file"
+                  sed -n '1,240p' "$file"
+                } >> ../markdown-pages.txt
+              done
+            )
+          fi
+          cat wiki-probe/status.txt
+          cat wiki-probe/ls-remote.stderr.txt || true
+
+      - name: Upload wiki probe evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-wiki-access-probe
+          path: wiki-probe/**
+          if-no-files-found: error
+          retention-days: 1
