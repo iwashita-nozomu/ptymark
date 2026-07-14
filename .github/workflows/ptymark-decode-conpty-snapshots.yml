@@ -1,0 +1,35 @@
+name: Decode ConPTY diagnostic snapshots
+
+on:
+  pull_request:
+    branches:
+      - agent/filter-command-stdout
+    paths:
+      - '.github/workflows/ptymark-decode-conpty-snapshots.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  decode:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Decode recorded source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir decoded
+          cat .github/diagnostics/conpty/native-src.* | base64 --decode > decoded/native-session-initial.rs
+          cat .github/diagnostics/conpty/native.* | base64 --decode > decoded/native-session-final.rs
+          cp src/native_session.rs decoded/native-session-branch.rs
+          cp src/interactive.rs decoded/interactive-branch.rs
+          sha256sum decoded/* > decoded/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-decoded-conpty-snapshots
+          path: decoded
+          if-no-files-found: error
+          retention-days: 1
