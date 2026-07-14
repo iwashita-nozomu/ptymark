@@ -1,0 +1,70 @@
+name: ptymark alpha.2 bilingual Wiki publisher
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: ptymark-alpha2-wiki-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.head_ref == 'agent/wiki-alpha2-roadmap-20260714'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out publisher source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Patch temporary publisher runner
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('wiki_alpha2_publish.py')
+          text = path.read_text()
+          old_sig = 'def run(args: list[str], *, cwd: Path | None = None, capture: bool = False) -> subprocess.CompletedProcess[str]:'
+          new_sig = 'def run(args: list[str], *, cwd: Path | None = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:'
+          if text.count(old_sig) != 1:
+              raise SystemExit('publisher run signature not found exactly once')
+          text = text.replace(old_sig, new_sig)
+          if text.count('        check=True,\n') != 1:
+              raise SystemExit('publisher check argument not found exactly once')
+          text = text.replace('        check=True,\n', '        check=check,\n')
+          old_diff = 'changed = run(["git", "diff", "--cached", "--quiet"], cwd=WIKI, capture=False).returncode != 0'
+          new_diff = 'changed = run(["git", "diff", "--cached", "--quiet"], cwd=WIKI, capture=False, check=False).returncode != 0'
+          if text.count(old_diff) != 1:
+              raise SystemExit('publisher diff check not found exactly once')
+          path.write_text(text.replace(old_diff, new_diff))
+          PY
+
+      - name: Publish and verify alpha.2 bilingual Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 wiki_alpha2_publish.py
+
+      - name: Upload Wiki publication evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-alpha2-wiki-publication
+          path: wiki-alpha2-evidence/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Delete temporary publisher branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            --delete "${GITHUB_HEAD_REF}"
