@@ -1,0 +1,40 @@
+name: ptymark diagnostic source snapshot
+
+on:
+  push:
+    branches:
+      - agent/diagnose-release-ci
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build source snapshot
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=target \
+            --exclude=.state \
+            -czf "$RUNNER_TEMP/ptymark-release-candidate-source.tar.gz" .
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-release-candidate-source
+          path: ${{ runner.temp }}/ptymark-release-candidate-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
