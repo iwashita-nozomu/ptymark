@@ -1,3 +1,9 @@
+# @dependency-start
+# contract workflow
+# responsibility Captures bounded release-blocker diagnostics for formatting and macOS package smoke behavior.
+# upstream implementation ../../scripts/package-release.sh defines package assembly and smoke tests.
+# downstream implementation ./ptymark-ci.yml consumes the resulting fixes through the canonical product matrix.
+# @dependency-end
 # Temporary release-blocker diagnostics. Remove after applying the generated fixes.
 name: ptymark Release Diagnostics
 
@@ -71,15 +77,20 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           source = Path('scripts/package-release.sh').read_text()
-          expected = "trap 'rm -rf \"$smoke_root\"' EXIT"
-          if expected not in source:
-              raise SystemExit('package smoke cleanup trap was not found')
-          Path('scripts/package-release-debug.sh').write_text(source.replace(expected, 'trap : EXIT'))
+          cleanup = "trap 'rm -rf \"$smoke_root\"' EXIT"
+          allocation = 'smoke_root="$(mktemp -d)"'
+          if cleanup not in source or allocation not in source:
+              raise SystemExit('package smoke setup was not found')
+          replacement = '''smoke_root="$repo_root/diagnostic-tmp/smoke-root"
+          rm -rf "$smoke_root"
+          mkdir -p "$smoke_root"'''
+          source = source.replace(cleanup, 'trap : EXIT').replace(allocation, replacement)
+          Path('scripts/package-release-debug.sh').write_text(source)
           PY
           chmod +x scripts/package-release-debug.sh
           mkdir -p diagnostic-tmp macos-capture
           set +e
-          TMPDIR="$PWD/diagnostic-tmp" bash -x scripts/package-release-debug.sh target/release/ptymark dist > macos-package.log 2>&1
+          bash -x scripts/package-release-debug.sh target/release/ptymark dist > macos-package.log 2>&1
           status=$?
           set -e
           {
