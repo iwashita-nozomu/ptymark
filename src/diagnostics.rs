@@ -172,11 +172,7 @@ impl DiagnosticFinding {
         self
     }
 
-    pub fn with_evidence(
-        mut self,
-        key: impl Into<String>,
-        value: DiagnosticEvidence,
-    ) -> Self {
+    pub fn with_evidence(mut self, key: impl Into<String>, value: DiagnosticEvidence) -> Self {
         self.evidence.insert(key.into(), value);
         self
     }
@@ -341,8 +337,8 @@ fn truncate_utf8(value: &str, max_bytes: usize) -> (String, bool) {
 #[cfg(test)]
 mod tests {
     use super::{
-        DiagnosticComponent, DiagnosticFinding, DiagnosticSeverity, DiagnosticStatus, Redactor,
-        REDACTED_VALUE, code, json_string,
+        DiagnosticComponent, DiagnosticFinding, DiagnosticSeverity, DiagnosticStatus,
+        REDACTED_VALUE, Redactor, code, json_string,
     };
     use std::path::{Path, PathBuf};
 
@@ -362,7 +358,10 @@ mod tests {
                 "the optional Mermaid engine is unavailable",
             ),
         ];
-        assert_eq!(DiagnosticStatus::from_findings(&findings), DiagnosticStatus::Degraded);
+        assert_eq!(
+            DiagnosticStatus::from_findings(&findings),
+            DiagnosticStatus::Degraded
+        );
         assert_eq!(DiagnosticStatus::Degraded.exit_code(), 10);
 
         let unusable = [DiagnosticFinding::new(
@@ -371,7 +370,10 @@ mod tests {
             DiagnosticComponent::Configuration,
             "configuration is invalid",
         )];
-        assert_eq!(DiagnosticStatus::from_findings(&unusable), DiagnosticStatus::Unusable);
+        assert_eq!(
+            DiagnosticStatus::from_findings(&unusable),
+            DiagnosticStatus::Unusable
+        );
         assert_eq!(DiagnosticStatus::Unusable.exit_code(), 20);
     }
 
@@ -379,9 +381,8 @@ mod tests {
     fn redactor_removes_sensitive_text_home_paths_and_controls() {
         let mut redactor = Redactor::with_home(Some(PathBuf::from("/home/alice")));
         redactor.add_sensitive("secret-token");
-        let value = redactor.public_text(
-            b"source=secret-token path=/home/alice/private.md\x1b[31m\n",
-        );
+        let value =
+            redactor.public_text(b"source=secret-token path=/home/alice/private.md\x1b[31m\n");
         assert!(value.redacted);
         assert!(value.value.contains(REDACTED_VALUE));
         assert!(value.value.contains("~/private.md"));
