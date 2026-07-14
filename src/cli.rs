@@ -25,10 +25,12 @@ USAGE:
     ptymark [--config PATH] engine check
     ptymark [--config PATH] install resolve [INSTALL OPTIONS]
     ptymark install status [--state PATH]
-    ptymark [--config PATH] -- COMMAND [ARG...]
+    ptymark [--config PATH] [RENDER OPTIONS] -- COMMAND [ARG...]
 
 RENDER OPTIONS:
-    --source              keep complete semantic blocks as source
+    --source              detect complete blocks but display their exact source
+    --safe                bypass semantic detection and rendering for this session
+    --private             disable cache and persistence-capable diagnostics for this session
     --strict              fail instead of restoring source after renderer errors
     --no-cache            disable the in-memory render cache
     --color               allow ANSI color in terminal renderers
@@ -39,6 +41,8 @@ RENDER OPTIONS:
 COMMAND MODES:
     run -- COMMAND        pipe-oriented stdout filtering for batch/log tools
     -- COMMAND            native PTY/ConPTY host for shells, Codex, and TUIs
+    --source and --safe   mutually exclusive per-session rendering overrides
+    --private             may be combined with configured, source, or safe mode
 
 INSTALL OPTIONS:
     --config PATH         write or update this user configuration
@@ -112,16 +116,29 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
                 .to_owned()
         })?
         .to_owned();
-    arguments.remove(0);
-
     match command.as_str() {
-        "preview" => run_preview(arguments, config_path),
-        "run" => crate::filtered_run::run(arguments, config_path),
-        "config" => run_config(arguments, config_path),
-        "engine" => run_engine(arguments, config_path),
-        "install" => run_install(arguments, config_path),
+        "preview" => {
+            arguments.remove(0);
+            run_preview(arguments, config_path)
+        }
+        "run" => {
+            arguments.remove(0);
+            crate::filtered_run::run(arguments, config_path)
+        }
+        "config" => {
+            arguments.remove(0);
+            run_config(arguments, config_path)
+        }
+        "engine" => {
+            arguments.remove(0);
+            run_engine(arguments, config_path)
+        }
+        "install" => {
+            arguments.remove(0);
+            run_install(arguments, config_path)
+        }
         "--" => crate::interactive::run(arguments, config_path),
-        option if option.starts_with('-') => Err(format!("unknown option `{option}`")),
+        option if option.starts_with('-') => crate::interactive::run(arguments, config_path),
         _ => Err("child commands must follow `--`; example: `ptymark -- zsh -l`".to_owned()),
     }
 }

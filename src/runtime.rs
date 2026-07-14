@@ -8,7 +8,12 @@ use crate::routing::RoutedRenderer;
 /// Per-invocation overrides applied on top of the resolved user configuration.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PipelineOptions {
+    /// Detect complete semantic blocks but commit their exact source bytes.
     pub source: bool,
+    /// Bypass semantic detection and rendering for the complete invocation.
+    pub safe: bool,
+    /// Disable caches and any persistence-capable diagnostics for this invocation.
+    pub private: bool,
     pub strict: bool,
     pub no_cache: bool,
     pub color: bool,
@@ -32,28 +37,33 @@ impl<'a> PipelineFactory<'a> {
     }
 
     pub fn build(self, options: PipelineOptions) -> DisplayPipeline {
-        let detector: Box<dyn SemanticDetector> =
-            if self.config.detection.math || self.config.detection.mermaid {
-                Box::new(FencedDetector::new(&self.config.detection))
-            } else {
-                Box::new(PassthroughDetector)
-            };
+        let detector: Box<dyn SemanticDetector> = if options.safe
+            || !(self.config.detection.math || self.config.detection.mermaid)
+        {
+            Box::new(PassthroughDetector)
+        } else {
+            Box::new(FencedDetector::new(&self.config.detection))
+        };
 
         let source_mode = options.source || self.config.rendering.mode == RenderMode::Source;
-        let renderer: Box<dyn Renderer> = if source_mode {
+        let renderer: Box<dyn Renderer> = if options.safe || source_mode {
             Box::new(SourceRenderer)
         } else {
             Box::new(RoutedRenderer::configured(&self.config.engines))
         };
-        let cache: Box<dyn ArtifactCache> =
-            if source_mode || options.no_cache || !self.config.cache.enabled {
-                Box::new(NoopCache::default())
-            } else {
-                Box::new(MemoryCache::new(
-                    self.config.cache.max_entries,
-                    self.config.cache.max_bytes,
-                ))
-            };
+        let cache: Box<dyn ArtifactCache> = if options.safe
+            || options.private
+            || source_mode
+            || options.no_cache
+            || !self.config.cache.enabled
+        {
+            Box::new(NoopCache::default())
+        } else {
+            Box::new(MemoryCache::new(
+                self.config.cache.max_entries,
+                self.config.cache.max_bytes,
+            ))
+        };
 
         DisplayPipeline::new(
             detector,

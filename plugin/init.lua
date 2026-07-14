@@ -18,14 +18,30 @@ local function copy_map(values)
   return result
 end
 
+local function session_mode_flag(mode)
+  if mode == nil then
+    return nil
+  end
+  assert(type(mode) == 'string',
+    'ptymark option `mode` must be one of: source, safe, private')
+  local flags = {
+    source = '--source',
+    safe = '--safe',
+    private = '--private',
+  }
+  assert(flags[mode] ~= nil,
+    'ptymark option `mode` must be one of: source, safe, private')
+  return flags[mode]
+end
+
 function M.command(options)
   options = options or {}
 
   if options.command ~= nil then
     assert(type(options.command) == 'table' and #options.command > 0,
       'ptymark option `command` must be a non-empty array')
-    assert(options.config_file == nil and options.shell == nil,
-      'ptymark `command` cannot be combined with `config_file` or `shell`')
+    assert(options.config_file == nil and options.shell == nil and options.mode == nil,
+      'ptymark `command` cannot be combined with `config_file`, `shell`, or `mode`')
     return copy_array(options.command)
   end
 
@@ -35,6 +51,10 @@ function M.command(options)
       'ptymark option `config_file` must be a non-empty string')
     table.insert(args, '--config')
     table.insert(args, options.config_file)
+  end
+  local mode_flag = session_mode_flag(options.mode)
+  if mode_flag ~= nil then
+    table.insert(args, mode_flag)
   end
   table.insert(args, '--')
   table.insert(args, options.shell or os.getenv('SHELL') or '/bin/sh')

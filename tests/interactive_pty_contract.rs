@@ -5,12 +5,19 @@ fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_ptymark")
 }
 
-fn run_interactive(child_command: Vec<OsString>) -> Output {
-    Command::new(binary())
-        .args(["--config", "examples/ptymark.toml", "--"])
+fn run_interactive_with_options(options: &[&str], child_command: Vec<OsString>) -> Output {
+    let mut command = Command::new(binary());
+    command.args(["--config", "examples/ptymark.toml"]);
+    command.args(options);
+    command.arg("--");
+    command
         .args(child_command)
         .output()
         .expect("run child in native PTY")
+}
+
+fn run_interactive(child_command: Vec<OsString>) -> Output {
+    run_interactive_with_options(&[], child_command)
 }
 
 #[cfg(unix)]
@@ -116,6 +123,53 @@ fn native_pty_or_conpty_renders_real_child_output() {
     assert!(text.contains("ptymark math"), "{text}");
     assert!(text.contains("after"), "{text}");
     assert!(!text.contains("$$"), "{text}");
+}
+
+#[test]
+fn native_session_modes_apply_without_replacing_the_pty_host() {
+    for (mode, should_render) in [
+        ("--source", false),
+        ("--safe", false),
+        ("--private", true),
+    ] {
+        let output = run_interactive_with_options(&[mode], markdown_command());
+        assert!(
+            output.status.success(),
+            "mode={mode} stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("before"), "mode={mode} output={text}");
+        assert!(text.contains("after"), "mode={mode} output={text}");
+        assert_eq!(
+            text.contains("ptymark math"),
+            should_render,
+            "mode={mode} output={text}"
+        );
+        assert_eq!(text.contains("$$"), !should_render, "mode={mode} output={text}");
+    }
+}
+
+#[test]
+fn conflicting_interactive_modes_fail_before_child_launch() {
+    let output = Command::new(binary())
+        .args([
+            "--config",
+            "examples/ptymark.toml",
+            "--source",
+            "--safe",
+            "--",
+            binary(),
+            "--version",
+        ])
+        .output()
+        .expect("conflicting interactive modes");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty(), "child unexpectedly launched");
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("`--source` and `--safe` cannot be combined")
+    );
 }
 
 #[test]

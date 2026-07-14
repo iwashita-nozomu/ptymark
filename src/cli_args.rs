@@ -9,7 +9,9 @@ pub(crate) fn apply_render_option(
     config_path: &mut Option<PathBuf>,
 ) -> Result<bool, String> {
     match option {
-        "--source" => pipeline.source = true,
+        "--source" => enable_source_mode(pipeline)?,
+        "--safe" => enable_safe_mode(pipeline)?,
+        "--private" => pipeline.private = true,
         "--strict" => pipeline.strict = true,
         "--no-cache" => pipeline.no_cache = true,
         "--color" => pipeline.color = true,
@@ -18,6 +20,22 @@ pub(crate) fn apply_render_option(
         _ => return Ok(false),
     }
     Ok(true)
+}
+
+fn enable_source_mode(pipeline: &mut PipelineOptions) -> Result<(), String> {
+    if pipeline.safe {
+        return Err("`--source` and `--safe` cannot be combined".to_owned());
+    }
+    pipeline.source = true;
+    Ok(())
+}
+
+fn enable_safe_mode(pipeline: &mut PipelineOptions) -> Result<(), String> {
+    if pipeline.source {
+        return Err("`--source` and `--safe` cannot be combined".to_owned());
+    }
+    pipeline.safe = true;
+    Ok(())
 }
 
 pub(crate) fn set_once<T>(target: &mut Option<T>, value: T, option: &str) -> Result<(), String> {
@@ -74,6 +92,39 @@ mod tests {
                 .expect("columns")
         );
         assert_eq!(pipeline.columns, Some(120));
+    }
+
+    #[test]
+    fn session_modes_share_the_render_option_parser() {
+        let mut pipeline = PipelineOptions::default();
+        let mut config = None;
+        let mut values = Vec::<OsString>::new().into_iter();
+
+        assert!(
+            apply_render_option("--safe", &mut values, &mut pipeline, &mut config)
+                .expect("safe")
+        );
+        assert!(
+            apply_render_option("--private", &mut values, &mut pipeline, &mut config)
+                .expect("private")
+        );
+        assert!(pipeline.safe);
+        assert!(pipeline.private);
+    }
+
+    #[test]
+    fn source_and_safe_modes_are_mutually_exclusive() {
+        for options in [["--source", "--safe"], ["--safe", "--source"]] {
+            let mut pipeline = PipelineOptions::default();
+            let mut config = None;
+            let mut values = Vec::<OsString>::new().into_iter();
+
+            apply_render_option(options[0], &mut values, &mut pipeline, &mut config)
+                .expect("first mode");
+            let error = apply_render_option(options[1], &mut values, &mut pipeline, &mut config)
+                .expect_err("conflicting modes");
+            assert_eq!(error, "`--source` and `--safe` cannot be combined");
+        }
     }
 
     #[test]

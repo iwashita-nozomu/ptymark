@@ -39,6 +39,25 @@ assert(command[4] == '--')
 assert(command[5] == '/bin/zsh')
 assert(command[6] == '-l')
 
+for _, mode in ipairs({ 'source', 'safe', 'private' }) do
+  local mode_command = ptymark.command({
+    binary = 'ptymark',
+    mode = mode,
+    shell = '/bin/sh',
+    login_shell = false,
+  })
+  assert(mode_command[1] == 'ptymark')
+  assert(mode_command[2] == '--' .. mode)
+  assert(mode_command[3] == '--')
+  assert(mode_command[4] == '/bin/sh')
+end
+
+local valid_mode, mode_error = pcall(function()
+  ptymark.command({ mode = 'unknown' })
+end)
+assert(not valid_mode)
+assert(tostring(mode_error):find('source, safe, private', 1, true) ~= nil)
+
 local config = {
   launch_menu = { { label = 'existing', args = { 'sh' } } },
   keys = { { key = 'E', mods = 'CTRL' } },

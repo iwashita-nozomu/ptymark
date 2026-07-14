@@ -15,7 +15,7 @@ downstream test ../tests/interactive_pty_contract.rs exercises real Unix PTY and
 ## User-facing command
 
 ```text
-ptymark [--config PATH] -- COMMAND [ARG...]
+ptymark [--config PATH] [--source|--safe] [--private] -- COMMAND [ARG...]
 ```
 
 This is the practical interactive path. `ptymark` allocates the operating system's native
@@ -43,6 +43,23 @@ Windows                     native ConPTY
 ```
 
 No shell command string is synthesized. The executable and each argument remain separate values.
+
+## Per-session modes
+
+The interactive host is retained in every mode; only pre-display rendering policy changes:
+
+- `--source` keeps semantic detection active and replaces each complete block with its exact source;
+- `--safe` uses the passthrough detector and never invokes a semantic renderer or presenter;
+- `--private` keeps the selected rendering policy but selects `NoopCache` for the invocation.
+
+`--source` and `--safe` are mutually exclusive. `--private` can accompany either mode. All options are
+resolved before configuration is loaded, the child is spawned, or parent terminal raw mode is entered.
+They are immutable for the lifetime of the session and never change keyboard forwarding, resizing,
+signal behavior, child argv, or child exit status.
+
+The current runtime has only process-local memory caching and no persistent source-bearing diagnostic
+sink. `--private` disables that cache now and owns the forward-compatible contract for suppressing any
+future persistent diagnostics without changing the CLI.
 
 ## Responsibility split
 
@@ -140,4 +157,6 @@ Generation-based cancellation of an in-flight stale render remains follow-up wor
 - a real Unix PTY resize changes the size observed by `stty`.
 
 Managed-renderer smoke tests additionally run Mermaid and MathJax through the interactive PTY/ConPTY
-path, so an engine failure cannot be hidden by a mock adapter or source fallback.
+path, so an engine failure cannot be hidden by a mock adapter or source fallback. Session-mode
+contracts run through the same real host and verify that source/safe output remains exact, private mode
+continues to render, and conflicting options fail before child launch.
