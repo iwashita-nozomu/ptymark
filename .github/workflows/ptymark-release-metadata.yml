@@ -64,6 +64,11 @@ jobs:
           submodules: false
           persist-credentials: false
 
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
