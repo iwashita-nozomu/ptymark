@@ -28,6 +28,7 @@ fn public_diagnostics_are_deterministic_and_source_redacted() {
     .with_remedy("select preview or install the configured engine")
     .with_evidence("path", evidence);
 
+    assert_eq!(DiagnosticStatus::Ready.exit_code(), 0);
     assert_eq!(DiagnosticStatus::from_findings(&[finding.clone()]).exit_code(), 10);
     assert!(finding.human_line().starts_with("[warning] engine.missing"));
     assert_eq!(
