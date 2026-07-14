@@ -65,11 +65,17 @@ jobs:
           - actions
 
     steps:
-      - name: Check out source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          submodules: false
-          persist-credentials: false
+      - name: Check out public source without repository credentials
+        shell: bash
+        env:
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c protocol.version=2 fetch --no-tags --depth=1 origin "$SOURCE_REF"
+          git checkout --detach "$SOURCE_SHA"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@29d5e4cb8ef24b12f19e6f9a314ab83b0d94489a # v4
