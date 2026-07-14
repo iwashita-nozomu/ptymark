@@ -1,0 +1,73 @@
+name: ptymark Release Diagnostic Once
+
+# Temporary diagnostic workflow. Removed after the release branch is green.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ptymark-source-snapshot-once.yml
+      - Cargo.toml
+      - Cargo.lock
+      - src/**
+      - tests/**
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out pull request merge ref
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy --component rustfmt
+          rustup override set 1.97.0
+
+      - name: Capture release-gate diagnostics
+        id: diagnose
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/ptymark-diagnostic"
+          cargo clippy --locked --all-targets --all-features -- -D warnings \
+            >"$RUNNER_TEMP/ptymark-diagnostic/clippy.log" 2>&1
+          clippy_status=$?
+          cargo test --locked --all-targets --all-features \
+            >"$RUNNER_TEMP/ptymark-diagnostic/test.log" 2>&1
+          test_status=$?
+          {
+            printf 'clippy_status=%s\n' "$clippy_status"
+            printf 'test_status=%s\n' "$test_status"
+            printf '\n== clippy diagnostics ==\n'
+            grep -E '(^error|^warning|^  -->|^   -->|^help:|^note:|could not compile)' \
+              "$RUNNER_TEMP/ptymark-diagnostic/clippy.log" || true
+            printf '\n== test diagnostics ==\n'
+            grep -E '(^error|^warning|^  -->|^   -->|^help:|^note:|test result:|failures:|could not compile)' \
+              "$RUNNER_TEMP/ptymark-diagnostic/test.log" || true
+          } >"$RUNNER_TEMP/ptymark-diagnostic/summary.txt"
+          printf 'clippy_status=%s\n' "$clippy_status" >> "$GITHUB_OUTPUT"
+          printf 'test_status=%s\n' "$test_status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload compact diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-release-diagnostic-once
+          path: ${{ runner.temp }}/ptymark-diagnostic
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce diagnostic result
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.diagnose.outputs.clippy_status }}" = 0
+          test "${{ steps.diagnose.outputs.test_status }}" = 0
