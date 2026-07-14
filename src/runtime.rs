@@ -6,7 +6,7 @@ use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
 use crate::routing::RoutedRenderer;
 
 /// Per-invocation overrides applied on top of the resolved user configuration.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PipelineOptions {
     pub source: bool,
     pub strict: bool,
@@ -14,19 +14,6 @@ pub struct PipelineOptions {
     pub color: bool,
     pub columns: Option<u16>,
     pub theme_fingerprint: u64,
-}
-
-impl Default for PipelineOptions {
-    fn default() -> Self {
-        Self {
-            source: false,
-            strict: false,
-            no_cache: false,
-            color: false,
-            columns: None,
-            theme_fingerprint: 0,
-        }
-    }
 }
 
 /// Canonical composition root for the pre-display pipeline.
