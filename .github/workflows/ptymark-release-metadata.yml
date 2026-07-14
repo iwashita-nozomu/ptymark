@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -90,11 +90,11 @@ jobs:
           set -euo pipefail
           artifact="$RUNNER_TEMP/ptymark-repaired-release-tree"
           rm -rf "$artifact"
-          mkdir -p "$artifact/tree"
+          mkdir -p "$artifact"
           git diff --binary > "$artifact/release-candidate-fixes.patch"
           git diff --name-only > "$artifact/changed-files.txt"
           git diff --name-status > "$artifact/changed-status.txt"
-          tar --exclude=.git -czf "$artifact/repaired-tree.tar.gz" .
+          tar --exclude=.git --exclude=target -czf "$artifact/repaired-tree.tar.gz" .
 
       - name: Upload validated repaired tree
         uses: actions/upload-artifact@v7
@@ -103,3 +103,22 @@ jobs:
           path: ${{ runner.temp }}/ptymark-repaired-release-tree/**
           if-no-files-found: error
           retention-days: 1
+
+      - name: Commit non-workflow release fixes
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -u
+          git reset -- .github/workflows
+          if git diff --cached --quiet; then
+            echo 'non-workflow release fixes already applied'
+            exit 0
+          fi
+          git commit -m 'fix: clear non-workflow release gates'
+          auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            push origin "HEAD:${GITHUB_HEAD_REF}"
