@@ -4,6 +4,7 @@
 # upstream implementation ../../tools/ci/check_agent_canon_pr.sh defines the strict dependency review gate.
 # downstream pull_request PR #35 consumes the repaired product ownership metadata before this workflow is removed.
 # @dependency-end
+# rerun-token: ci-header-repaired
 name: AgentCanon Dependency Header Repair Once
 
 on:
