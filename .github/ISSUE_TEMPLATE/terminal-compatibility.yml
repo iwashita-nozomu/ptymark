@@ -1,7 +1,7 @@
 # @dependency-start
 # contract configuration
 # responsibility Defines redacted terminal, shell, PTY, resize, and presentation compatibility intake.
-# upstream policy ../../SECURITY.md private vulnerability reporting and redaction boundaries
+# upstream design ../../SECURITY.md private vulnerability reporting and redaction boundaries
 # upstream design ../../documents/interactive-session.md PTY and ConPTY behavior contract
 # upstream design ../../documents/shell-plugin-compatibility.md terminal and shell coexistence contract
 # downstream environment ./config.yml GitHub issue routing
