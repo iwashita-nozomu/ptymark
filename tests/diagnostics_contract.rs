@@ -31,7 +31,7 @@ fn public_diagnostics_are_deterministic_and_source_redacted() {
     assert_eq!(DiagnosticStatus::Ready.exit_code(), 0);
     assert_eq!(DiagnosticStatus::Unusable.exit_code(), 20);
     assert_eq!(
-        DiagnosticStatus::from_findings(&[finding.clone()]).exit_code(),
+        DiagnosticStatus::from_findings(std::slice::from_ref(&finding)).exit_code(),
         10
     );
     assert!(finding.human_line().starts_with("[warning] engine.missing"));
