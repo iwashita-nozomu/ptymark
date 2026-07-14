@@ -1,17 +1,38 @@
+use std::collections::BTreeMap;
 use std::env;
-use std::fmt;
 use std::path::{Path, PathBuf};
 
-pub const MAX_PUBLIC_EVIDENCE_CHARS: usize = 512;
+pub const MAX_PUBLIC_DIAGNOSTIC_BYTES: usize = 4096;
+pub const REDACTED_VALUE: &str = "<redacted>";
+
+pub mod code {
+    pub const CONFIG_INVALID: &str = "config.invalid";
+    pub const INSTALL_STATE_MISSING: &str = "install.state_missing";
+    pub const INSTALL_STATE_STALE: &str = "install.state_stale";
+    pub const HOST_UNAVAILABLE: &str = "host.unavailable";
+    pub const TERMINAL_REDIRECTED: &str = "terminal.redirected";
+    pub const ENGINE_MISSING: &str = "engine.missing";
+    pub const ENGINE_INCOMPATIBLE: &str = "engine.incompatible";
+    pub const BROWSER_UNAVAILABLE: &str = "browser.unavailable";
+    pub const PRESENTER_UNSUPPORTED: &str = "presenter.unsupported";
+    pub const RENDER_FAILED: &str = "render.failed";
+    pub const RENDER_PROCESS_EXIT: &str = "render.process_exit";
+    pub const RENDER_TIMEOUT: &str = "render.timeout";
+    pub const RENDER_OUTPUT_LIMIT: &str = "render.output_limit";
+    pub const PRESENTATION_FALLBACK: &str = "presentation.fallback";
+    pub const MODE_SOURCE: &str = "mode.source";
+    pub const MODE_SAFE: &str = "mode.safe";
+    pub const MODE_PRIVATE: &str = "mode.private";
+}
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Severity {
+pub enum DiagnosticSeverity {
     Info,
     Warning,
     Error,
 }
 
-impl Severity {
+impl DiagnosticSeverity {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Info => "info",
@@ -21,100 +42,166 @@ impl Severity {
     }
 }
 
-impl fmt::Display for Severity {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum FindingCode {
-    ConfigInvalid,
-    InstallStateMissing,
-    InstallStateStale,
-    HostUnavailable,
-    TerminalRedirected,
-    EngineMissing,
-    EngineIncompatible,
-    BrowserUnavailable,
-    PresenterUnsupported,
-    RenderProcessExit,
-    RenderTimeout,
-    RenderOutputLimit,
-    PresentationFallback,
-    ModeSource,
-    ModeSafe,
-    ModePrivate,
+pub enum DiagnosticComponent {
+    Configuration,
+    Installation,
+    Host,
+    Terminal,
+    Engine,
+    Browser,
+    Presenter,
+    Render,
+    Presentation,
+    Mode,
 }
 
-impl FindingCode {
+impl DiagnosticComponent {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::ConfigInvalid => "config.invalid",
-            Self::InstallStateMissing => "install.state_missing",
-            Self::InstallStateStale => "install.state_stale",
-            Self::HostUnavailable => "host.unavailable",
-            Self::TerminalRedirected => "terminal.redirected",
-            Self::EngineMissing => "engine.missing",
-            Self::EngineIncompatible => "engine.incompatible",
-            Self::BrowserUnavailable => "browser.unavailable",
-            Self::PresenterUnsupported => "presenter.unsupported",
-            Self::RenderProcessExit => "render.process_exit",
-            Self::RenderTimeout => "render.timeout",
-            Self::RenderOutputLimit => "render.output_limit",
-            Self::PresentationFallback => "presentation.fallback",
-            Self::ModeSource => "mode.source",
-            Self::ModeSafe => "mode.safe",
-            Self::ModePrivate => "mode.private",
+            Self::Configuration => "configuration",
+            Self::Installation => "installation",
+            Self::Host => "host",
+            Self::Terminal => "terminal",
+            Self::Engine => "engine",
+            Self::Browser => "browser",
+            Self::Presenter => "presenter",
+            Self::Render => "render",
+            Self::Presentation => "presentation",
+            Self::Mode => "mode",
         }
     }
 }
 
-impl fmt::Display for FindingCode {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DiagnosticStatus {
+    Ready,
+    Degraded,
+    Unusable,
+}
+
+impl DiagnosticStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Degraded => "degraded",
+            Self::Unusable => "unusable",
+        }
+    }
+
+    pub const fn exit_code(self) -> i32 {
+        match self {
+            Self::Ready => 0,
+            Self::Degraded => 10,
+            Self::Unusable => 20,
+        }
+    }
+
+    pub fn from_findings(findings: &[DiagnosticFinding]) -> Self {
+        if findings
+            .iter()
+            .any(|finding| finding.severity == DiagnosticSeverity::Error)
+        {
+            Self::Unusable
+        } else if findings
+            .iter()
+            .any(|finding| finding.severity == DiagnosticSeverity::Warning)
+        {
+            Self::Degraded
+        } else {
+            Self::Ready
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DiagnosticEvidence {
+    pub value: String,
+    pub redacted: bool,
+}
+
+impl DiagnosticEvidence {
+    pub fn visible(value: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            redacted: false,
+        }
+    }
+
+    pub fn redacted(value: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            redacted: true,
+        }
+    }
+
+    pub fn omitted() -> Self {
+        Self::redacted(REDACTED_VALUE)
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiagnosticFinding {
-    pub code: FindingCode,
-    pub severity: Severity,
-    pub component: String,
+    pub code: String,
+    pub severity: DiagnosticSeverity,
+    pub component: DiagnosticComponent,
     pub summary: String,
-    pub remedy: String,
-    pub evidence: Option<String>,
+    pub remedy: Option<String>,
+    pub evidence: BTreeMap<String, DiagnosticEvidence>,
 }
 
 impl DiagnosticFinding {
     pub fn new(
-        code: FindingCode,
-        severity: Severity,
-        component: impl Into<String>,
+        code: impl Into<String>,
+        severity: DiagnosticSeverity,
+        component: DiagnosticComponent,
         summary: impl Into<String>,
-        remedy: impl Into<String>,
     ) -> Self {
         Self {
-            code,
+            code: code.into(),
             severity,
-            component: component.into(),
+            component,
             summary: summary.into(),
-            remedy: remedy.into(),
-            evidence: None,
+            remedy: None,
+            evidence: BTreeMap::new(),
         }
     }
 
-    pub fn with_evidence(mut self, evidence: impl Into<String>) -> Self {
-        self.evidence = Some(evidence.into());
+    pub fn with_remedy(mut self, remedy: impl Into<String>) -> Self {
+        self.remedy = Some(remedy.into());
         self
+    }
+
+    pub fn with_evidence(
+        mut self,
+        key: impl Into<String>,
+        value: DiagnosticEvidence,
+    ) -> Self {
+        self.evidence.insert(key.into(), value);
+        self
+    }
+
+    pub fn human_line(&self) -> String {
+        let mut line = format!(
+            "[{}] {} ({}): {}",
+            self.severity.as_str(),
+            self.code,
+            self.component.as_str(),
+            self.summary
+        );
+        if let Some(remedy) = &self.remedy {
+            line.push_str(" Remedy: ");
+            line.push_str(remedy);
+        }
+        line
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Redactor {
     home: Option<PathBuf>,
-    cwd: Option<PathBuf>,
-    temp: PathBuf,
+    sensitive: Vec<String>,
+    max_bytes: usize,
 }
 
 impl Default for Redactor {
@@ -125,151 +212,202 @@ impl Default for Redactor {
 
 impl Redactor {
     pub fn from_environment() -> Self {
+        let home = env::var_os("HOME")
+            .or_else(|| env::var_os("USERPROFILE"))
+            .map(PathBuf::from);
         Self {
-            home: env::var_os("HOME")
-                .or_else(|| env::var_os("USERPROFILE"))
-                .map(PathBuf::from),
-            cwd: env::current_dir().ok(),
-            temp: env::temp_dir(),
+            home,
+            sensitive: Vec::new(),
+            max_bytes: MAX_PUBLIC_DIAGNOSTIC_BYTES,
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn with_roots(
-        home: Option<PathBuf>,
-        cwd: Option<PathBuf>,
-        temp: PathBuf,
-    ) -> Self {
-        Self { home, cwd, temp }
+    pub fn with_home(home: Option<PathBuf>) -> Self {
+        Self {
+            home,
+            sensitive: Vec::new(),
+            max_bytes: MAX_PUBLIC_DIAGNOSTIC_BYTES,
+        }
     }
 
-    pub fn path(&self, path: &Path) -> String {
-        if let Some(home) = self.home.as_deref()
+    pub fn with_max_bytes(mut self, max_bytes: usize) -> Self {
+        self.max_bytes = max_bytes.max(1);
+        self
+    }
+
+    pub fn add_sensitive(&mut self, value: impl Into<String>) {
+        let value = value.into();
+        if !value.is_empty() && !self.sensitive.iter().any(|existing| existing == &value) {
+            self.sensitive.push(value);
+            self.sensitive
+                .sort_by_key(|candidate| std::cmp::Reverse(candidate.len()));
+        }
+    }
+
+    pub fn public_text(&self, input: &[u8]) -> DiagnosticEvidence {
+        let mut text = String::from_utf8_lossy(input).into_owned();
+        let mut redacted = false;
+
+        for sensitive in &self.sensitive {
+            if text.contains(sensitive) {
+                text = text.replace(sensitive, REDACTED_VALUE);
+                redacted = true;
+            }
+        }
+        if let Some(home) = self.home.as_ref().and_then(|path| path.to_str())
+            && !home.is_empty()
+            && text.contains(home)
+        {
+            text = text.replace(home, "~");
+            redacted = true;
+        }
+
+        let sanitized = sanitize_controls(&text);
+        let (value, truncated) = truncate_utf8(&sanitized, self.max_bytes);
+        DiagnosticEvidence {
+            value,
+            redacted: redacted || truncated,
+        }
+    }
+
+    pub fn public_path(&self, path: &Path) -> DiagnosticEvidence {
+        if let Some(home) = &self.home
             && let Ok(relative) = path.strip_prefix(home)
         {
-            return joined_label("~", relative);
+            let value = if relative.as_os_str().is_empty() {
+                "~".to_owned()
+            } else {
+                format!("~/{}", relative.display())
+            };
+            return DiagnosticEvidence::redacted(sanitize_controls(&value));
         }
-        if let Ok(relative) = path.strip_prefix(&self.temp) {
-            return joined_label("<temp>", relative);
-        }
-        if let Some(cwd) = self.cwd.as_deref()
-            && let Ok(relative) = path.strip_prefix(cwd)
-        {
-            return joined_label("<cwd>", relative);
-        }
-        if path.is_absolute() {
-            return path.file_name().map_or_else(
-                || "<absolute>".to_owned(),
-                |name| format!("<absolute>/{}", sanitize_lossy(name.to_string_lossy().as_bytes(), 160)),
-            );
-        }
-        sanitize_lossy(path.as_os_str().to_string_lossy().as_bytes(), 240)
-    }
-
-    pub fn text(&self, bytes: &[u8]) -> String {
-        sanitize_lossy(bytes, MAX_PUBLIC_EVIDENCE_CHARS)
-    }
-
-    pub fn bounded_text(&self, text: &str, limit: usize) -> String {
-        sanitize_lossy(text.as_bytes(), limit)
-    }
-
-    pub const fn sensitive_value(&self) -> &'static str {
-        "[redacted]"
+        self.public_text(path.to_string_lossy().as_bytes())
     }
 }
 
-fn joined_label(label: &str, relative: &Path) -> String {
-    if relative.as_os_str().is_empty() {
-        label.to_owned()
-    } else {
-        format!(
-            "{label}/{}",
-            sanitize_lossy(relative.as_os_str().to_string_lossy().as_bytes(), 220)
-        )
-    }
-}
-
-pub fn sanitize_lossy(bytes: &[u8], limit: usize) -> String {
-    let source = String::from_utf8_lossy(bytes);
-    let mut output = String::new();
-    let mut count = 0_usize;
-    for character in source.chars() {
-        if count >= limit {
-            output.push('…');
-            break;
-        }
-        match character {
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            '\u{fffd}' => output.push_str("<invalid-utf8>"),
-            value if value.is_control() => {
-                use std::fmt::Write as _;
-                let _ = write!(output, "\\u{{{:x}}}", value as u32);
-            }
-            value => output.push(value),
-        }
-        count = count.saturating_add(1);
-    }
-    output
-}
-
-pub fn json_escape(value: &str) -> String {
-    let mut output = String::with_capacity(value.len().saturating_add(8));
+pub fn json_string(value: &str) -> String {
+    let mut output = String::with_capacity(value.len().saturating_add(2));
+    output.push('"');
     for character in value.chars() {
         match character {
             '"' => output.push_str("\\\""),
             '\\' => output.push_str("\\\\"),
+            '\u{08}' => output.push_str("\\b"),
+            '\u{0c}' => output.push_str("\\f"),
             '\n' => output.push_str("\\n"),
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
-            value if value <= '\u{1f}' => {
+            character if character <= '\u{1f}' => {
                 use std::fmt::Write as _;
-                let _ = write!(output, "\\u{:04x}", value as u32);
+                let _ = write!(output, "\\u{:04x}", character as u32);
             }
-            value => output.push(value),
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+    output
+}
+
+fn sanitize_controls(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character.is_control() => {
+                use std::fmt::Write as _;
+                let _ = write!(output, "\\u{{{:04x}}}", character as u32);
+            }
+            character => output.push(character),
         }
     }
     output
 }
 
+fn truncate_utf8(value: &str, max_bytes: usize) -> (String, bool) {
+    if value.len() <= max_bytes {
+        return (value.to_owned(), false);
+    }
+    let mut end = max_bytes;
+    while !value.is_char_boundary(end) {
+        end = end.saturating_sub(1);
+    }
+    let mut truncated = value[..end].to_owned();
+    truncated.push('…');
+    (truncated, true)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{FindingCode, Redactor, Severity, json_escape, sanitize_lossy};
+    use super::{
+        DiagnosticComponent, DiagnosticFinding, DiagnosticSeverity, DiagnosticStatus, Redactor,
+        REDACTED_VALUE, code, json_string,
+    };
     use std::path::{Path, PathBuf};
 
     #[test]
-    fn stable_codes_and_severities_are_machine_readable() {
-        assert_eq!(FindingCode::RenderTimeout.as_str(), "render.timeout");
-        assert_eq!(Severity::Warning.as_str(), "warning");
+    fn stable_codes_and_status_mapping_are_explicit() {
+        let findings = vec![
+            DiagnosticFinding::new(
+                code::MODE_SAFE,
+                DiagnosticSeverity::Info,
+                DiagnosticComponent::Mode,
+                "safe mode is active",
+            ),
+            DiagnosticFinding::new(
+                code::ENGINE_MISSING,
+                DiagnosticSeverity::Warning,
+                DiagnosticComponent::Engine,
+                "the optional Mermaid engine is unavailable",
+            ),
+        ];
+        assert_eq!(DiagnosticStatus::from_findings(&findings), DiagnosticStatus::Degraded);
+        assert_eq!(DiagnosticStatus::Degraded.exit_code(), 10);
+
+        let unusable = [DiagnosticFinding::new(
+            code::CONFIG_INVALID,
+            DiagnosticSeverity::Error,
+            DiagnosticComponent::Configuration,
+            "configuration is invalid",
+        )];
+        assert_eq!(DiagnosticStatus::from_findings(&unusable), DiagnosticStatus::Unusable);
+        assert_eq!(DiagnosticStatus::Unusable.exit_code(), 20);
     }
 
     #[test]
-    fn paths_are_public_safe() {
-        let redactor = Redactor::with_roots(
-            Some(PathBuf::from("/home/alice")),
-            Some(PathBuf::from("/work/project")),
-            PathBuf::from("/tmp"),
+    fn redactor_removes_sensitive_text_home_paths_and_controls() {
+        let mut redactor = Redactor::with_home(Some(PathBuf::from("/home/alice")));
+        redactor.add_sensitive("secret-token");
+        let value = redactor.public_text(
+            b"source=secret-token path=/home/alice/private.md\x1b[31m\n",
         );
-        assert_eq!(redactor.path(Path::new("/home/alice/.config/ptymark/config.toml")), "~/.config/ptymark/config.toml");
-        assert_eq!(redactor.path(Path::new("/work/project/examples/ptymark.toml")), "<cwd>/examples/ptymark.toml");
-        assert_eq!(redactor.path(Path::new("/tmp/ptymark/report.json")), "<temp>/ptymark/report.json");
-        assert_eq!(redactor.path(Path::new("/opt/private/bin/mmdc")), "<absolute>/mmdc");
+        assert!(value.redacted);
+        assert!(value.value.contains(REDACTED_VALUE));
+        assert!(value.value.contains("~/private.md"));
+        assert!(!value.value.contains("secret-token"));
+        assert!(!value.value.contains('\u{1b}'));
+        assert!(value.value.contains("\\u{001b}"));
     }
 
     #[test]
-    fn control_and_invalid_bytes_are_escaped() {
-        let text = sanitize_lossy(b"ok\x1b]8;;secret\x07\xff\n", 100);
-        assert!(!text.contains('\x1b'));
-        assert!(!text.contains('\x07'));
-        assert!(text.contains("\\u{1b}"));
-        assert!(text.contains("<invalid-utf8>"));
-        assert!(text.ends_with("\\n"));
+    fn path_redaction_is_structured() {
+        let redactor = Redactor::with_home(Some(PathBuf::from("/Users/example")));
+        let value = redactor.public_path(Path::new("/Users/example/.config/ptymark/config.toml"));
+        assert_eq!(value.value, "~/.config/ptymark/config.toml");
+        assert!(value.redacted);
     }
 
     #[test]
-    fn json_escaping_is_deterministic() {
-        assert_eq!(json_escape("a\"b\\c\n"), "a\\\"b\\\\c\\n");
+    fn bounded_text_does_not_split_utf8() {
+        let redactor = Redactor::with_home(None).with_max_bytes(5);
+        let value = redactor.public_text("日本語".as_bytes());
+        assert!(value.value.ends_with('…'));
+        assert!(value.redacted);
+    }
+
+    #[test]
+    fn json_strings_escape_control_data() {
+        assert_eq!(json_string("a\n\"b\\c\u{1b}"), "\"a\\n\\\"b\\\\c\\u001b\"");
     }
 }
