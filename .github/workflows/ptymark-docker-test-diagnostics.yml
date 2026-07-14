@@ -1,0 +1,68 @@
+name: ptymark Docker Test Diagnostics
+
+on:
+  pull_request:
+    branches:
+      - agent/filter-command-stdout
+    paths:
+      - ".github/workflows/ptymark-docker-test-diagnostics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-tests:
+    name: Capture canonical Docker Rust test output
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build canonical image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          build --pull
+
+      - name: Run Rust tests and capture complete output
+        id: rust-tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev \
+            bash -lc 'cargo test --locked --all-targets -- --nocapture' \
+            2>&1 | tee docker-cargo-test.log
+
+      - name: Upload Docker Rust test output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-docker-rust-test-output
+          path: docker-cargo-test.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Preserve test result
+        if: always()
+        shell: bash
+        run: |
+          if [[ '${{ steps.rust-tests.outcome }}' != 'success' ]]; then
+            echo 'Canonical Docker Rust tests failed; inspect the uploaded output.' >&2
+            exit 1
+          fi
