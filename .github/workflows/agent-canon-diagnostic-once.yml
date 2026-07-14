@@ -1,11 +1,11 @@
 # @dependency-start
 # contract workflow
-# responsibility Repairs the bounded ptymark dependency manifests required by the pinned AgentCanon pull-request gate.
+# responsibility Exports the validated bounded dependency-manifest repair for connector-backed publication.
 # upstream design ../../vendor/agent-canon/documents/dependency-manifest-design.md defines the manifest DSL.
 # upstream implementation ../scripts/repair_ptymark_dependency_headers.py performs the bounded repair.
-# downstream implementation ./ci.yml validates the repaired repository through the standard gate.
+# downstream implementation ./ci.yml validates the published repaired tree through the standard gate.
 # @dependency-end
-name: AgentCanon Dependency Header Repair Once
+name: AgentCanon Repair Export Once
 
 on:
   pull_request:
@@ -23,16 +23,12 @@ on:
       - tools/**
 
 permissions:
-  contents: write
-
-concurrency:
-  group: agent-canon-header-repair-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  repair:
+  export:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 10
     steps:
       - name: Check out pull request head branch
         uses: actions/checkout@v4
@@ -42,25 +38,7 @@ jobs:
           submodules: false
           persist-credentials: false
 
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: docker/requirements.txt
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y graphviz ripgrep
-          PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
-
-      - name: Repair registered dependency manifests and markdown math
+      - name: Apply previously validated repair
         shell: bash
         run: |
           set -euo pipefail
@@ -71,61 +49,29 @@ jobs:
           text = path.read_text(encoding='utf-8')
           old = '- ``$$ ... $$``;'
           new = '- a line-bounded block-math fence delimited by two dollar-sign lines;'
-          if old not in text and new not in text:
+          if old in text:
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          elif new not in text:
               raise SystemExit('expected block-math description was not found')
-          path.write_text(text.replace(old, new), encoding='utf-8')
           PY
+          git diff --check
 
-      - name: Capture repaired-tree validation
-        id: validate
+      - name: Package repaired tree
         shell: bash
         run: |
           set -euo pipefail
-          diagnostics="$RUNNER_TEMP/agent-canon-header-repair"
-          rm -rf "$diagnostics"
-          mkdir -p "$diagnostics"
-          git diff --check
-          git diff --binary > "$diagnostics/agent-canon-repair.patch"
-          set +e
-          make agent-canon-pr-check > "$diagnostics/agent-canon-pr.log" 2>&1
-          status=$?
-          set -e
-          tail -n 500 "$diagnostics/agent-canon-pr.log" > "$diagnostics/agent-canon-pr-tail.log"
-          printf '%s\n' "$status" > "$diagnostics/agent-canon-pr-status.txt"
-          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          artifact="$RUNNER_TEMP/agent-canon-repaired-tree"
+          rm -rf "$artifact"
+          mkdir -p "$artifact"
+          git diff --binary > "$artifact/agent-canon-repair.patch"
+          git diff --name-only > "$artifact/changed-files.txt"
+          git diff --name-status > "$artifact/changed-status.txt"
+          tar --exclude=.git -czf "$artifact/repaired-tree.tar.gz" .
 
-      - name: Upload repair diagnostics
+      - name: Upload repaired tree
         uses: actions/upload-artifact@v7
         with:
-          name: agent-canon-header-repair-diagnostics
-          path: |
-            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-repair.patch
-            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-pr.log
-            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-pr-tail.log
-            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-pr-status.txt
+          name: agent-canon-repaired-tree
+          path: ${{ runner.temp }}/agent-canon-repaired-tree/**
           if-no-files-found: error
           retention-days: 1
-
-      - name: Stop when the repaired tree remains invalid
-        shell: bash
-        env:
-          VALIDATION_STATUS: ${{ steps.validate.outputs.status }}
-        run: exit "$VALIDATION_STATUS"
-
-      - name: Commit repaired dependency manifests
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -u
-          if git diff --cached --quiet; then
-            echo 'dependency manifests already valid'
-            exit 0
-          fi
-          git commit -m 'docs: repair ptymark dependency manifests'
-          auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
-            push origin "HEAD:${GITHUB_HEAD_REF}"
