@@ -277,7 +277,7 @@ impl Redactor {
             };
             return DiagnosticEvidence::redacted(sanitize_controls(&value));
         }
-        if path.is_absolute() {
+        if path.is_absolute() || path.has_root() {
             let file_name = path.file_name().map_or_else(
                 || "<root>".to_owned(),
                 |name| sanitize_controls(&name.to_string_lossy()),
