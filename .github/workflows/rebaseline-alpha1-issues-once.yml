@@ -1,0 +1,42 @@
+name: rebaseline alpha1 issues
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  rebaseline:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out publisher source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Re-baseline issue bodies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 run_issue_rebaseline.py
+
+      - name: Upload issue evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-alpha1-issue-rebaseline
+          path: issue-rebaseline-evidence/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Delete temporary branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/rebaseline-alpha1-issues-20260714
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH//\//%2F}"
