@@ -1,0 +1,98 @@
+# @dependency-start
+# contract workflow
+# responsibility Captures a bounded serial Windows Rust test run for ConPTY diagnosis.
+# upstream workflow ./ptymark-ci.yml Windows acceptance matrix
+# upstream implementation ../../src/native_session.rs PTY and ConPTY lifecycle
+# downstream evidence GitHub Actions diagnostic artifact
+# @dependency-end
+
+name: ptymark diagnose Windows tests
+
+on:
+  pull_request:
+    branches:
+      - agent/filter-command-stdout
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptymark-diagnose-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        shell: bash
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal
+          rustup override set 1.97.0
+
+      - name: Run serial Rust tests with a deadline
+        id: rust-tests
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:GITHUB_WORKSPACE 'windows-test.stdout.log'
+          $stderr = Join-Path $env:GITHUB_WORKSPACE 'windows-test.stderr.log'
+          $arguments = @(
+            'test',
+            '--locked',
+            '--all-targets',
+            '--',
+            '--nocapture',
+            '--test-threads=1'
+          )
+          $process = Start-Process `
+            -FilePath 'cargo' `
+            -ArgumentList $arguments `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -PassThru `
+            -NoNewWindow
+          $finished = $process.WaitForExit(600000)
+          if (-not $finished) {
+            taskkill /PID $process.Id /T /F | Out-Null
+            $code = 124
+          } else {
+            $code = $process.ExitCode
+          }
+          Set-Content -Path 'windows-test.exit' -Value $code -Encoding ascii
+          if (Test-Path $stdout) { Get-Content $stdout }
+          if (Test-Path $stderr) { Get-Content $stderr }
+          exit $code
+
+      - name: Upload Windows test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-windows-test-diagnostics
+          path: |
+            windows-test.stdout.log
+            windows-test.stderr.log
+            windows-test.exit
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve test result
+        if: always()
+        shell: pwsh
+        run: |
+          if ('${{ steps.rust-tests.outcome }}' -ne 'success') {
+            throw 'Windows Rust tests did not complete successfully; inspect the diagnostic artifact'
+          }
