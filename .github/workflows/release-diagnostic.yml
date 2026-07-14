@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/release-diagnostics
+  pull_request:
+    branches:
+      - agent/filter-command-stdout
   workflow_dispatch:
 
 permissions:
