@@ -1,0 +1,54 @@
+name: Release diagnostics
+
+on:
+  push:
+    branches:
+      - agent/release-diagnostics
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-diagnostic:
+    name: Capture Rust release diagnostics
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.97.0
+
+      - name: Capture formatting, build, Clippy, and test diagnostics
+        id: diagnose
+        shell: bash
+        run: |
+          set +e
+          : > release-diagnostic.log
+          for command in \
+            "cargo fmt --all -- --check" \
+            "cargo build --locked --all-targets" \
+            "cargo clippy --locked --all-targets -- -D warnings" \
+            "cargo test --locked --all-targets --no-run"
+          do
+            printf '\n$ %s\n' "$command" | tee -a release-diagnostic.log
+            bash -o pipefail -c "$command" 2>&1 | tee -a release-diagnostic.log
+            code=${PIPESTATUS[0]}
+            printf 'exit_code=%s\n' "$code" | tee -a release-diagnostic.log
+          done
+          exit 0
+
+      - name: Upload release diagnostics
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-diagnostic
+          path: release-diagnostic.log
+          if-no-files-found: error
+          retention-days: 1
