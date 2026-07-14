@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract implementation
+# responsibility Assembles and smoke-tests one Unix release archive.
+# upstream environment ../Cargo.toml package version
+# upstream design ../README.md documented package contents
+# downstream environment ../.github/workflows/ptymark-ci.yml package jobs
+# downstream implementation ../tests/install_smoke.sh installation expectations
+# @dependency-end
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"

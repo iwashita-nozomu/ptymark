@@ -1,11 +1,11 @@
 <!--
 @dependency-start
-contract verification
-responsibility Explains the canonical ptymark verification catalog, evidence levels, reproduction commands, and merge policy.
-upstream configuration ./manifest.toml is the machine-readable list of required checks.
-upstream workflow ../.github/workflows/ptymark-ci.yml executes product checks and packages evidence.
-upstream workflow ../.github/workflows/ci.yml executes inherited repository checks.
-downstream test ../tests/verification_manifest_contract.rs prevents catalog and path drift.
+contract reference
+responsibility Explains verification evidence, reproduction, and merge policy.
+upstream design ./manifest.toml required checks
+upstream implementation ../.github/workflows/ptymark-ci.yml product evidence
+upstream implementation ../.github/workflows/ci.yml repository evidence
+downstream implementation ../tests/verification_manifest_contract.rs drift prevention
 @dependency-end
 -->
 

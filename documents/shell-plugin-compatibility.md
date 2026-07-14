@@ -1,5 +1,16 @@
 # Shell and rich-plugin compatibility
 
+<!--
+@dependency-start
+contract reference
+responsibility Maps shell behavior to byte-preservation and coexistence evidence.
+upstream design ./ptymark-design.md terminal-safety boundary
+downstream implementation ../src/terminal.rs protected output handling
+downstream implementation ../tests/shell_plugin_compatibility.rs behavior validation
+downstream implementation ../tests/shell_profile_coexistence.sh profile validation
+@dependency-end
+-->
+
 ## Scope
 
 `ptymark` must coexist with shell frameworks, prompts, line editors, completion

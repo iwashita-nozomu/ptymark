@@ -1,12 +1,13 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs repository CI and routes inherited AgentCanon and fresh-clone gates only when their owned surfaces change.
+# responsibility Runs repository CI and routes inherited gates.
 # upstream implementation ../../tools/ci/run_all_checks.sh repository CI entrypoint
-# upstream implementation ../../Makefile ci target contract
-# upstream environment ../../docker/install_python_dependencies.sh central Python dependency installer
-# upstream implementation ../scripts/checkout_agent_canon_submodule.sh private AgentCanon checkout gate
-# downstream workflow ./ptymark-ci.yml owns ptymark product-specific validation
+# upstream implementation ../../Makefile CI target contract
+# upstream environment ../../docker/install_python_dependencies.sh Python dependency installer
+# upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
+# downstream implementation ./ptymark-ci.yml product validation workflow
 # @dependency-end
+
 name: CI
 
 on:

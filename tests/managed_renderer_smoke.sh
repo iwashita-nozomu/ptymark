@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract test
+# responsibility Proves isolated Mermaid, math, and presenter execution.
+# upstream implementation ../scripts/install-managed-bundle.sh bundle installation
+# upstream implementation ../src/managed_launcher.rs role execution
+# downstream environment ../.github/workflows/ptymark-ci.yml evidence recording
+# @dependency-end
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"

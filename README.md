@@ -3,12 +3,15 @@
 <!--
 @dependency-start
 contract design
-responsibility Provides the user-facing entrypoint for installation, renderer setup, configuration, shell coexistence, WezTerm use, safety guarantees, and development.
-upstream design documents/ptymark-design.md defines the pre-display architecture and extension boundary.
-upstream design documents/ptymark-installer.md defines OS/shell-specific installation and managed-bundle behavior.
-upstream compatibility documents/shell-plugin-compatibility.md defines shell and rich-plugin coexistence evidence.
-downstream implementation src/cli.rs, src/install.rs, scripts/installer.sh, scripts/installer.ps1, and distribution installers implement the documented surface.
-downstream test tests, release-package jobs, and GitHub Actions validate the documented behavior.
+responsibility Provides the user-facing installation, configuration, safety, and usage entrypoint.
+upstream design documents/ptymark-design.md architecture contract
+upstream design documents/ptymark-installer.md installation contract
+upstream design documents/shell-plugin-compatibility.md coexistence evidence
+downstream implementation src/cli.rs command surface
+downstream implementation src/install.rs installation state
+downstream implementation scripts/installer.sh setup frontend
+downstream implementation tests/cli_contract.rs user-facing validation
+downstream environment .github/workflows/ptymark-ci.yml acceptance matrix
 @dependency-end
 -->
 

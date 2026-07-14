@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract test
+# responsibility Proves installers do not mutate shell profiles.
+# upstream implementation ../scripts/installer.sh shell-facing setup
+# upstream implementation ../src/terminal.rs terminal ownership
+# downstream environment ../.github/workflows/ptymark-ci.yml coexistence checks
+# @dependency-end
+
 set -euo pipefail
 
 binary="${1:-${CARGO_TARGET_DIR:-target}/debug/ptymark}"
