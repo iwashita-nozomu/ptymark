@@ -1,9 +1,9 @@
 # @dependency-start
 # contract workflow
-# responsibility Repairs the bounded dependency manifests required by the inherited AgentCanon pull-request gate, then pushes only a verified product commit.
-# upstream implementation ../../tools/agent_tools/check_dependency_headers.py defines registered dependency contract kinds.
-# upstream implementation ../../tools/ci/check_agent_canon_pr.sh defines the strict repository gate.
-# downstream pull_request PR #35 removes this temporary workflow after the repaired product commit lands.
+# responsibility Repairs the bounded ptymark dependency manifests required by the pinned AgentCanon pull-request gate.
+# upstream design ../../vendor/agent-canon/documents/dependency-manifest-design.md defines the manifest DSL.
+# upstream implementation ../scripts/repair_ptymark_dependency_headers.py performs the bounded repair.
+# downstream implementation ./ci.yml validates the repaired repository through the standard gate.
 # @dependency-end
 name: AgentCanon Dependency Header Repair Once
 
@@ -12,6 +12,7 @@ on:
     branches: [main, master]
     paths:
       - .github/workflows/agent-canon-diagnostic-once.yml
+      - .github/scripts/repair_ptymark_dependency_headers.py
       - .gitmodules
       - vendor/agent-canon
       - vendor/agent-canon/**
@@ -59,65 +60,20 @@ jobs:
           sudo apt-get install -y graphviz ripgrep
           PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
-      - name: Add registered dependency manifests and repair markdown math
+      - name: Repair registered dependency manifests and markdown math
         shell: bash
         run: |
+          set -euo pipefail
+          python3 .github/scripts/repair_ptymark_dependency_headers.py
           python3 - <<'PY'
           from pathlib import Path
-
-          manifests = {
-              Path('.github/workflows/ptymark-ci.yml'): ('workflow', 'Runs the cross-platform ptymark product acceptance matrix.', 'Cargo.toml and rust-toolchain.toml define the compiled product and toolchain.', 'Product tests and package jobs consume this workflow contract.'),
-              Path('Cargo.toml'): ('configuration', 'Defines ptymark package metadata, dependencies, and release profile.', 'rust-toolchain.toml pins the supported compiler.', 'Cargo.lock, src, tests, and product workflows consume this package contract.'),
-              Path('distribution/install.sh'): ('implementation', 'Installs one extracted Unix package without requiring a source checkout.', 'scripts/package-release.sh assembles the package-local payload.', 'tests/install_smoke.sh validates the installed binary and configuration.'),
-              Path('documents/ptymark-design.md'): ('design', 'Defines the rendering architecture, terminal-safety boundary, and extension ownership.', 'src implements the terminal gate, detector, routing, renderer, cache, and runtime contracts.', 'README.md and implementation documents derive user-facing behavior from this design.'),
-              Path('documents/ptymark-installer.md'): ('design', 'Defines installer, managed-renderer, path-normalization, and installation-state behavior.', 'src/install.rs and scripts/installer.sh implement the installation contract.', 'tests/install_smoke.sh and managed-renderer tests validate packaged installation.'),
-              Path('documents/shell-plugin-compatibility.md'): ('reference', 'Maps shell and plugin behavior to byte-preservation and coexistence evidence.', 'src/terminal.rs owns protected terminal output behavior.', 'tests/shell_plugin_compatibility.rs and shell-profile checks enforce this matrix.'),
-              Path('examples/README.md'): ('reference', 'Explains supported configuration and WezTerm examples.', 'README.md and documents define the supported CLI and configuration contracts.', 'tests/plugin_smoke.lua and configuration tests keep examples executable.'),
-              Path('examples/external-engines.toml'): ('configuration', 'Demonstrates explicit external renderer executable selection.', 'src/config.rs defines the accepted schema and path constraints.', 'src/engine.rs and installer checks consume the selected executable roles.'),
-              Path('examples/ptymark.toml'): ('configuration', 'Provides a minimal portable ptymark configuration.', 'src/config.rs defines schema version 1 and validation rules.', 'README.md and CLI smoke tests consume this fixture.'),
-              Path('rust-toolchain.toml'): ('configuration', 'Pins the Rust compiler and required components used by contributors and CI.', 'Cargo.toml declares the minimum supported Rust version.', '.github/workflows/ptymark-ci.yml installs this toolchain contract.'),
-              Path('scripts/check-ptymark-renderers.sh'): ('tool', 'Checks configured renderer executables and bounded direct rendering behavior.', 'src/engine.rs and managed launcher code define executable protocols.', 'tests/managed_renderer_smoke.sh and product CI consume this check.'),
-              Path('scripts/install-managed-bundle.sh'): ('implementation', 'Installs the pinned private renderer bundle on Unix.', 'renderers/managed-bundle.env and package-lock.json define the immutable managed set.', 'scripts/installer.sh and managed-renderer tests consume the completed bundle.'),
-              Path('scripts/install.sh'): ('implementation', 'Preserves the former Unix installer command while delegating to the canonical installer.', 'scripts/installer.sh owns current Unix installation behavior.', 'README.md and existing user automation may continue invoking this wrapper.'),
-              Path('scripts/installer.sh'): ('implementation', 'Coordinates Unix and Windows-Bash installation and managed renderer resolution.', 'documents/ptymark-installer.md defines path, bundle, and preservation semantics.', 'src/install.rs, distribution installers, and smoke tests consume its results.'),
-              Path('scripts/package-release.sh'): ('implementation', 'Assembles and smoke-tests one Unix executable archive and checksum.', 'Cargo.toml and README.md define the version and package contents.', '.github/workflows/ptymark-ci.yml builds and uploads the archive.'),
-              Path('tests/install_smoke.sh'): ('test', 'Exercises source and package-local installation and idempotent reruns.', 'scripts/installer.sh and src/install.rs implement the tested path.', '.github/workflows/ptymark-ci.yml runs this contract.'),
-              Path('tests/managed_renderer_smoke.sh'): ('test', 'Installs the isolated managed renderer set and proves Mermaid, math, and presenter execution.', 'scripts/install-managed-bundle.sh and src/managed_launcher.rs implement the tested path.', '.github/workflows/ptymark-ci.yml records this evidence.'),
-              Path('tests/shell_profile_coexistence.sh'): ('test', 'Proves installers and launchers do not mutate shell profiles.', 'scripts/installer.sh and src/native_session.rs own the tested boundary.', '.github/workflows/ptymark-ci.yml runs the coexistence evidence.'),
-          }
-
-          def header(path: Path, values: tuple[str, str, str, str]) -> str:
-              contract, responsibility, upstream, downstream = values
-              lines = [
-                  '@dependency-start',
-                  f'contract {contract}',
-                  f'responsibility {responsibility}',
-                  f'upstream {upstream}',
-                  f'downstream {downstream}',
-                  '@dependency-end',
-              ]
-              if path.suffix == '.md':
-                  return '<!--\n' + '\n'.join(lines) + '\n-->\n\n'
-              return ''.join(f'# {line}\n' for line in lines) + '\n'
-
-          for path, values in manifests.items():
-              text = path.read_text(encoding='utf-8')
-              if '@dependency-start' not in '\n'.join(text.splitlines()[:80]):
-                  manifest = header(path, values)
-                  if text.startswith('#!'):
-                      first, separator, rest = text.partition('\n')
-                      text = first + '\n' + manifest + (rest if separator else '')
-                  else:
-                      text = manifest + text
-                  path.write_text(text, encoding='utf-8')
-
-          design = Path('documents/ptymark-design.md')
-          text = design.read_text(encoding='utf-8')
+          path = Path('documents/ptymark-design.md')
+          text = path.read_text(encoding='utf-8')
           old = '- ``$$ ... $$``;'
           new = '- a line-bounded block-math fence delimited by two dollar-sign lines;'
           if old not in text and new not in text:
               raise SystemExit('expected block-math description was not found')
-          design.write_text(text.replace(old, new), encoding='utf-8')
+          path.write_text(text.replace(old, new), encoding='utf-8')
           PY
 
       - name: Capture repaired-tree validation
@@ -153,7 +109,7 @@ jobs:
           VALIDATION_STATUS: ${{ steps.validate.outputs.status }}
         run: exit "$VALIDATION_STATUS"
 
-      - name: Commit repaired product ownership metadata
+      - name: Commit repaired dependency manifests
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,30 +117,12 @@ jobs:
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            .github/workflows/ptymark-ci.yml \
-            Cargo.toml \
-            distribution/install.sh \
-            documents/ptymark-design.md \
-            documents/ptymark-installer.md \
-            documents/shell-plugin-compatibility.md \
-            examples/README.md \
-            examples/external-engines.toml \
-            examples/ptymark.toml \
-            rust-toolchain.toml \
-            scripts/check-ptymark-renderers.sh \
-            scripts/install-managed-bundle.sh \
-            scripts/install.sh \
-            scripts/installer.sh \
-            scripts/package-release.sh \
-            tests/install_smoke.sh \
-            tests/managed_renderer_smoke.sh \
-            tests/shell_profile_coexistence.sh
+          git add -u
           if git diff --cached --quiet; then
-            echo 'dependency manifests already present'
+            echo 'dependency manifests already valid'
             exit 0
           fi
-          git commit -m 'docs: declare ptymark dependency ownership'
+          git commit -m 'docs: repair ptymark dependency manifests'
           auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
             push origin "HEAD:${GITHUB_HEAD_REF}"
