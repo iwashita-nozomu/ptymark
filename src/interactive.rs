@@ -101,7 +101,12 @@ pub(crate) fn run(
     let control_error = control.stop().err();
     let status_result = join_exit_waiter(waiter);
 
-    finish_session(output_result.err(), control_error, status_result, kill_error)
+    finish_session(
+        output_result.err(),
+        control_error,
+        status_result,
+        kill_error,
+    )
 }
 
 fn join_exit_waiter(
