@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract implementation
+# responsibility Installs the pinned private renderer bundle on Unix.
+# upstream design ../documents/ptymark-installer.md bundle isolation
+# upstream environment ../renderers/managed-bundle.env runtime pins
+# upstream environment ../renderers/package-lock.json package lock
+# downstream implementation ./installer.sh role selection
+# downstream implementation ../tests/managed_renderer_smoke.sh bundle validation
+# @dependency-end
+
 # Install the pinned Node renderer bundle under a versioned user-data directory.
 set -euo pipefail
 

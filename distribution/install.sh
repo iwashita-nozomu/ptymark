@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract implementation
+# responsibility Installs one extracted Unix package without a source checkout.
+# upstream design ../documents/ptymark-installer.md package installation contract
+# upstream implementation ../scripts/package-release.sh package assembly
+# downstream implementation ../tests/install_smoke.sh installation validation
+# @dependency-end
+
 set -euo pipefail
 
 package_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

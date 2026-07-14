@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract tool
+# responsibility Checks renderer executables and bounded direct rendering.
+# upstream implementation ../src/engine.rs executable checks
+# upstream implementation ../src/managed_launcher.rs managed role launch
+# downstream implementation ../tests/managed_renderer_smoke.sh renderer validation
+# @dependency-end
+
 set -euo pipefail
 
 renderer_root="${PTYMARK_RENDERER_ROOT:-/opt/ptymark-renderers}"

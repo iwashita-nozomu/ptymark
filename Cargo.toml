@@ -1,3 +1,12 @@
+# @dependency-start
+# contract configuration
+# responsibility Defines package metadata, dependencies, compatibility, and release profile.
+# upstream environment rust-toolchain.toml compiler pin
+# downstream implementation Cargo.lock resolved dependency graph
+# downstream implementation src/lib.rs library surface
+# downstream implementation tests/cli_contract.rs CLI validation
+# @dependency-end
+
 [package]
 name = "ptymark"
 version = "0.1.0-alpha.1"

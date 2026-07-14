@@ -1,5 +1,15 @@
 # ptymark design
 
+<!--
+@dependency-start
+contract design
+responsibility Defines rendering architecture, terminal safety, and extension ownership.
+upstream design ../README.md user-facing behavior
+downstream implementation ../src/pipeline.rs display pipeline
+downstream implementation ../src/terminal.rs terminal safety gate
+@dependency-end
+-->
+
 ## 1. Scope
 
 `ptymark` owns one narrow boundary:
@@ -83,7 +93,7 @@ history selectors, fuzzy finders, and full-screen file browsers.
 The built-in detector recognizes line-bounded forms:
 
 - `` ```mermaid ... ``` ``;
-- ``$$ ... $$``;
+- a line-bounded block-math fence delimited by two dollar-sign lines;
 - `` ```math|latex|tex ... ``` ``.
 
 A candidate is buffered only while it can still become a complete supported

@@ -1,5 +1,15 @@
 # ptymark examples
 
+<!--
+@dependency-start
+contract reference
+responsibility Explains supported configuration and WezTerm examples.
+upstream design ../README.md user-facing surface
+upstream design ../documents/ptymark-design.md architecture contract
+downstream implementation ../tests/plugin_smoke.lua executable examples
+@dependency-end
+-->
+
 ## WezTerm
 
 [`wezterm.lua`](./wezterm.lua) is a complete minimal `~/.wezterm.lua` for the ptymark launcher plugin on Linux, macOS, WSL, and Windows.
