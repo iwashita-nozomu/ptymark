@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Validates version, packaging, and release metadata on main and pull requests.
+# responsibility Validates version, packaging, and release metadata on main and release-related pull requests.
 # upstream design ../../documents/release.md publication contract
 # upstream implementation ../../scripts/check-release-metadata.py tree validator
 # upstream implementation ../../tests/tools/test_release_metadata.py metadata tests
@@ -11,9 +11,38 @@ name: ptymark Release Metadata
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "agent/**"
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - CHANGELOG.md
+      - SECURITY.md
+      - documents/release.md
+      - "release-notes/**"
+      - scripts/check-release-metadata.py
+      - scripts/build-release-manifest.py
+      - scripts/package-release.sh
+      - scripts/package-release.ps1
+      - tests/tools/test_release_metadata.py
+      - ".github/workflows/ptymark-release*.yml"
+      - .release-candidate-placeholder
   pull_request:
-    branches: [main]
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - CHANGELOG.md
+      - SECURITY.md
+      - documents/release.md
+      - "release-notes/**"
+      - scripts/check-release-metadata.py
+      - scripts/build-release-manifest.py
+      - scripts/package-release.sh
+      - scripts/package-release.ps1
+      - tests/tools/test_release_metadata.py
+      - ".github/workflows/ptymark-release*.yml"
+      - .release-candidate-placeholder
   workflow_dispatch:
 
 concurrency:
