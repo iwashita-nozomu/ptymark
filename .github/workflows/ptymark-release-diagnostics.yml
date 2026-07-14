@@ -12,16 +12,12 @@ on:
   push:
     branches:
       - agent/filter-command-stdout
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: ptymark-release-diagnostics-${{ github.event.pull_request.number || github.ref }}
+  group: ptymark-release-diagnostics-agent-filter-command-stdout
   cancel-in-progress: false
 
 jobs:
