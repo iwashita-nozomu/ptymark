@@ -83,6 +83,7 @@ install -m 644 "$repo_root/LICENSE" "$package_root/LICENSE"
 install -m 644 "$repo_root/documents/ptymark-design.md" "$package_root/documents/ptymark-design.md"
 install -m 644 "$repo_root/documents/interactive-session.md" "$package_root/documents/interactive-session.md"
 install -m 644 "$repo_root/documents/filtered-command.md" "$package_root/documents/filtered-command.md"
+install -m 644 "$repo_root/documents/release.md" "$package_root/documents/release.md"
 install -m 644 "$repo_root/documents/ptymark-installer.md" "$package_root/documents/ptymark-installer.md"
 install -m 644 "$repo_root/documents/shell-plugin-compatibility.md" "$package_root/documents/shell-plugin-compatibility.md"
 for inventory in bash zsh fish powershell nushell; do
