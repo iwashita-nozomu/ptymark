@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -84,20 +84,22 @@ jobs:
           python3 -m unittest tests.tools.test_release_metadata
           python3 scripts/check-release-metadata.py --tag v0.1.0-alpha.1
 
-      - name: Commit repaired release candidate
+      - name: Package validated repaired tree
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -u
-          if git diff --cached --quiet; then
-            echo 'release-candidate fixes already applied'
-            exit 0
-          fi
-          git commit -m 'fix: clear release candidate gates'
-          auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
-            push origin "HEAD:${GITHUB_HEAD_REF}"
+          artifact="$RUNNER_TEMP/ptymark-repaired-release-tree"
+          rm -rf "$artifact"
+          mkdir -p "$artifact/tree"
+          git diff --binary > "$artifact/release-candidate-fixes.patch"
+          git diff --name-only > "$artifact/changed-files.txt"
+          git diff --name-status > "$artifact/changed-status.txt"
+          tar --exclude=.git -czf "$artifact/repaired-tree.tar.gz" .
+
+      - name: Upload validated repaired tree
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-repaired-release-tree
+          path: ${{ runner.temp }}/ptymark-repaired-release-tree/**
+          if-no-files-found: error
+          retention-days: 1
