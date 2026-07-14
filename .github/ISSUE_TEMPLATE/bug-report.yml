@@ -1,0 +1,107 @@
+name: Bug report
+description: Report a reproducible ptymark failure that is not specific to one terminal integration.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Remove secrets, private terminal source, credentials, tokens, and identifying paths before submitting. Security-sensitive reports belong in the private Security Advisories flow.
+
+  - type: input
+    id: version
+    attributes:
+      label: ptymark version
+      description: Paste the output of `ptymark --version`, or identify the commit when testing an unreleased build.
+      placeholder: ptymark 0.1.0-alpha.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Invocation mode
+      options:
+        - preview
+        - run -- COMMAND
+        - native PTY/ConPTY -- COMMAND
+        - install resolve/status
+        - managed renderer launcher
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: Ubuntu 24.04 x86_64, macOS 15 arm64, Windows 11 x86_64
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and shell
+      description: Include terminal, shell, and tmux/SSH/WSL layers when relevant.
+      placeholder: WezTerm 2026.x, zsh 5.9, no tmux
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Redacted configuration and renderer selection
+      description: Include only relevant fields and replace private paths or values with placeholders.
+      render: toml
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Give exact commands and the smallest safe input that reproduces the problem.
+      placeholder: |
+        1. Run `...`
+        2. Print `...`
+        3. Observe `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include exit status and redacted stderr. Do not paste secrets or private terminal content.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: modes
+    attributes:
+      label: Recovery-mode comparison
+      description: Check every comparison you performed.
+      options:
+        - label: The problem also occurs with `--source`.
+        - label: The problem also occurs with `--safe`.
+        - label: The problem also occurs with `--private`.
+        - label: The problem disappears when semantic rendering is bypassed.
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Submission checks
+      options:
+        - label: I removed secrets, credentials, private source text, and identifying paths.
+          required: true
+        - label: This is not a security vulnerability that should be reported privately.
+          required: true
+        - label: I searched existing issues for the same failure.
+          required: true

@@ -29,15 +29,18 @@ child output
   -> terminal-safe display bytes
 ```
 
-The renderer does not take ownership of keyboard input, termios, signal routing, window-size
-forwarding, mouse reporting, bracketed paste, shell hooks, prompt definitions, completion bindings,
-or child exit status.
+The rendering pipeline never interprets keyboard input, signals, shell hooks, prompt definitions,
+completion bindings, mouse reports, or bracketed paste. In interactive mode, the native PTY/ConPTY
+host transports those bytes and terminal-size changes without giving them to semantic rendering, and
+restores the parent terminal mode before exit.
 
 ## Current status
 
 Implemented:
 
 - stream and file rendering through `ptymark preview`;
+- native Unix PTY and Windows ConPTY sessions through `ptymark -- COMMAND`;
+- keyboard-byte forwarding, terminal resize propagation, and child exit-status preservation;
 - complete Mermaid fences and block-math fences;
 - byte-exact bypass for ANSI, OSC, DCS-style controls, carriage-return updates, completion redraws,
   right prompts, and alternate-screen applications;
@@ -56,34 +59,38 @@ Implemented:
 
 Not implemented yet:
 
-- the interactive child-PTY host behind `ptymark -- COMMAND`;
 - WezTerm/Kitty/iTerm2/Sixel pixel placement;
 - persistent renderer workers;
-- live resize generations and cancellation;
-- persistent cache;
-- Windows ConPTY hosting.
+- cancellation of a renderer already running during a resize storm;
+- persistent cache.
 
-`ptymark -- COMMAND` currently validates configuration and transparently executes the command. The
-command shape is reserved for the later PTY host. The reusable display pipeline and its terminal
-safety contracts are implemented and tested independently.
+`ptymark -- COMMAND` is the practical interactive path. It starts the child in a native Unix PTY or
+Windows ConPTY, forwards input, propagates size changes, filters only safe child-output regions, and
+returns the child exit status. `ptymark run -- COMMAND` remains the pipe-oriented path for batch and
+log-producing commands.
 
-## Install from a GitHub Actions package
+## Install from a versioned GitHub Release
 
-Every product CI run builds and smoke-tests one package for each runner OS:
+Version tags publish smoke-tested native archives for Linux, macOS, and Windows. Asset names include
+the ptymark version, operating system, and architecture:
 
 ```text
-ptymark-linux-release
-ptymark-macos-release
-ptymark-windows-release
+ptymark-<version>-linux-<architecture>.tar.gz
+ptymark-<version>-macos-<architecture>.tar.gz
+ptymark-<version>-windows-<architecture>.zip
 ```
 
-Each package contains the native executable, platform installer entrypoints, managed-renderer
-metadata, the WezTerm plugin and example, configuration examples, and design documents. Each archive
-has a SHA-256 file beside it.
+Download the archive and its adjacent `.sha256` file, or download `SHA256SUMS` and
+`release-manifest.json` from the same GitHub Release. Verify the checksum before installation. GitHub
+CLI users can also verify the build-provenance attestation:
 
-The packages are currently unsigned alpha artifacts rather than published GitHub Releases. Download
-the artifact for the target OS from the `ptymark CI` workflow, verify the checksum, extract it, and
-run the package-local installer.
+```bash
+gh attestation verify ptymark-*.tar.gz --repo iwashita-nozomu/ptymark
+```
+
+```powershell
+gh attestation verify .\ptymark-*.zip --repo iwashita-nozomu/ptymark
+```
 
 ### Linux or macOS package
 
@@ -109,7 +116,11 @@ install.cmd
 
 The package installer uses the executable shipped in `bin/`; Rust and Cargo are not required for
 this path. Missing default renderer roles may still require network access during the first managed
-bundle installation.
+bundle installation. Release archives are currently unsigned alpha packages; SHA-256 verification
+and GitHub provenance do not replace Apple Developer ID or Windows Authenticode signing.
+
+The immutable asset, checksum, compatibility, and rollback rules are documented in
+[`documents/release.md`](documents/release.md).
 
 ## Install from a source checkout
 

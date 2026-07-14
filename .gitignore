@@ -58,3 +58,6 @@ goal.md
 # Reusable local C++ artifacts
 .state/cpp-install/
 .state/agent-eval-runs/
+
+# Rust build output
+/target/

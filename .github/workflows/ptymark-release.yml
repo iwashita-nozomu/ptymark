@@ -1,0 +1,247 @@
+# @dependency-start
+# contract workflow
+# responsibility Builds, verifies, attests, tags, and publishes immutable prerelease assets.
+# upstream design ../../documents/release.md release invariants and recovery
+# upstream implementation ../../scripts/check-release-metadata.py source validation
+# upstream implementation ../../scripts/build-release-manifest.py checksums and metadata
+# upstream implementation ../../scripts/package-release.sh Unix package assembly
+# upstream implementation ../../scripts/package-release.ps1 Windows package assembly
+# @dependency-end
+
+name: ptymark Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'release/v*'
+concurrency:
+  group: ptymark-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate source and prepare immutable tag
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      source_sha: ${{ steps.release.outputs.source_sha }}
+    steps:
+      - name: Check out source commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Resolve release identity
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
+          expected_tag="v${version}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          elif [[ "$GITHUB_REF" == refs/heads/release/v* ]]; then
+            tag="${GITHUB_REF_NAME#release/}"
+            git fetch origin main --depth=1
+            test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" || {
+              echo 'release request branch must point exactly at current main' >&2
+              exit 1
+            }
+          else
+            echo "unsupported release ref: $GITHUB_REF" >&2
+            exit 1
+          fi
+          test "$tag" = "$expected_tag" || {
+            echo "release ref $tag does not match Cargo version $version" >&2
+            exit 1
+          }
+          git fetch origin main --depth=1
+          source_sha=$(git rev-parse HEAD)
+          test "$source_sha" = "$(git rev-parse origin/main)" || {
+            echo 'release source must point exactly at current main' >&2
+            exit 1
+          }
+          python3 scripts/check-release-metadata.py --tag "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Create immutable tag for a release request branch
+        if: startsWith(github.ref, 'refs/heads/release/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$SOURCE_SHA" || {
+              echo "existing tag $RELEASE_TAG points at a different commit" >&2
+              exit 1
+            }
+          else
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git tag -a "$RELEASE_TAG" "$SOURCE_SHA" -m "ptymark $RELEASE_TAG"
+            git push \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "refs/tags/$RELEASE_TAG"
+          fi
+
+  build:
+    name: Build release archive (${{ matrix.label }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: linux
+          - os: macos-latest
+            label: macos
+          - os: windows-latest
+            label: windows
+    steps:
+      - name: Check out immutable source commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal
+          rustup override set 1.97.0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate tag metadata
+        shell: bash
+        run: python scripts/check-release-metadata.py --tag '${{ needs.prepare.outputs.tag }}'
+
+      - name: Build release executable
+        run: cargo build --release --locked
+
+      - name: Package and smoke-test Unix executable
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/package-release.sh target/release/ptymark dist
+
+      - name: Package and smoke-test Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & ./scripts/package-release.ps1 `
+            -Binary ((Resolve-Path 'target/release/ptymark.exe').Path) `
+            -OutputDir (Join-Path $env:GITHUB_WORKSPACE 'dist')
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-release-${{ matrix.label }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Attest and publish GitHub Release
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Check out immutable source commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Download all release archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ptymark-release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify tag and build release metadata
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$SOURCE_SHA"
+          python3 scripts/check-release-metadata.py --tag "$RELEASE_TAG"
+          python3 scripts/build-release-manifest.py \
+            --dist dist \
+            --tag "$RELEASE_TAG" \
+            --commit "$SOURCE_SHA" \
+            --output dist/release-manifest.json \
+            --checksums-output dist/SHA256SUMS \
+            --notes-output release-notes.md
+          (cd dist && sha256sum --check SHA256SUMS)
+
+      - name: Generate build-provenance attestations
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/*'
+
+      - name: Publish immutable prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release $RELEASE_TAG already exists; refusing to overwrite it" >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" dist/* \
+            --verify-tag \
+            --prerelease \
+            --title "ptymark $RELEASE_TAG" \
+            --notes-file release-notes.md

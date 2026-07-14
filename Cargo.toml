@@ -23,8 +23,13 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [dependencies]
+crossterm = "0.29"
+portable-pty = "0.9"
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [lints.rust]
 unsafe_code = "forbid"

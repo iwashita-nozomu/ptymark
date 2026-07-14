@@ -85,3 +85,15 @@ local ptymark = wezterm.plugin.require(
 ```
 
 The plugin appends to `config.keys` and `config.launch_menu`; it does not replace existing entries.
+
+Choose a mode for only the sessions created by the launcher entry:
+
+```lua
+ptymark.apply_to_config(config, {
+  mode = 'safe', -- source | safe | private
+})
+```
+
+`source` keeps semantic detection but displays exact source, `safe` bypasses detection and external
+renderers, and `private` keeps rendering while disabling the process-local cache. The plugin only
+constructs argv; validation and behavior remain in the native ptymark process.

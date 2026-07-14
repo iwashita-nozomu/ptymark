@@ -21,6 +21,7 @@ $LogRoot = Join-Path $Root 'logs'
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 $Bundle = Join-Path $Root 'bundle'
 $Config = Join-Path $Root 'config.toml'
+$StrictConfig = Join-Path $Root 'strict-config.toml'
 $State = Join-Path $Root 'state.toml'
 
 function Write-Utf8NoBom([string]$Path, [string]$Text) {
@@ -147,8 +148,23 @@ try {
     throw 'math source was not replaced by managed output'
   }
 
+  $StrictText = (Get-Content $Config -Raw) -replace '(?m)^strict = false$', 'strict = true'
+  Write-Utf8NoBom $StrictConfig $StrictText
+  $Pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
+  $InteractiveScript = @'
+[Console]::Out.Write((@('before','```mermaid','flowchart LR','  Interactive --> ConPTY --> Renderer','```','$$','E = mc^2','$$','after') -join "`n") + "`n")
+'@
+  $InteractiveOutput = Invoke-NativeStage 'strict-interactive-conpty' $Binary @(
+    '--config', $StrictConfig,
+    '--', $Pwsh,
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', $InteractiveScript
+  )
+  if (-not $InteractiveOutput -or $InteractiveOutput.Contains('```mermaid') -or $InteractiveOutput.Contains('$$')) {
+    throw 'interactive ConPTY path fell back to semantic source'
+  }
+
   Write-Utf8NoBom (Join-Path $LogRoot 'result.txt') "success`n"
-  Write-Output 'ptymark Windows managed renderer smoke: ok'
+  Write-Output 'ptymark Windows managed renderer and real-ConPTY smoke: ok'
 }
 catch {
   Write-Utf8NoBom (Join-Path $LogRoot 'result.txt') "failure`n$($_ | Out-String)"

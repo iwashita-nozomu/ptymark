@@ -79,8 +79,13 @@ install -m 644 "$repo_root/plugin/init.lua" "$package_root/plugin/init.lua"
 install -m 644 "$repo_root/examples/ptymark.toml" "$package_root/examples/ptymark.toml"
 install -m 644 "$repo_root/examples/wezterm.lua" "$package_root/examples/wezterm.lua"
 install -m 644 "$repo_root/README.md" "$package_root/README.md"
+install -m 644 "$repo_root/CHANGELOG.md" "$package_root/CHANGELOG.md"
+install -m 644 "$repo_root/SECURITY.md" "$package_root/SECURITY.md"
 install -m 644 "$repo_root/LICENSE" "$package_root/LICENSE"
 install -m 644 "$repo_root/documents/ptymark-design.md" "$package_root/documents/ptymark-design.md"
+install -m 644 "$repo_root/documents/interactive-session.md" "$package_root/documents/interactive-session.md"
+install -m 644 "$repo_root/documents/filtered-command.md" "$package_root/documents/filtered-command.md"
+install -m 644 "$repo_root/documents/release.md" "$package_root/documents/release.md"
 install -m 644 "$repo_root/documents/ptymark-installer.md" "$package_root/documents/ptymark-installer.md"
 install -m 644 "$repo_root/documents/shell-plugin-compatibility.md" "$package_root/documents/shell-plugin-compatibility.md"
 for inventory in bash zsh fish powershell nushell; do
@@ -158,6 +163,21 @@ printf '%s\n' '$$' 'E = mc^2' '$$' \
   | "$installed_binary" --config "$smoke_root/config.toml" preview - \
   >"$smoke_root/preview.out"
 grep -F 'ptymark math' "$smoke_root/preview.out" >/dev/null
+
+# macOS PTYs can echo a non-TTY stdin EOF as control bytes on the current line.
+# Start semantic output after a newline so the safety gate can preserve that line raw.
+interactive_script=$(cat <<'EOF_INTERACTIVE_SCRIPT'
+printf '\n$$\nE = mc^2\n$$\n'
+EOF_INTERACTIVE_SCRIPT
+)
+"$installed_binary" --config "$smoke_root/config.toml" -- /bin/sh -c "$interactive_script" \
+  >"$smoke_root/interactive.out"
+tr -d '\r' <"$smoke_root/interactive.out" >"$smoke_root/interactive.normalized.out"
+grep -F 'ptymark math' "$smoke_root/interactive.normalized.out" >/dev/null
+if grep -Fx '$$' "$smoke_root/interactive.normalized.out" >/dev/null; then
+  echo 'packaged real-PTY smoke left the math fence unchanged' >&2
+  exit 1
+fi
 
 mkdir -p "$output_dir"
 rm -f "$archive" "$checksum"

@@ -100,6 +100,46 @@ evidence = ["Rust test suite"]
 required = true
 
 [[check]]
+id = "runtime.pipeline-factory"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked --test runtime_factory_contract"
+sources = ["src/runtime.rs", "tests/runtime_factory_contract.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "runtime.stream-pump"
+owner = "ptymark-ci"
+level = "contract"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked stream"
+sources = ["src/stream.rs", "src/pipeline.rs"]
+evidence = ["Rust test suite"]
+required = true
+
+[[check]]
+id = "command.filtered-run"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked --test filtered_run_contract"
+sources = ["src/filtered_run.rs", "src/cli_args.rs", "tests/filtered_run_contract.rs"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
+id = "pty.native-session"
+owner = "ptymark-ci"
+level = "integration"
+platforms = ["linux", "macos", "windows", "docker"]
+command = "cargo test --locked --test interactive_pty_contract -- --nocapture"
+sources = ["src/interactive.rs", "src/native_session.rs", "tests/interactive_pty_contract.rs", "documents/interactive-session.md"]
+evidence = ["Native Rust checks", "Canonical Docker checks"]
+required = true
+
+[[check]]
 id = "routing.typed-handoff"
 owner = "ptymark-ci"
 level = "contract"

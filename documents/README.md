@@ -33,6 +33,15 @@ seed this file, but derived repositories own their local index.
 - [ptymark Design](./ptymark-design.md): current pre-display architecture,
   terminal-safety invariants, render decision policy, typed engine handoff,
   installed-engine contracts, cache identity, extension rules, and test strategy.
+- [Interactive PTY And ConPTY Session](./interactive-session.md): the practical
+  `ptymark -- COMMAND` path, parent raw mode, native child terminal allocation,
+  input and resize forwarding, real-process evidence, and protected TUI behavior.
+- [Filtered Command Execution](./filtered-command.md): the pipe-based
+  `ptymark run -- COMMAND` contract, stdout-only filtering boundary, inherited
+  stdin/stderr behavior, exit-status preservation, and explicit PTY limitations.
+- [Release And Recovery Contract](./release.md): immutable source and tag
+  requirements, stable archive names, checksums, provenance attestations, GitHub
+  Release publication, rollback, and failed-release recovery.
 - [ptymark Installer Design](./ptymark-installer.md): source and packaged core
   installation, OS/shell frontends, installation-time engine resolution,
   absolute-path snapshots, managed renderer isolation, idempotent replacement,

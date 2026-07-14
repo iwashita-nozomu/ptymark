@@ -62,12 +62,20 @@ $env:ZDOTDIR = $HomeRoot
 $env:FISH_CONFIG_DIR = $FishRoot
 $env:NU_LIB_DIRS = $NuRoot
 $Pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
-$Command = '[Console]::Out.WriteLine("$env:STARSHIP_SHELL|$env:ATUIN_SESSION|$env:ZDOTDIR|$env:FISH_CONFIG_DIR|$env:NU_LIB_DIRS")'
+$BeginMarker = '__PTYMARK_ENV_BEGIN__'
+$EndMarker = '__PTYMARK_ENV_END__'
+$Command = "[Console]::Out.WriteLine('$BeginMarker' + [Environment]::GetEnvironmentVariable('STARSHIP_SHELL') + '|' + [Environment]::GetEnvironmentVariable('ATUIN_SESSION') + '|' + [Environment]::GetEnvironmentVariable('ZDOTDIR') + '|' + [Environment]::GetEnvironmentVariable('FISH_CONFIG_DIR') + '|' + [Environment]::GetEnvironmentVariable('NU_LIB_DIRS') + '$EndMarker')"
 $ChildOutput = (& $Binary --config $Config -- $Pwsh -NoProfile -Command $Command) -join "`n"
 if ($LASTEXITCODE -ne 0) { throw 'PowerShell child launch failed' }
 $Expected = "powershell|ptymark-compat|$HomeRoot|$FishRoot|$NuRoot"
-if ($ChildOutput.Trim() -ne $Expected) {
-  throw "child environment changed: expected '$Expected', received '$ChildOutput'"
+$PayloadPattern = [regex]::Escape($BeginMarker) + '(?<payload>.*?)' + [regex]::Escape($EndMarker)
+$PayloadMatch = [regex]::Match($ChildOutput, $PayloadPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
+if (-not $PayloadMatch.Success) {
+  throw "child environment marker was not found in PTY output: '$ChildOutput'"
+}
+$Observed = $PayloadMatch.Groups['payload'].Value
+if ($Observed -ne $Expected) {
+  throw "child environment changed: expected '$Expected', received '$Observed'"
 }
 
 & $Pwsh -NoProfile -Command 'Import-Module PSReadLine; if (-not (Get-Module PSReadLine)) { exit 1 }'

@@ -63,6 +63,13 @@ Durable boundaries:
 4. `EngineHandoff` owns transfer to a concrete renderer implementation.
 5. `ArtifactCache` is independent of decision and execution.
 6. `DisplayPipeline` commits rendered bytes or exact source once.
+7. `PipelineFactory` is the single composition root used by preview, pipe, and PTY paths.
+8. `PipelinePump` owns stream read, flush, interrupted-read, and PTY EOF policy.
+9. `NativeTerminalSession` owns operating-system terminal and child lifecycle without becoming a generic registry.
+
+The first six boundaries are public product contracts. The latter three are runtime skeleton objects:
+they remove duplicated policy while remaining concrete until an additional implementation justifies a
+trait or registry.
 
 There is no general provider catalog or dynamic plugin registry. Public traits
 allow substitution without forcing a runtime registry before users need one.

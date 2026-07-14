@@ -66,6 +66,7 @@ snapshot >"$root/after.sha256"
 cmp "$root/before.sha256" "$root/after.sha256"
 
 child_output="$root/child.out"
+normalized_output="$root/child.normalized.out"
 # The command string is intentionally expanded by the child shell, not here.
 # shellcheck disable=SC2016
 child_command='printf "%s|%s|%s|%s|%s\n" "$STARSHIP_SHELL" "$ATUIN_SESSION" "$ZDOTDIR" "$FISH_CONFIG_DIR" "$NU_LIB_DIRS"'
@@ -76,7 +77,8 @@ FISH_CONFIG_DIR="$home/.config/fish" \
 NU_LIB_DIRS="$home/.config/nushell" \
 "$binary" --config "$config" -- sh -c "$child_command" \
   >"$child_output"
+tr -d '\r' <"$child_output" >"$normalized_output"
 expected="bash|ptymark-compat|$home|$home/.config/fish|$home/.config/nushell"
-grep -Fx "$expected" "$child_output" >/dev/null
+grep -Fx "$expected" "$normalized_output" >/dev/null
 
-printf 'ptymark shell profile coexistence: ok\n'
+printf 'ptymark real-PTY shell profile coexistence: ok\n'

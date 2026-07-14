@@ -24,6 +24,7 @@ root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 bundle="$root/bundle"
 config="$root/config.toml"
+strict_config="$root/strict-config.toml"
 state="$root/state.toml"
 
 installer_args=(
@@ -98,4 +99,18 @@ if grep -F 'E = mc^2' "$root/math.out" >/dev/null; then
   exit 1
 fi
 
-printf 'ptymark managed renderer smoke: ok\n'
+sed 's/^strict = false$/strict = true/' "$config" >"$strict_config"
+interactive_script=$(cat <<'EOF_INTERACTIVE_SCRIPT'
+printf 'before\n```mermaid\nflowchart LR\n  Interactive --> PTY --> Renderer\n```\n$$\nE = mc^2\n$$\nafter\n'
+EOF_INTERACTIVE_SCRIPT
+)
+"$binary" --config "$strict_config" -- /bin/sh -c "$interactive_script" \
+  >"$root/interactive-managed.out"
+test -s "$root/interactive-managed.out"
+if grep -F '```mermaid' "$root/interactive-managed.out" >/dev/null \
+  || grep -F '$$' "$root/interactive-managed.out" >/dev/null; then
+  echo 'interactive PTY path fell back to semantic source' >&2
+  exit 1
+fi
+
+printf 'ptymark managed renderer and real-PTY smoke: ok\n'

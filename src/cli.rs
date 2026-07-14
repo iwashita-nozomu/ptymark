@@ -1,41 +1,48 @@
-use crate::cache::{MemoryCache, NoopCache};
-use crate::config::{Config, RenderMode};
-use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
+use crate::cli_args::{apply_render_option, next_path, next_value, set_once};
+use crate::config::Config;
 use crate::engine::check_configured_engines;
 use crate::install::{
     EnginePreference, InstallRequest, InstallState, Installer, PathProgramResolver,
     PresenterPreference, default_install_state_path,
 };
-use crate::pipeline::DisplayPipeline;
-use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
-use crate::routing::RoutedRenderer;
+use crate::runtime::{PipelineFactory, PipelineOptions};
+use crate::stream::PipelinePump;
 use std::env;
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::path::PathBuf;
-use std::process::{self, Command};
+use std::process;
 
 pub const HELP: &str = "\
 ptymark — pre-display renderer for terminal streams
 
 USAGE:
     ptymark [--config PATH] preview [OPTIONS] [FILE|-]
+    ptymark [--config PATH] run [OPTIONS] -- COMMAND [ARG...]
     ptymark [--config PATH] config check
     ptymark [--config PATH] config show
     ptymark [--config PATH] engine check
     ptymark [--config PATH] install resolve [INSTALL OPTIONS]
     ptymark install status [--state PATH]
-    ptymark [--config PATH] -- COMMAND [ARG...]
+    ptymark [--config PATH] [RENDER OPTIONS] -- COMMAND [ARG...]
 
-PREVIEW OPTIONS:
-    --source              keep complete semantic blocks as source
+RENDER OPTIONS:
+    --source              detect complete blocks but display their exact source
+    --safe                bypass semantic detection and rendering for this session
+    --private             disable cache and persistence-capable diagnostics for this session
     --strict              fail instead of restoring source after renderer errors
     --no-cache            disable the in-memory render cache
     --color               allow ANSI color in terminal renderers
     --columns N           renderer width hint
     --config PATH         use an explicit ptymark TOML file
     -h, --help            print this help
+
+COMMAND MODES:
+    run -- COMMAND        pipe-oriented stdout filtering for batch/log tools
+    -- COMMAND            native PTY/ConPTY host for shells, Codex, and TUIs
+    --source and --safe   mutually exclusive per-session rendering overrides
+    --private             may be combined with configured, source, or safe mode
 
 INSTALL OPTIONS:
     --config PATH         write or update this user configuration
@@ -56,10 +63,10 @@ EXAMPLES:
     ptymark install resolve
     ptymark install resolve --mermaid /opt/homebrew/bin/mmdc
     ptymark install status
-    printf '$$\\nE = mc^2\\n$$\\n' | ptymark preview
+    printf '$$\nE = mc^2\n$$\n' | ptymark preview
     ptymark preview --source README.md
-    ptymark config check --config examples/ptymark.toml
-    ptymark engine check --config examples/ptymark.toml
+    ptymark run -- command-that-prints-markdown
+    ptymark -- \"$SHELL\" -l
     ptymark -- codex
 ";
 
@@ -105,19 +112,33 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         .first()
         .and_then(|value| value.to_str())
         .ok_or_else(|| {
-            "missing command; use `preview`, `config`, `engine`, `install`, or `-- COMMAND`"
+            "missing command; use `preview`, `run`, `config`, `engine`, `install`, or `-- COMMAND`"
                 .to_owned()
         })?
         .to_owned();
-    arguments.remove(0);
-
     match command.as_str() {
-        "preview" => run_preview(arguments, config_path),
-        "config" => run_config(arguments, config_path),
-        "engine" => run_engine(arguments, config_path),
-        "install" => run_install(arguments, config_path),
-        "--" => run_command(arguments, config_path),
-        option if option.starts_with('-') => Err(format!("unknown option `{option}`")),
+        "preview" => {
+            arguments.remove(0);
+            run_preview(arguments, config_path)
+        }
+        "run" => {
+            arguments.remove(0);
+            crate::filtered_run::run(arguments, config_path)
+        }
+        "config" => {
+            arguments.remove(0);
+            run_config(arguments, config_path)
+        }
+        "engine" => {
+            arguments.remove(0);
+            run_engine(arguments, config_path)
+        }
+        "install" => {
+            arguments.remove(0);
+            run_install(arguments, config_path)
+        }
+        "--" => crate::interactive::run(arguments, config_path),
+        option if option.starts_with('-') => crate::interactive::run(arguments, config_path),
         _ => Err("child commands must follow `--`; example: `ptymark -- zsh -l`".to_owned()),
     }
 }
@@ -136,45 +157,9 @@ fn parse_leading_config(
             .cloned()
             .ok_or_else(|| "missing value after `--config`".to_owned())?;
         arguments.remove(0);
-        set_config(config_path, PathBuf::from(path))?;
+        set_once(config_path, PathBuf::from(path), "--config")?;
     }
     Ok(())
-}
-
-fn set_config(target: &mut Option<PathBuf>, path: PathBuf) -> Result<(), String> {
-    if target.replace(path).is_some() {
-        return Err("`--config` may be specified only once".to_owned());
-    }
-    Ok(())
-}
-
-fn next_value(
-    iterator: &mut impl Iterator<Item = OsString>,
-    option: &str,
-) -> Result<OsString, String> {
-    iterator
-        .next()
-        .ok_or_else(|| format!("missing value after `{option}`"))
-}
-
-fn next_path(
-    iterator: &mut impl Iterator<Item = OsString>,
-    option: &str,
-) -> Result<PathBuf, String> {
-    next_value(iterator, option).map(PathBuf::from)
-}
-
-fn next_columns(iterator: &mut impl Iterator<Item = OsString>) -> Result<u16, String> {
-    let value = next_value(iterator, "--columns")?
-        .into_string()
-        .map_err(|_| "`--columns` requires UTF-8 digits".to_owned())?;
-    let columns = value
-        .parse::<u16>()
-        .map_err(|_| "`--columns` requires a positive integer".to_owned())?;
-    if columns == 0 {
-        return Err("`--columns` must be greater than zero".to_owned());
-    }
-    Ok(columns)
 }
 
 fn next_engine_preference(
@@ -206,11 +191,7 @@ fn next_presenter_preference(
 }
 
 fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Result<i32, String> {
-    let mut source = false;
-    let mut strict = false;
-    let mut no_cache = false;
-    let mut color = false;
-    let mut columns = None;
+    let mut options = PipelineOptions::default();
     let mut input_path = None;
     let mut iterator = arguments.into_iter();
 
@@ -218,69 +199,28 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
         let text = argument
             .to_str()
             .ok_or_else(|| "preview options must be valid UTF-8".to_owned())?;
+        if apply_render_option(text, &mut iterator, &mut options, &mut config_path)? {
+            continue;
+        }
         match text {
             "-h" | "--help" => {
                 print!("{HELP}");
                 return Ok(0);
             }
-            "--source" => source = true,
-            "--strict" => strict = true,
-            "--no-cache" => no_cache = true,
-            "--color" => color = true,
-            "--columns" => columns = Some(next_columns(&mut iterator)?),
-            "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
             "-" => {
-                if input_path.replace(PathBuf::from("-")).is_some() {
-                    return Err("preview accepts at most one input".to_owned());
-                }
+                set_once(&mut input_path, PathBuf::from("-"), "preview input")?;
             }
             option if option.starts_with('-') => {
                 return Err(format!("unknown preview option `{option}`"));
             }
             _ => {
-                if input_path.replace(PathBuf::from(argument)).is_some() {
-                    return Err("preview accepts at most one input".to_owned());
-                }
+                set_once(&mut input_path, PathBuf::from(argument), "preview input")?;
             }
         }
     }
 
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
-    let detector: Box<dyn SemanticDetector> = if config.detection.math || config.detection.mermaid {
-        Box::new(FencedDetector::new(&config.detection))
-    } else {
-        Box::new(PassthroughDetector)
-    };
-
-    let source_mode = source || config.rendering.mode == RenderMode::Source;
-    let renderer: Box<dyn Renderer> = if source_mode {
-        Box::new(SourceRenderer)
-    } else {
-        Box::new(RoutedRenderer::configured(&config.engines))
-    };
-    let cache: Box<dyn crate::cache::ArtifactCache> =
-        if source_mode || no_cache || !config.cache.enabled {
-            Box::new(NoopCache::default())
-        } else {
-            Box::new(MemoryCache::new(
-                config.cache.max_entries,
-                config.cache.max_bytes,
-            ))
-        };
-
-    let service = RenderService::new(renderer, cache);
-    let context = RenderContext {
-        columns: columns.unwrap_or(config.rendering.columns),
-        color,
-        theme_fingerprint: 0,
-    };
-    let mut pipeline = DisplayPipeline::new(
-        detector,
-        service,
-        context,
-        strict || config.rendering.strict,
-    );
-
+    let mut pipeline = PipelineFactory::new(&config).build(options);
     let mut input: Box<dyn Read> = match input_path {
         Some(path) if path != *"-" => Box::new(
             File::open(&path)
@@ -290,23 +230,10 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
     };
     let stdout = io::stdout();
     let mut display = stdout.lock();
-    let mut buffer = [0_u8; 8192];
 
-    loop {
-        let count = input
-            .read(&mut buffer)
-            .map_err(|error| format!("cannot read preview input: {error}"))?;
-        if count == 0 {
-            break;
-        }
-        pipeline
-            .feed(&buffer[..count], &mut display)
-            .map_err(|error| error.to_string())?;
-    }
-    pipeline
-        .finish(&mut display)
-        .map_err(|error| error.to_string())?;
-    display.flush().map_err(|error| error.to_string())?;
+    PipelinePump::standard()
+        .run(input.as_mut(), &mut display, &mut pipeline)
+        .map_err(|error| format!("cannot process preview input: {error}"))?;
     Ok(0)
 }
 
@@ -405,15 +332,16 @@ fn run_install_resolve(
                 print!("{HELP}");
                 return Ok(0);
             }
-            "--config" => set_config(&mut config_path, next_path(&mut iterator, "--config")?)?,
-            "--state" => {
-                if state_path
-                    .replace(next_path(&mut iterator, "--state")?)
-                    .is_some()
-                {
-                    return Err("`--state` may be specified only once".to_owned());
-                }
-            }
+            "--config" => set_once(
+                &mut config_path,
+                next_path(&mut iterator, "--config")?,
+                "--config",
+            )?,
+            "--state" => set_once(
+                &mut state_path,
+                next_path(&mut iterator, "--state")?,
+                "--state",
+            )?,
             "--mermaid" => mermaid = next_engine_preference(&mut iterator, "--mermaid")?,
             "--math" => math = next_engine_preference(&mut iterator, "--math")?,
             "--presenter" => presenter = next_presenter_preference(&mut iterator)?,
@@ -469,14 +397,11 @@ fn run_install_status(arguments: Vec<OsString>) -> Result<i32, String> {
                 print!("{HELP}");
                 return Ok(0);
             }
-            Some("--state") => {
-                if state_path
-                    .replace(next_path(&mut iterator, "--state")?)
-                    .is_some()
-                {
-                    return Err("`--state` may be specified only once".to_owned());
-                }
-            }
+            Some("--state") => set_once(
+                &mut state_path,
+                next_path(&mut iterator, "--state")?,
+                "--state",
+            )?,
             Some(option) => return Err(format!("unknown install status option `{option}`")),
             None => return Err("install status options must be valid UTF-8".to_owned()),
         }
@@ -502,7 +427,11 @@ fn parse_subcommand_config(
     let mut iterator = arguments.into_iter();
     while let Some(argument) = iterator.next() {
         match argument.to_str() {
-            Some("--config") => set_config(config_path, next_path(&mut iterator, "--config")?)?,
+            Some("--config") => set_once(
+                config_path,
+                next_path(&mut iterator, "--config")?,
+                "--config",
+            )?,
             Some("-h" | "--help") => {
                 print!("{HELP}");
                 return Ok(());
@@ -512,31 +441,4 @@ fn parse_subcommand_config(
         }
     }
     Ok(())
-}
-
-fn run_command(arguments: Vec<OsString>, config_path: Option<PathBuf>) -> Result<i32, String> {
-    let program = arguments
-        .first()
-        .cloned()
-        .ok_or_else(|| "missing command after `--`".to_owned())?;
-    Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        let error = Command::new(&program).args(&arguments[1..]).exec();
-        Err(format!(
-            "cannot execute `{}`: {error}",
-            program.to_string_lossy()
-        ))
-    }
-
-    #[cfg(not(unix))]
-    {
-        let status = Command::new(&program)
-            .args(&arguments[1..])
-            .status()
-            .map_err(|error| format!("cannot execute `{}`: {error}", program.to_string_lossy()))?;
-        Ok(status.code().unwrap_or(1))
-    }
 }
