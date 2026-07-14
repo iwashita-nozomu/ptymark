@@ -15,7 +15,7 @@ ssh_key="${AGENT_CANON_REPO_SSH_KEY:-}"
 unset AGENT_CANON_REPO_TOKEN AGENT_CANON_REPO_SSH_KEY
 ssh_key_dir=""
 
-# Compatibility markers for AgentCanon's text-based policy checker. These legacy
+# Compatibility markers for the current text-based policy checker. These legacy
 # persistence states are deliberately not emitted by this hardened helper:
 # AGENT_CANON_SUBMODULE_AUTH=token_persisted
 # AGENT_CANON_SUBMODULE_AUTH=ssh_persisted
