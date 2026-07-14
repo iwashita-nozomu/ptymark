@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/wiki-access-probe-20260714
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
