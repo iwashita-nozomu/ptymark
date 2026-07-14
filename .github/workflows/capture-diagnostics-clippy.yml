@@ -1,0 +1,46 @@
+name: capture diagnostics clippy
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: github.event.pull_request.head.ref == 'agent/diagnostics-redaction-alpha2'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/diagnostics-redaction-alpha2
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
+          rustup override set 1.97.0
+
+      - name: Capture checks
+        shell: bash
+        run: |
+          set +e
+          mkdir -p diagnostics-checks
+          cargo fmt --all -- --check > diagnostics-checks/fmt.stdout.txt 2> diagnostics-checks/fmt.stderr.txt
+          printf 'fmt=%s\n' "$?" > diagnostics-checks/status.txt
+          cargo clippy --locked --all-targets -- -D warnings > diagnostics-checks/clippy.stdout.txt 2> diagnostics-checks/clippy.stderr.txt
+          printf 'clippy=%s\n' "$?" >> diagnostics-checks/status.txt
+          cargo test --locked --all-targets > diagnostics-checks/test.stdout.txt 2> diagnostics-checks/test.stderr.txt
+          printf 'test=%s\n' "$?" >> diagnostics-checks/status.txt
+          exit 0
+
+      - name: Upload check evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-diagnostics-checks
+          path: diagnostics-checks/**
+          if-no-files-found: error
+          retention-days: 1
