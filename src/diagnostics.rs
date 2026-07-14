@@ -172,7 +172,11 @@ impl DiagnosticFinding {
         self
     }
 
-    pub fn with_evidence(mut self, key: impl Into<String>, value: DiagnosticEvidence) -> Self {
+    pub fn with_evidence(
+        mut self,
+        key: impl Into<String>,
+        value: DiagnosticEvidence,
+    ) -> Self {
         self.evidence.insert(key.into(), value);
         self
     }
@@ -277,6 +281,13 @@ impl Redactor {
             };
             return DiagnosticEvidence::redacted(sanitize_controls(&value));
         }
+        if path.is_absolute() {
+            let file_name = path.file_name().map_or_else(
+                || "<root>".to_owned(),
+                |name| sanitize_controls(&name.to_string_lossy()),
+            );
+            return DiagnosticEvidence::redacted(format!("<absolute>/{file_name}"));
+        }
         self.public_text(path.to_string_lossy().as_bytes())
     }
 }
@@ -337,8 +348,8 @@ fn truncate_utf8(value: &str, max_bytes: usize) -> (String, bool) {
 #[cfg(test)]
 mod tests {
     use super::{
-        DiagnosticComponent, DiagnosticFinding, DiagnosticSeverity, DiagnosticStatus,
-        REDACTED_VALUE, Redactor, code, json_string,
+        DiagnosticComponent, DiagnosticFinding, DiagnosticSeverity, DiagnosticStatus, Redactor,
+        REDACTED_VALUE, code, json_string,
     };
     use std::path::{Path, PathBuf};
 
@@ -394,9 +405,13 @@ mod tests {
     #[test]
     fn path_redaction_is_structured() {
         let redactor = Redactor::with_home(Some(PathBuf::from("/Users/example")));
-        let value = redactor.public_path(Path::new("/Users/example/.config/ptymark/config.toml"));
+        let value =
+            redactor.public_path(Path::new("/Users/example/.config/ptymark/config.toml"));
         assert_eq!(value.value, "~/.config/ptymark/config.toml");
         assert!(value.redacted);
+        let absolute = redactor.public_path(Path::new("/opt/private/bin/mmdc"));
+        assert_eq!(absolute.value, "<absolute>/mmdc");
+        assert!(absolute.redacted);
     }
 
     #[test]
@@ -409,6 +424,9 @@ mod tests {
 
     #[test]
     fn json_strings_escape_control_data() {
-        assert_eq!(json_string("a\n\"b\\c\u{1b}"), "\"a\\n\\\"b\\\\c\\u001b\"");
+        assert_eq!(
+            json_string("a\n\"b\\c\u{1b}"),
+            "\"a\\n\\\"b\\\\c\\u001b\""
+        );
     }
 }
