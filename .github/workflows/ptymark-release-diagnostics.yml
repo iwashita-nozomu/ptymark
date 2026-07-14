@@ -1,0 +1,97 @@
+# Temporary release-blocker diagnostics. Remove after applying the generated fixes.
+name: ptymark Release Diagnostics
+
+on:
+  push:
+    branches:
+      - agent/filter-command-stdout
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rustfmt-patch:
+    name: Generate rustfmt patch
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust formatter
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
+          rustup override set 1.97.0
+
+      - name: Generate formatter patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          git diff --binary -- . ':!.github/workflows/ptymark-release-diagnostics.yml' > rustfmt.patch
+          test -s rustfmt.patch || printf '%s\n' '# no formatter changes' > rustfmt.patch
+
+      - name: Upload formatter patch
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-rustfmt-patch
+          path: rustfmt.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  macos-package:
+    name: Capture macOS package failure
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal
+          rustup override set 1.97.0
+
+      - name: Build release executable
+        run: cargo build --release --locked
+
+      - name: Capture package diagnostics
+        id: package
+        shell: bash
+        run: |
+          set +e
+          bash -x scripts/package-release.sh target/release/ptymark dist > macos-package.log 2>&1
+          status=$?
+          {
+            printf 'exit_status=%s\n' "$status"
+            printf '\nrepository files:\n'
+            find . -maxdepth 3 -type f -print | LC_ALL=C sort
+            printf '\ndist files:\n'
+            find dist -maxdepth 4 -print 2>/dev/null | LC_ALL=C sort
+          } > macos-package-tree.txt
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload macOS package diagnostics
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-macos-package-diagnostics
+          path: |
+            macos-package.log
+            macos-package-tree.txt
+            dist/**
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Record captured package failure
+        shell: bash
+        env:
+          PACKAGE_STATUS: ${{ steps.package.outputs.status }}
+        run: |
+          test -n "$PACKAGE_STATUS"
+          echo "captured package exit status: $PACKAGE_STATUS"
