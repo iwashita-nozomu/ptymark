@@ -74,12 +74,12 @@ jobs:
           expected = "trap 'rm -rf \"$smoke_root\"' EXIT"
           if expected not in source:
               raise SystemExit('package smoke cleanup trap was not found')
-          Path('package-release-debug.sh').write_text(source.replace(expected, 'trap : EXIT'))
+          Path('scripts/package-release-debug.sh').write_text(source.replace(expected, 'trap : EXIT'))
           PY
-          chmod +x package-release-debug.sh
+          chmod +x scripts/package-release-debug.sh
           mkdir -p diagnostic-tmp macos-capture
           set +e
-          TMPDIR="$PWD/diagnostic-tmp" bash -x ./package-release-debug.sh target/release/ptymark dist > macos-package.log 2>&1
+          TMPDIR="$PWD/diagnostic-tmp" bash -x scripts/package-release-debug.sh target/release/ptymark dist > macos-package.log 2>&1
           status=$?
           set -e
           {
