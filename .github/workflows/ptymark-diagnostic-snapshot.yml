@@ -101,3 +101,47 @@ jobs:
           path: diagnostics/**
           if-no-files-found: error
           retention-days: 1
+
+  canonical-docker-test-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build canonical image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          build --pull
+
+      - name: Run canonical Docker tests and retain complete output
+        id: docker-tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev \
+            cargo test --locked --all-targets \
+            2>&1 | tee canonical-docker-tests.log
+
+      - name: Upload canonical Docker test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-canonical-docker-test-diagnostics
+          path: canonical-docker-tests.log
+          if-no-files-found: error
+          retention-days: 1
