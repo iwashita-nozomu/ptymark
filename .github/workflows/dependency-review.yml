@@ -1,0 +1,47 @@
+# @dependency-start
+# contract workflow
+# responsibility Blocks pull requests that introduce dependencies with known moderate-or-higher vulnerabilities.
+# upstream configuration ../dependabot.yml proposes dependency updates
+# upstream environment ../../Cargo.lock resolved Rust dependency graph
+# upstream environment ../../renderers/package-lock.json resolved renderer dependency graph
+# downstream policy ../../SECURITY.md vulnerability reporting and support policy
+# @dependency-end
+
+name: Dependency Review
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+      - "docker/requirements.txt"
+      - "docker/Dockerfile"
+      - "docker/**/Dockerfile"
+      - "docker/*.Dockerfile"
+      - "renderers/package.json"
+      - "renderers/package-lock.json"
+      - ".gitmodules"
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dependency-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: Dependency vulnerability review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: moderate
