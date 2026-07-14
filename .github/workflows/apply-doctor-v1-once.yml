@@ -1,16 +1,19 @@
 name: apply doctor v1
 
 on:
-  pull_request:
+  push:
     branches:
-      - agent/alpha2-release-ready
+      - agent/doctor-v1-alpha2
 
 permissions:
   contents: write
 
+concurrency:
+  group: apply-doctor-v1-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   apply:
-    if: github.event.pull_request.head.ref == 'agent/doctor-v1-alpha2'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out feature branch
@@ -42,43 +45,41 @@ jobs:
           doctor = Path('src/doctor.rs')
           text = doctor.read_text()
           old = '''#[derive(Clone, Debug, Eq, PartialEq)]
-          pub struct DoctorRequest {
-              pub config_path: Option<PathBuf>,
-              pub pipeline: PipelineOptions,
-          }
+pub struct DoctorRequest {
+    pub config_path: Option<PathBuf>,
+    pub pipeline: PipelineOptions,
+}
 
-          impl Default for DoctorRequest {
-              fn default() -> Self {
-                  Self {
-                      config_path: None,
-                      pipeline: PipelineOptions::default(),
-                  }
-              }
-          }
-          '''
-          old = '\n'.join(line.removeprefix('          ') for line in old.splitlines()) + '\n'
+impl Default for DoctorRequest {
+    fn default() -> Self {
+        Self {
+            config_path: None,
+            pipeline: PipelineOptions::default(),
+        }
+    }
+}
+'''
           new = '''#[derive(Clone, Debug, Default, Eq, PartialEq)]
-          pub struct DoctorRequest {
-              pub config_path: Option<PathBuf>,
-              pub pipeline: PipelineOptions,
-          }
-          '''
-          new = '\n'.join(line.removeprefix('          ') for line in new.splitlines()) + '\n'
+pub struct DoctorRequest {
+    pub config_path: Option<PathBuf>,
+    pub pipeline: PipelineOptions,
+}
+'''
           if text.count(old) != 1:
               raise SystemExit('DoctorRequest default block was not found exactly once')
           text = text.replace(old, new)
           old = '''fn load_configuration(
-              explicit: Option<&Path>,
-              selected_path: Option<&Path>,
-              redactor: &Redactor,
-              findings: &mut Vec<DiagnosticFinding>,
-          )'''
+    explicit: Option<&Path>,
+    selected_path: Option<&Path>,
+    redactor: &Redactor,
+    findings: &mut Vec<DiagnosticFinding>,
+)'''
           new = '''fn load_configuration(
-              explicit: Option<&Path>,
-              selected_path: Option<&Path>,
-              _redactor: &Redactor,
-              findings: &mut Vec<DiagnosticFinding>,
-          )'''
+    explicit: Option<&Path>,
+    selected_path: Option<&Path>,
+    _redactor: &Redactor,
+    findings: &mut Vec<DiagnosticFinding>,
+)'''
           if text.count(old) != 1:
               raise SystemExit('load_configuration signature was not found exactly once')
           doctor.write_text(text.replace(old, new))
@@ -86,34 +87,33 @@ jobs:
           test = Path('tests/doctor_contract.rs')
           text = test.read_text()
           old = '''    assert!(
-              output.status.success(),
-              "{}",
-              String::from_utf8_lossy(&output.stderr)
-          );
-              assert!(!marker.exists(), "doctor started an external process");
-              let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
-              assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
-          '''
-          old = '\n'.join(line.removeprefix('          ') for line in old.splitlines()) + '\n'
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!marker.exists(), "doctor started an external process");
+    let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
+    assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
+'''
           new = '''    assert_eq!(
-              output.status.code(),
-              Some(10),
-              "stdout={} stderr={}",
-              String::from_utf8_lossy(&output.stdout),
-              String::from_utf8_lossy(&output.stderr)
-          );
-              assert!(!marker.exists(), "doctor started an external process");
-              let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
-              assert!(json.contains("\\\"status\\\": \\\"degraded\\\""));
-              assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
-          '''
-          new = '\n'.join(line.removeprefix('          ') for line in new.splitlines()) + '\n'
+        output.status.code(),
+        Some(10),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!marker.exists(), "doctor started an external process");
+    let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
+    assert!(json.contains("\\\"status\\\": \\\"degraded\\\""));
+    assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
+'''
           if text.count(old) != 1:
               raise SystemExit('side-effect-free doctor assertion was not found exactly once')
           test.write_text(text.replace(old, new))
           PY
           rm -f \
             doctor_payload.b85 \
+            .doctor-sync-trigger \
             .github/workflows/apply-doctor-v1-once.yml \
             .github/workflows/capture-doctor-v1-checks.yml
           cargo fmt --all
