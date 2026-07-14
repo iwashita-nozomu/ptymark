@@ -25,6 +25,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Allow intentional Markdown hard breaks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('wiki_publish_once.py')
+          text = path.read_text()
+          needle = '    run(["git", "diff", "--cached", "--check"], cwd=WIKI)\n'
+          if text.count(needle) != 1:
+              raise SystemExit('expected Wiki diff-check line was not found exactly once')
+          path.write_text(text.replace(needle, ''))
+          PY
+
       - name: Publish and verify Wiki pages
         env:
           GH_TOKEN: ${{ github.token }}
