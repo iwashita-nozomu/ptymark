@@ -247,17 +247,17 @@ fn spawn_input_pump(
 }
 
 fn initial_pty_size(fallback_columns: u16, terminal_attached: bool) -> PtySize {
-    if terminal_attached {
-        if let Ok((columns, rows)) = terminal_size() {
-            if columns > 0 && rows > 0 {
-                return PtySize {
-                    rows,
-                    cols: columns,
-                    pixel_width: 0,
-                    pixel_height: 0,
-                };
-            }
-        }
+    if terminal_attached
+        && let Ok((columns, rows)) = terminal_size()
+        && columns > 0
+        && rows > 0
+    {
+        return PtySize {
+            rows,
+            cols: columns,
+            pixel_width: 0,
+            pixel_height: 0,
+        };
     }
 
     PtySize {
