@@ -4,19 +4,18 @@ on:
   push:
     branches:
       - agent/release-diagnostics
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  repair-release-candidate:
-    name: Repair and verify the release-candidate branch
+  clean-release-candidate:
+    name: Remove generated build artifacts from the release candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: /tmp/ptymark-target
     steps:
       - name: Check out the release-candidate branch
         uses: actions/checkout@v7
@@ -26,46 +25,42 @@ jobs:
           submodules: false
           persist-credentials: true
 
-      - name: Install pinned Rust toolchain
+      - name: Remove tracked build output and prevent recurrence
+        shell: bash
         run: |
+          set -euo pipefail
+          git rm -r --ignore-unmatch target
+          if ! grep -qxF '/target/' .gitignore; then
+            printf '\n# Rust build output\n/target/\n' >> .gitignore
+          fi
+
+      - name: Verify the clean release candidate outside the worktree
+        shell: bash
+        run: |
+          set -euo pipefail
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
-
-      - name: Regenerate lockfile and remove temporary release payloads
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f \
-            .release-candidate-placeholder \
-            .github/workflows/ptymark-apply-refactor-once.yml \
-            .github/workflows/ptymark-interactive-mvp-finalize-once.yml \
-            .github/workflows/ptymark-source-snapshot-once.yml
-          cargo generate-lockfile
-
-      - name: Verify the repaired candidate
-        shell: bash
-        run: |
-          set -euo pipefail
           cargo fmt --all -- --check
           cargo build --locked --all-targets
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked --all-targets --no-run
+          test ! -e target
           if find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -print -quit | grep -q .; then
             echo 'temporary *-once.yml workflow remains in the release candidate' >&2
             exit 1
           fi
           test ! -e .release-candidate-placeholder
 
-      - name: Commit the generated release-candidate state
+      - name: Commit only cleanup changes
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
+          git add .gitignore
           if git diff --cached --quiet; then
-            echo 'release candidate already matches the generated state'
+            echo 'release candidate contains no tracked build output'
             exit 0
           fi
-          git commit -m 'chore: finalize release candidate inputs'
+          git commit -m 'chore: remove generated build artifacts'
           git push origin HEAD:agent/filter-command-stdout
