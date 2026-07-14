@@ -120,10 +120,38 @@ jobs:
           design.write_text(text.replace(old, new), encoding='utf-8')
           PY
 
-      - name: Validate repaired tree
+      - name: Capture repaired-tree validation
+        id: validate
+        shell: bash
         run: |
+          set -euo pipefail
           git diff --check
-          make agent-canon-pr-check
+          git diff --binary > agent-canon-repair.patch
+          set +e
+          make agent-canon-pr-check > agent-canon-pr.log 2>&1
+          status=$?
+          set -e
+          tail -n 500 agent-canon-pr.log > agent-canon-pr-tail.log
+          printf '%s\n' "$status" > agent-canon-pr-status.txt
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload repair diagnostics
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-canon-header-repair-diagnostics
+          path: |
+            agent-canon-repair.patch
+            agent-canon-pr.log
+            agent-canon-pr-tail.log
+            agent-canon-pr-status.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Stop when the repaired tree remains invalid
+        shell: bash
+        env:
+          VALIDATION_STATUS: ${{ steps.validate.outputs.status }}
+        run: exit "$VALIDATION_STATUS"
 
       - name: Commit repaired product ownership metadata
         shell: bash
