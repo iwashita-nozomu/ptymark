@@ -1,3 +1,12 @@
+# @dependency-start
+# contract configuration
+# responsibility Defines redacted, reproducible public bug intake outside terminal-specific compatibility reports.
+# upstream policy ../../SECURITY.md private vulnerability reporting and redaction boundaries
+# upstream design ../../README.md supported commands and user-facing behavior
+# downstream environment ./config.yml GitHub issue routing
+# downstream implementation ../../tests/cli_contract.rs user-facing command contracts
+# @dependency-end
+
 name: Bug report
 description: Report a reproducible ptymark failure that is not specific to one terminal integration.
 title: "bug: "
