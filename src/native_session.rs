@@ -1,7 +1,7 @@
 use crate::command::ChildCommand;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 use portable_pty::{
-    Child as PtyChild, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
+    Child as PtyChild, ChildKiller, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
 };
 use std::env;
 use std::io::{self, IsTerminal, Read, Write};
@@ -13,8 +13,11 @@ use std::time::Duration;
 
 const DEFAULT_ROWS: u16 = 24;
 const RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);
+#[cfg(windows)]
+const CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);
 
-type SharedMaster = Arc<Mutex<Box<dyn MasterPty + Send>>>;
+type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
+type SharedWriter = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ParentTerminal {
@@ -40,6 +43,11 @@ impl ParentTerminal {
 
     pub(crate) const fn output_is_terminal(self) -> bool {
         self.stdout_is_terminal
+    }
+
+    #[cfg(windows)]
+    pub(crate) const fn needs_cursor_position_fallback(self) -> bool {
+        !(self.stdin_is_terminal && self.stdout_is_terminal)
     }
 
     pub(crate) fn enter_raw_mode(self) -> Result<RawModeGuard, String> {
@@ -73,7 +81,8 @@ pub(crate) struct NativeTerminalSession {
     master: SharedMaster,
     reader: Box<dyn Read + Send>,
     writer: Option<Box<dyn Write + Send>>,
-    child: Box<dyn PtyChild + Send + Sync>,
+    child: Option<Box<dyn PtyChild + Send + Sync>>,
+    killer: Box<dyn ChildKiller + Send + Sync>,
 }
 
 impl NativeTerminalSession {
@@ -103,12 +112,14 @@ impl NativeTerminalSession {
         let writer = master
             .take_writer()
             .map_err(|error| format!("cannot open PTY input writer: {error}"))?;
+        let killer = child.clone_killer();
 
         Ok(Self {
-            master: Arc::new(Mutex::new(master)),
+            master: Arc::new(Mutex::new(Some(master))),
             reader,
             writer: Some(writer),
-            child,
+            child: Some(child),
+            killer,
         })
     }
 
@@ -133,25 +144,53 @@ impl NativeTerminalSession {
             .lock()
             .map_err(|_| "PTY resize lock was poisoned".to_owned())?;
         master
+            .as_ref()
+            .ok_or_else(|| "PTY master was already closed".to_owned())?
             .resize(size)
             .map_err(|error| format!("cannot resize child PTY: {error}"))
     }
 
     pub(crate) fn kill(&mut self) -> Result<(), String> {
-        self.child
+        self.killer
             .kill()
             .map_err(|error| format!("cannot terminate child process: {error}"))
     }
 
+    #[cfg(all(test, unix))]
     pub(crate) fn wait(&mut self) -> Result<portable_pty::ExitStatus, String> {
         self.child
+            .as_mut()
+            .ok_or_else(|| "child process is already owned by the exit waiter".to_owned())?
             .wait()
             .map_err(|error| format!("cannot wait for child process: {error}"))
+    }
+
+    pub(crate) fn start_exit_waiter(
+        &mut self,
+    ) -> Result<JoinHandle<Result<portable_pty::ExitStatus, String>>, String> {
+        let mut child = self
+            .child
+            .take()
+            .ok_or_else(|| "child process exit waiter was already started".to_owned())?;
+        let master = Arc::clone(&self.master);
+        thread::Builder::new()
+            .name("ptymark-child-wait".to_owned())
+            .spawn(move || {
+                let result = child
+                    .wait()
+                    .map_err(|error| format!("cannot wait for child process: {error}"));
+                #[cfg(windows)]
+                thread::sleep(CONPTY_OUTPUT_DRAIN_GRACE);
+                close_shared_master(&master);
+                result
+            })
+            .map_err(|error| format!("cannot start child process exit waiter: {error}"))
     }
 }
 
 pub(crate) struct SessionControl {
     running: Arc<AtomicBool>,
+    input_writer: SharedWriter,
     _input: JoinHandle<()>,
     resize: Option<ResizeMonitor>,
 }
@@ -176,10 +215,12 @@ impl SessionControl {
                 return Err(error);
             }
         };
-        let input = match spawn_input_pump(writer, Arc::clone(&running)) {
+        let input_writer = Arc::new(Mutex::new(Some(writer)));
+        let input = match spawn_input_pump(Arc::clone(&input_writer), Arc::clone(&running)) {
             Ok(input) => input,
             Err(error) => {
                 running.store(false, Ordering::Release);
+                close_shared_writer(&input_writer);
                 let _ = resize.stop();
                 return Err(error);
             }
@@ -187,9 +228,17 @@ impl SessionControl {
 
         Ok(Self {
             running,
+            input_writer,
             _input: input,
             resize: Some(resize),
         })
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn input_responder(&self) -> InputResponder {
+        InputResponder {
+            writer: Arc::clone(&self.input_writer),
+        }
     }
 
     pub(crate) fn latest_resize(&self) -> Option<PtySize> {
@@ -203,6 +252,7 @@ impl SessionControl {
 
     pub(crate) fn stop(mut self) -> Result<(), String> {
         self.running.store(false, Ordering::Release);
+        close_shared_writer(&self.input_writer);
         match self.resize.take() {
             Some(resize) => resize.stop(),
             None => Ok(()),
@@ -213,6 +263,28 @@ impl SessionControl {
 impl Drop for SessionControl {
     fn drop(&mut self) {
         self.running.store(false, Ordering::Release);
+        close_shared_writer(&self.input_writer);
+    }
+}
+
+#[cfg(windows)]
+#[derive(Clone)]
+pub(crate) struct InputResponder {
+    writer: SharedWriter,
+}
+
+#[cfg(windows)]
+impl InputResponder {
+    pub(crate) fn send_cursor_position(&self) -> io::Result<()> {
+        let mut writer = self
+            .writer
+            .lock()
+            .map_err(|_| io::Error::other("PTY input writer lock was poisoned"))?;
+        let writer = writer
+            .as_mut()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "PTY input is closed"))?;
+        writer.write_all(b"\x1b[1;1R")?;
+        writer.flush()
     }
 }
 
@@ -221,7 +293,7 @@ pub(crate) fn normalize_exit_code(status: &portable_pty::ExitStatus) -> i32 {
 }
 
 fn spawn_input_pump(
-    mut writer: Box<dyn Write + Send>,
+    writer: SharedWriter,
     running: Arc<AtomicBool>,
 ) -> Result<JoinHandle<()>, String> {
     thread::Builder::new()
@@ -238,12 +310,41 @@ fn spawn_input_pump(
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
                     Err(_) => break,
                 };
+                let mut writer = match writer.lock() {
+                    Ok(writer) => writer,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                let Some(writer) = writer.as_mut() else {
+                    break;
+                };
                 if writer.write_all(&buffer[..count]).is_err() || writer.flush().is_err() {
                     break;
                 }
             }
         })
         .map_err(|error| format!("cannot start terminal input forwarding: {error}"))
+}
+
+fn close_shared_writer(writer: &SharedWriter) {
+    match writer.lock() {
+        Ok(mut writer) => {
+            let _ = writer.take();
+        }
+        Err(poisoned) => {
+            let _ = poisoned.into_inner().take();
+        }
+    }
+}
+
+fn close_shared_master(master: &SharedMaster) {
+    match master.lock() {
+        Ok(mut master) => {
+            let _ = master.take();
+        }
+        Err(poisoned) => {
+            let _ = poisoned.into_inner().take();
+        }
+    }
 }
 
 fn initial_pty_size(fallback_columns: u16, terminal_attached: bool) -> PtySize {
@@ -318,6 +419,9 @@ impl ResizeMonitor {
                     }
 
                     let Ok(master) = master.lock() else {
+                        break;
+                    };
+                    let Some(master) = master.as_ref() else {
                         break;
                     };
                     if master.resize(size).is_ok() {
