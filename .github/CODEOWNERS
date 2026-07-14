@@ -1,9 +1,9 @@
 # @dependency-start
 # contract policy
 # responsibility Routes security-sensitive automation, release, installer, and dependency changes to the repository owner.
-# upstream policy ../SECURITY.md vulnerability reporting and security boundaries
-# downstream configuration ./workflows/dependency-review.yml dependency change gate
-# downstream configuration ./workflows/codeql.yml static analysis gate
+# upstream design ../SECURITY.md vulnerability reporting and security boundaries
+# downstream environment ./workflows/dependency-review.yml dependency change gate
+# downstream environment ./workflows/codeql.yml static analysis gate
 # @dependency-end
 
 # Repository security and automation
