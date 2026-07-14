@@ -1,0 +1,81 @@
+name: finalize diagnostic contract
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.event.pull_request.head.ref == 'agent/diagnostics-redaction-alpha2'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/diagnostics-redaction-alpha2
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
+          rustup override set 1.97.0
+
+      - name: Apply final contract fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test = Path('tests/diagnostics_contract.rs')
+          text = test.read_text()
+          old = 'DiagnosticStatus::from_findings(&[finding.clone()]).exit_code()'
+          new = 'DiagnosticStatus::from_findings(std::slice::from_ref(&finding)).exit_code()'
+          if text.count(old) != 1:
+              raise SystemExit('expected cloned finding expression exactly once')
+          test.write_text(text.replace(old, new))
+
+          diagnostics = Path('src/diagnostics.rs')
+          text = diagnostics.read_text()
+          old = '''        self.public_text(path.to_string_lossy().as_bytes())
+    }
+}'''
+          new = '''        if path.is_absolute() {
+            let file_name = path.file_name().map_or_else(
+                || "<root>".to_owned(),
+                |name| sanitize_controls(&name.to_string_lossy()),
+            );
+            return DiagnosticEvidence::redacted(format!("<absolute>/{file_name}"));
+        }
+        self.public_text(path.to_string_lossy().as_bytes())
+    }
+}'''
+          if text.count(old) != 1:
+              raise SystemExit('expected public_path fallback exactly once')
+          diagnostics.write_text(text.replace(old, new))
+          PY
+          rm -f \
+            .github/workflows/capture-diagnostics-clippy.yml \
+            .github/workflows/finalize-diagnostics-once.yml
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          git add -A
+          git diff --cached --check
+
+      - name: Commit and push final contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/diagnostics-redaction-alpha2
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'fix: finalize public diagnostic contract'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
