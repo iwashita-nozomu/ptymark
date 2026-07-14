@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - agent/filter-command-stdout
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
