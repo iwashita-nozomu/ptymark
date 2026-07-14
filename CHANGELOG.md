@@ -1,10 +1,10 @@
 <!--
 @dependency-start
-contract release
-responsibility Documents a versioned ptymark release, its support boundary, or its change history.
-upstream configuration Cargo.toml owns the package version.
-upstream design documents/release.md defines immutable publication and recovery behavior.
-downstream workflow .github/workflows/ptymark-release.yml publishes and verifies release assets.
+contract reference
+responsibility Records versioned user-visible changes, safety notes, and known limitations.
+upstream environment Cargo.toml package version
+upstream design documents/release.md immutable publication and recovery contract
+downstream implementation .github/workflows/ptymark-release.yml release publication workflow
 @dependency-end
 -->
 
