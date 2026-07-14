@@ -4,6 +4,7 @@ mod cli_args;
 mod command;
 pub mod config;
 pub mod detector;
+pub mod diagnostics;
 pub mod engine;
 mod filtered_run;
 pub mod install;
@@ -25,6 +26,10 @@ pub use config::{
     RenderingConfig,
 };
 pub use detector::{FencedDetector, PassthroughDetector, SemanticDetector};
+pub use diagnostics::{
+    DiagnosticComponent, DiagnosticEvidence, DiagnosticFinding, DiagnosticSeverity,
+    DiagnosticStatus, Redactor,
+};
 pub use engine::{ConfiguredRenderer, EngineCheck, check_configured_engines, resolve_executable};
 pub use install::{
     EnginePreference, INSTALL_STATE_SCHEMA_VERSION, InstallError, InstallPlan, InstallRequest,
