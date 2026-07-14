@@ -39,7 +39,7 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
           submodules: false
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Check out AgentCanon submodule
         env:
@@ -127,6 +127,8 @@ jobs:
 
       - name: Commit repaired product ownership metadata
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
@@ -155,4 +157,6 @@ jobs:
             exit 0
           fi
           git commit -m 'docs: declare ptymark dependency ownership'
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+          auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            push origin "HEAD:${GITHUB_HEAD_REF}"
