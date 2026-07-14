@@ -1,10 +1,10 @@
 # @dependency-start
 # contract workflow
 # responsibility Blocks pull requests that introduce dependencies with known moderate-or-higher vulnerabilities.
-# upstream configuration ../dependabot.yml proposes dependency updates
+# upstream environment ../dependabot.yml proposes dependency updates
 # upstream environment ../../Cargo.lock resolved Rust dependency graph
 # upstream environment ../../renderers/package-lock.json resolved renderer dependency graph
-# downstream policy ../../SECURITY.md vulnerability reporting and support policy
+# downstream design ../../SECURITY.md vulnerability reporting and support policy
 # @dependency-end
 
 name: Dependency Review
