@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/release-diagnostics
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -12,7 +15,6 @@ permissions:
 jobs:
   repair-release-candidate:
     name: Repair and verify the release-candidate branch
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
