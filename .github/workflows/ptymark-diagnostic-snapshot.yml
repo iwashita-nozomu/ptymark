@@ -41,3 +41,63 @@ jobs:
           path: ${{ runner.temp }}/ptymark-release-candidate-source.tar.gz
           if-no-files-found: error
           retention-days: 1
+
+  repository-ci-diagnostic:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: docker/requirements.txt
+
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
+
+      - name: Install pip dependencies
+        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+
+      - name: Run repository CI and retain complete output
+        id: repository-ci
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          make ci 2>&1 | tee repository-ci.log
+
+      - name: Collect diagnostic files
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          cp repository-ci.log diagnostics/
+          if [[ -d .state/agent-eval-runs ]]; then
+            cp -R .state/agent-eval-runs diagnostics/
+          fi
+          if [[ -d vendor/agent-canon/.agent-canon/log-archive ]]; then
+            cp -R vendor/agent-canon/.agent-canon/log-archive diagnostics/agent-canon-log-archive
+          fi
+          git status --short > diagnostics/git-status.txt
+          find diagnostics -type f -print | sort > diagnostics/file-list.txt
+          printf 'outcome=%s\n' '${{ steps.repository-ci.outcome }}' > diagnostics/outcome.txt
+
+      - name: Upload repository CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-repository-ci-diagnostics
+          path: diagnostics/**
+          if-no-files-found: error
+          retention-days: 1
