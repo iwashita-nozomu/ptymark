@@ -1,8 +1,7 @@
 use crate::command::ChildCommand;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 use portable_pty::{
-    Child as PtyChild, ChildKiller, CommandBuilder, MasterPty, PtyPair, PtySize,
-    native_pty_system,
+    Child as PtyChild, ChildKiller, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
 };
 use std::env;
 use std::io::{self, IsTerminal, Read, Write};
