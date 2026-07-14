@@ -1,0 +1,57 @@
+name: capture doctor v1 checks
+
+on:
+  pull_request:
+    branches:
+      - agent/diagnostics-redaction-alpha2
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: github.event.pull_request.head.ref == 'agent/doctor-v1-alpha2'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/doctor-v1-alpha2
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
+          rustup override set 1.97.0
+
+      - name: Capture checks
+        shell: bash
+        run: |
+          set +e
+          mkdir -p doctor-checks
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          Path('/tmp/doctor-v1.tar.gz').write_bytes(
+              base64.b85decode(Path('doctor_payload.b85').read_text().strip())
+          )
+          PY
+          tar -xzf /tmp/doctor-v1.tar.gz
+          cargo fmt --all > doctor-checks/fmt.stdout.txt 2> doctor-checks/fmt.stderr.txt
+          printf 'fmt_apply=%s\n' "$?" > doctor-checks/status.txt
+          cargo fmt --all -- --check > doctor-checks/fmt-check.stdout.txt 2> doctor-checks/fmt-check.stderr.txt
+          printf 'fmt_check=%s\n' "$?" >> doctor-checks/status.txt
+          cargo clippy --locked --all-targets -- -D warnings > doctor-checks/clippy.stdout.txt 2> doctor-checks/clippy.stderr.txt
+          printf 'clippy=%s\n' "$?" >> doctor-checks/status.txt
+          cargo test --locked --all-targets > doctor-checks/test.stdout.txt 2> doctor-checks/test.stderr.txt
+          printf 'test=%s\n' "$?" >> doctor-checks/status.txt
+          cp src/doctor.rs src/cli.rs src/lib.rs src/managed_launcher.rs tests/doctor_contract.rs doctor-checks/
+          exit 0
+
+      - name: Upload check diagnostics
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-doctor-v1-checks
+          path: doctor-checks/**
+          if-no-files-found: error
+          retention-days: 1
