@@ -1,6 +1,11 @@
-name: AgentCanon Diagnostic Once
+# @dependency-start
+# contract workflow
+# responsibility Repairs dependency manifests required by the inherited AgentCanon gate, validates them, and pushes one temporary branch commit.
+# upstream implementation ../../tools/ci/check_agent_canon_pr.sh defines the strict dependency review gate.
+# downstream pull_request PR #35 consumes the repaired product ownership metadata before this workflow is removed.
+# @dependency-end
+name: AgentCanon Dependency Header Repair Once
 
-# Temporary compact diagnostic for the submodule normalization PR. Removed after use.
 on:
   pull_request:
     branches: [main, master]
@@ -16,18 +21,24 @@ on:
       - tools/**
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: agent-canon-header-repair-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
-  diagnose:
+  repair:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
-      - name: Check out repository
+      - name: Check out pull request head branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
           submodules: false
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Check out AgentCanon submodule
         env:
@@ -47,33 +58,199 @@ jobs:
           sudo apt-get install -y graphviz ripgrep
           PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
-      - name: Capture compact gate diagnostics
-        id: diagnose
+      - name: Add product dependency manifests
         shell: bash
         run: |
-          set +e
-          mkdir -p "$RUNNER_TEMP/agent-canon-diagnostic"
-          make agent-canon-pr-check >"$RUNNER_TEMP/agent-canon-diagnostic/full.log" 2>&1
-          status=$?
-          {
-            printf 'status=%s\n' "$status"
-            printf '\n== matching diagnostics ==\n'
-            grep -Ein '(^|[^a-z])(error|failed|failure|mismatch|missing|stale|drift|invalid|forbidden|not found|diff)([^a-z]|$)' \
-              "$RUNNER_TEMP/agent-canon-diagnostic/full.log" || true
-            printf '\n== final 120 lines ==\n'
-            tail -n 120 "$RUNNER_TEMP/agent-canon-diagnostic/full.log"
-          } >"$RUNNER_TEMP/agent-canon-diagnostic/summary.txt"
-          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - name: Upload diagnostic evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: agent-canon-diagnostic-once
-          path: ${{ runner.temp }}/agent-canon-diagnostic
-          if-no-files-found: error
-          retention-days: 1
+          root = Path.cwd()
+          manifests = {
+              ".github/workflows/ptymark-ci.yml": (
+                  "workflow",
+                  "Runs the cross-platform Rust, renderer, installer, terminal, and package acceptance matrix.",
+                  "../../Cargo.toml and ../../rust-toolchain.toml define the compiled product and pinned toolchain.",
+                  "../workflows/ptymark-release.yml publishes only after these product checks pass.",
+              ),
+              "Cargo.toml": (
+                  "configuration",
+                  "Defines the ptymark Rust package metadata, supported compiler, dependencies, and release profile.",
+                  "rust-toolchain.toml pins the compiler used by contributors and CI.",
+                  "Cargo.lock, src, tests, and GitHub Actions consume this package contract.",
+              ),
+              "distribution/install.sh": (
+                  "distribution",
+                  "Installs one extracted Unix release archive without requiring a source checkout.",
+                  "../scripts/package-release.sh assembles the package-local payload consumed here.",
+                  "Installed binaries and configuration are validated by ../tests/install_smoke.sh.",
+              ),
+              "documents/ptymark-design.md": (
+                  "design",
+                  "Defines the pre-display rendering architecture, safety boundary, and extension ownership.",
+                  "../src implements the terminal gate, detector, routing, renderer, cache, and runtime contracts.",
+                  "../README.md and implementation-focused documents derive user-facing behavior from this design.",
+              ),
+              "documents/ptymark-installer.md": (
+                  "design",
+                  "Defines installer, managed renderer, path normalization, and installation-state behavior.",
+                  "../src/install.rs and ../scripts/installer.* implement the shared installation contract.",
+                  "../tests/install_smoke.sh and managed-renderer tests validate packaged installation.",
+              ),
+              "documents/shell-plugin-compatibility.md": (
+                  "compatibility",
+                  "Maps shell and rich-plugin behaviors to byte-preservation and coexistence evidence.",
+                  "../src/terminal.rs and ../src/native_session.rs own the protected terminal transport behavior.",
+                  "../tests/shell_plugin_compatibility.rs and shell-profile checks enforce this matrix.",
+              ),
+              "examples/README.md": (
+                  "examples",
+                  "Explains supported configuration and WezTerm examples without redefining runtime policy.",
+                  "../README.md and ../documents define the supported CLI and configuration contracts.",
+                  "../tests/plugin_smoke.lua and configuration tests keep examples executable.",
+              ),
+              "examples/external-engines.toml": (
+                  "example configuration",
+                  "Demonstrates explicit external Mermaid, math, and presenter executable selection.",
+                  "../src/config.rs defines the accepted schema and path constraints.",
+                  "../src/engine.rs and installer checks consume the selected executable roles.",
+              ),
+              "examples/ptymark.toml": (
+                  "example configuration",
+                  "Provides a minimal portable ptymark configuration for preview and interactive use.",
+                  "../src/config.rs defines schema version 1 and default validation rules.",
+                  "../README.md and CLI smoke tests use this file as a documented configuration fixture.",
+              ),
+              "rust-toolchain.toml": (
+                  "toolchain configuration",
+                  "Pins the Rust channel and required components used for reproducible builds and linting.",
+                  "Cargo.toml declares the minimum supported Rust version.",
+                  ".github/workflows/ptymark-ci.yml and release workflows install this compiler contract.",
+              ),
+              "scripts/check-ptymark-renderers.sh": (
+                  "validation",
+                  "Checks configured renderer executables and bounded direct rendering behavior.",
+                  "../src/engine.rs and managed launcher code define the executable protocols.",
+                  "../tests/managed_renderer_smoke.sh and product CI consume this validation entrypoint.",
+              ),
+              "scripts/install-managed-bundle.sh": (
+                  "installation",
+                  "Installs the pinned private Node, Mermaid, MathJax, browser, and launcher bundle on Unix.",
+                  "../renderers/managed-bundle.env and package lock define the immutable managed set.",
+                  "installer.sh and managed-renderer smoke tests consume the completed bundle.",
+              ),
+              "scripts/install.sh": (
+                  "compatibility wrapper",
+                  "Preserves the former Unix installer command while delegating to the canonical installer.",
+                  "installer.sh owns current Unix installation behavior.",
+                  "README.md and existing user automation may continue invoking this wrapper.",
+              ),
+              "scripts/installer.sh": (
+                  "installation",
+                  "Coordinates Unix and Windows-Bash installation, managed bundle resolution, and Rust-owned configuration writes.",
+                  "../documents/ptymark-installer.md defines path, bundle, and preservation semantics.",
+                  "../src/install.rs, distribution installers, and installation smoke tests consume its results.",
+              ),
+              "scripts/package-release.sh": (
+                  "release packaging",
+                  "Assembles and smoke-tests the Unix executable archive and its checksum.",
+                  "../documents/release.md defines immutable asset and recovery requirements.",
+                  "../.github/workflows/ptymark-release.yml publishes the generated archive.",
+              ),
+              "tests/install_smoke.sh": (
+                  "acceptance test",
+                  "Exercises source and package-local installation, configuration generation, and idempotent reruns.",
+                  "../scripts/installer.sh and ../src/install.rs implement the tested installation path.",
+                  "../.github/workflows/ptymark-ci.yml runs this contract across supported environments.",
+              ),
+              "tests/managed_renderer_smoke.sh": (
+                  "acceptance test",
+                  "Installs the isolated managed renderer set and proves Mermaid, math, and presenter execution.",
+                  "../scripts/install-managed-bundle.sh and ../src/managed_launcher.rs implement the tested path.",
+                  "../.github/workflows/ptymark-ci.yml records managed-renderer release evidence.",
+              ),
+              "tests/shell_profile_coexistence.sh": (
+                  "acceptance test",
+                  "Proves installers and launchers do not mutate shell profiles and preserve hook environments.",
+                  "../scripts/installer.sh and ../src/native_session.rs own the tested shell boundary.",
+                  "../.github/workflows/ptymark-ci.yml runs Unix coexistence evidence.",
+              ),
+          }
 
-      - name: Enforce gate result
-        if: always()
-        run: test "${{ steps.diagnose.outputs.status }}" = 0
+          def comment_header(path: str, values: tuple[str, str, str, str]) -> str:
+              contract, responsibility, upstream, downstream = values
+              if path.endswith(".md"):
+                  return (
+                      "<!--\n"
+                      "@dependency-start\n"
+                      f"contract {contract}\n"
+                      f"responsibility {responsibility}\n"
+                      f"upstream {upstream}\n"
+                      f"downstream {downstream}\n"
+                      "@dependency-end\n"
+                      "-->\n\n"
+                  )
+              return (
+                  "# @dependency-start\n"
+                  f"# contract {contract}\n"
+                  f"# responsibility {responsibility}\n"
+                  f"# upstream {upstream}\n"
+                  f"# downstream {downstream}\n"
+                  "# @dependency-end\n\n"
+              )
+
+          changed = []
+          for relative, values in manifests.items():
+              path = root / relative
+              text = path.read_text(encoding="utf-8")
+              if "@dependency-start" in "\n".join(text.splitlines()[:80]):
+                  continue
+              header = comment_header(relative, values)
+              if text.startswith("#!"):
+                  first, rest = text.split("\n", 1)
+                  text = f"{first}\n{header}{rest}"
+              else:
+                  text = header + text
+              path.write_text(text, encoding="utf-8")
+              changed.append(relative)
+
+          print(f"DEPENDENCY_MANIFEST_FILES_UPDATED={len(changed)}")
+          for relative in changed:
+              print(f"DEPENDENCY_MANIFEST_UPDATED={relative}")
+          PY
+
+      - name: Validate repaired tree
+        run: |
+          git diff --check
+          make agent-canon-pr-check
+
+      - name: Commit repaired ownership metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            .github/workflows/ptymark-ci.yml \
+            Cargo.toml \
+            distribution/install.sh \
+            documents/ptymark-design.md \
+            documents/ptymark-installer.md \
+            documents/shell-plugin-compatibility.md \
+            examples/README.md \
+            examples/external-engines.toml \
+            examples/ptymark.toml \
+            rust-toolchain.toml \
+            scripts/check-ptymark-renderers.sh \
+            scripts/install-managed-bundle.sh \
+            scripts/install.sh \
+            scripts/installer.sh \
+            scripts/package-release.sh \
+            tests/install_smoke.sh \
+            tests/managed_renderer_smoke.sh \
+            tests/shell_profile_coexistence.sh
+          if git diff --cached --quiet; then
+            echo 'dependency manifests already present'
+            exit 0
+          fi
+          git commit -m 'docs: declare ptymark dependency ownership'
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
