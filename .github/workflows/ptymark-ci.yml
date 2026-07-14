@@ -83,7 +83,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
@@ -91,7 +91,8 @@ jobs:
       - name: Check out AgentCanon submodule
         shell: bash
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
@@ -122,7 +123,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
@@ -130,7 +131,8 @@ jobs:
       - name: Check out AgentCanon submodule
         shell: bash
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
@@ -212,7 +214,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
@@ -220,7 +222,8 @@ jobs:
       - name: Check out AgentCanon submodule
         shell: bash
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
@@ -230,7 +233,7 @@ jobs:
           rustup override set 1.97.0
 
       - name: Install pinned Node runtime
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@1d0ff469b8be4308f1fda0e4e4fc5d2012ed3a63 # v6
         with:
           node-version: 24.18.0
           package-manager-cache: false
@@ -269,7 +272,7 @@ jobs:
 
       - name: Upload Windows managed-renderer evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@3cea5372237819ed00197afe530f5a7ea3e805c8 # v7
         with:
           name: ptymark-windows-managed-renderer-evidence
           path: ${{ runner.temp }}/ptymark-managed-windows/logs/**
@@ -291,14 +294,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
 
       - name: Check out AgentCanon submodule
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Build canonical image
@@ -361,7 +365,7 @@ jobs:
 
       - name: Upload shellcheck evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@3cea5372237819ed00197afe530f5a7ea3e805c8 # v7
         with:
           name: ptymark-shellcheck-evidence
           path: shellcheck.log
@@ -403,7 +407,7 @@ jobs:
 
       - name: Upload selected renderer evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@3cea5372237819ed00197afe530f5a7ea3e805c8 # v7
         with:
           name: ptymark-selected-renderer-evidence
           path: selected-renderer.log
@@ -431,7 +435,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
@@ -458,7 +462,7 @@ jobs:
             -OutputDir (Join-Path $env:GITHUB_WORKSPACE 'dist')
 
       - name: Upload executable package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@3cea5372237819ed00197afe530f5a7ea3e805c8 # v7
         with:
           name: ptymark-${{ matrix.label }}-release
           path: |
