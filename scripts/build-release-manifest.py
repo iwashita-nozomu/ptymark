@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
+
 # @dependency-start
 # contract implementation
-# responsibility Verifies release archives and generates checksums, notes, and machine-readable metadata.
-# upstream configuration ../Cargo.toml package version declaration
-# upstream configuration ../renderers/managed-bundle.env managed renderer compatibility versions
-# upstream design ../documents/release.md release asset and recovery contract
-# downstream workflow ../.github/workflows/ptymark-release.yml release publication orchestration
-# downstream test ../tests/tools/test_release_metadata.py manifest contracts
+# responsibility Verifies archives and generates checksums, notes, and machine-readable metadata.
+# upstream environment ../Cargo.toml package version
+# upstream environment ../renderers/managed-bundle.env managed compatibility versions
+# upstream design ../documents/release.md asset contract
+# downstream implementation ../.github/workflows/ptymark-release.yml publication orchestration
+# downstream implementation ../tests/tools/test_release_metadata.py manifest tests
 # @dependency-end
+
 """Verify release archives and write machine-readable release metadata."""
 
 from __future__ import annotations

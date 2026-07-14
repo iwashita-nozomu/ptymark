@@ -1,10 +1,10 @@
 <!--
 @dependency-start
 contract design
-responsibility Defines the non-interactive child-stdout filtering contract for `ptymark run -- COMMAND`.
-upstream implementation ../src/filtered_run.rs owns parsing, child process execution, and display-pipeline composition.
-upstream design ./ptymark-design.md defines terminal-safety, semantic detection, rendering, and display-commit invariants.
-downstream test ../tests/filtered_run_contract.rs verifies rendering, help, and exit-status preservation.
+responsibility Defines pipe-oriented stdout filtering.
+upstream design ./ptymark-design.md shared pipeline
+downstream implementation ../src/filtered_run.rs command execution
+downstream implementation ../tests/filtered_run_contract.rs behavior validation
 @dependency-end
 -->
 

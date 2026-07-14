@@ -1,10 +1,11 @@
 // @dependency-start
 // contract test
-// responsibility Validates the machine-readable verification catalog, required IDs, source paths, and documentation coverage.
-// upstream configuration ../verification/manifest.toml defines every merge-relevant check.
-// upstream documentation ../verification/README.md explains evidence levels and commands.
-// downstream workflow ../.github/workflows/ptymark-ci.yml runs this test on Linux, macOS, Windows, and Docker.
+// responsibility Validates the verification catalog and referenced paths.
+// upstream design ../verification/manifest.toml required checks
+// upstream design ../verification/README.md evidence policy
+// downstream environment ../.github/workflows/ptymark-ci.yml supported-platform execution
 // @dependency-end
+
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;

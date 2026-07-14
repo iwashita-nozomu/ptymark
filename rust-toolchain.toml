@@ -1,3 +1,11 @@
+# @dependency-start
+# contract environment
+# responsibility Pins the Rust compiler and required components.
+# upstream environment Cargo.toml minimum Rust version
+# downstream environment .github/workflows/ptymark-ci.yml product checks
+# downstream environment docker/ptymark.Dockerfile canonical image
+# @dependency-end
+
 [toolchain]
 channel = "1.97.0"
 profile = "minimal"

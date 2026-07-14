@@ -1,3 +1,11 @@
+# @dependency-start
+# contract configuration
+# responsibility Demonstrates explicit external renderer selection.
+# upstream design ../documents/ptymark-installer.md executable discovery contract
+# downstream implementation ../src/config.rs configuration parser
+# downstream implementation ../src/engine.rs selected engine roles
+# @dependency-end
+
 schema_version = 1
 
 [detection]

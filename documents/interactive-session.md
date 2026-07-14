@@ -1,12 +1,10 @@
 <!--
 @dependency-start
 contract design
-responsibility Defines the native PTY/ConPTY interactive session used by `ptymark -- COMMAND`.
-upstream implementation ../src/interactive.rs orchestrates one interactive command session.
-upstream implementation ../src/native_session.rs owns native PTY/ConPTY allocation, parent terminal mode, input forwarding, resize, and child lifecycle.
-upstream implementation ../src/stream.rs owns byte pumping, flush policy, interrupted reads, and platform PTY EOF handling.
-upstream design ./ptymark-design.md defines terminal-safety and pre-display rendering invariants.
-downstream test ../tests/interactive_pty_contract.rs exercises real Unix PTY and Windows ConPTY processes.
+responsibility Defines native PTY and ConPTY session behavior.
+upstream design ./ptymark-design.md terminal-safety boundary
+downstream implementation ../src/interactive.rs session composition
+downstream implementation ../tests/interactive_pty_contract.rs native runtime validation
 @dependency-end
 -->
 

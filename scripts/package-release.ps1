@@ -1,9 +1,9 @@
 # @dependency-start
-# contract release packaging
-# responsibility Builds one versioned Windows release archive with package-local installers, renderer metadata, documentation, and checksums.
-# upstream design documents/release.md defines release asset contents and naming.
-# upstream configuration Cargo.toml owns the package version.
-# downstream workflow .github/workflows/ptymark-release.yml validates and publishes this archive.
+# contract implementation
+# responsibility Builds one versioned Windows release archive and checksum.
+# upstream design ../documents/release.md release asset contract
+# upstream environment ../Cargo.toml package version
+# downstream environment ../.github/workflows/ptymark-release.yml publication workflow
 # @dependency-end
 
 [CmdletBinding()]

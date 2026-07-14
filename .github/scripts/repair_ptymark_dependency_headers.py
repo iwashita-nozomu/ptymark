@@ -1,9 +1,10 @@
 # @dependency-start
 # contract tool
 # responsibility Repairs ptymark dependency manifests to the pinned AgentCanon grammar.
-# upstream design ../../vendor/agent-canon/documents/dependency-manifest-design.md defines the manifest DSL.
-# downstream implementation ../workflows/agent-canon-diagnostic-once.yml validates this bounded repair.
+# upstream design ../../vendor/agent-canon/documents/dependency-manifest-design.md manifest DSL
+# downstream implementation ../workflows/ptymark-release-metadata.yml bounded release repair
 # @dependency-end
+
 from pathlib import Path
 
 S = {

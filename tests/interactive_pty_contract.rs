@@ -127,11 +127,7 @@ fn native_pty_or_conpty_renders_real_child_output() {
 
 #[test]
 fn native_session_modes_apply_without_replacing_the_pty_host() {
-    for (mode, should_render) in [
-        ("--source", false),
-        ("--safe", false),
-        ("--private", true),
-    ] {
+    for (mode, should_render) in [("--source", false), ("--safe", false), ("--private", true)] {
         let output = run_interactive_with_options(&[mode], markdown_command());
         assert!(
             output.status.success(),
@@ -146,7 +142,11 @@ fn native_session_modes_apply_without_replacing_the_pty_host() {
             should_render,
             "mode={mode} output={text}"
         );
-        assert_eq!(text.contains("$$"), !should_render, "mode={mode} output={text}");
+        assert_eq!(
+            text.contains("$$"),
+            !should_render,
+            "mode={mode} output={text}"
+        );
     }
 }
 

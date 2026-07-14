@@ -37,13 +37,12 @@ impl<'a> PipelineFactory<'a> {
     }
 
     pub fn build(self, options: PipelineOptions) -> DisplayPipeline {
-        let detector: Box<dyn SemanticDetector> = if options.safe
-            || !(self.config.detection.math || self.config.detection.mermaid)
-        {
-            Box::new(PassthroughDetector)
-        } else {
-            Box::new(FencedDetector::new(&self.config.detection))
-        };
+        let detector: Box<dyn SemanticDetector> =
+            if options.safe || !(self.config.detection.math || self.config.detection.mermaid) {
+                Box::new(PassthroughDetector)
+            } else {
+                Box::new(FencedDetector::new(&self.config.detection))
+            };
 
         let source_mode = options.source || self.config.rendering.mode == RenderMode::Source;
         let renderer: Box<dyn Renderer> = if options.safe || source_mode {

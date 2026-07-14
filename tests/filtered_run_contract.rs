@@ -44,11 +44,7 @@ fn filtered_run_renders_child_stdout() {
 
 #[test]
 fn filtered_run_session_modes_share_the_runtime_factory() {
-    for (mode, should_render) in [
-        ("--source", false),
-        ("--safe", false),
-        ("--private", true),
-    ] {
+    for (mode, should_render) in [("--source", false), ("--safe", false), ("--private", true)] {
         let mut child = Command::new(binary())
             .args([
                 "--config",

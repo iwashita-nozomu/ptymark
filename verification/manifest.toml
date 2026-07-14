@@ -1,11 +1,12 @@
 # @dependency-start
-# contract verification
-# responsibility Defines every merge-relevant ptymark verification item in a machine-readable catalog.
-# upstream workflow ../.github/workflows/ptymark-ci.yml executes product checks and publishes evidence.
-# upstream workflow ../.github/workflows/ci.yml executes inherited repository checks.
-# downstream test ../tests/verification_manifest_contract.rs validates completeness and referenced paths.
-# downstream documentation ./README.md explains evidence levels and reproduction commands.
+# contract registry
+# responsibility Defines every merge-relevant verification item.
+# upstream implementation ../.github/workflows/ptymark-ci.yml product checks
+# upstream implementation ../.github/workflows/ci.yml repository checks
+# downstream implementation ../tests/verification_manifest_contract.rs catalog validation
+# downstream design ./README.md evidence documentation
 # @dependency-end
+
 schema_version = 1
 catalog = "ptymark-merge-gates"
 

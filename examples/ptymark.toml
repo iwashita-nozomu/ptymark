@@ -1,3 +1,11 @@
+# @dependency-start
+# contract configuration
+# responsibility Provides a minimal portable configuration fixture.
+# upstream design ../README.md documented configuration
+# downstream implementation ../src/config.rs configuration parser
+# downstream implementation ../tests/cli_contract.rs fixture validation
+# @dependency-end
+
 schema_version = 1
 
 [detection]

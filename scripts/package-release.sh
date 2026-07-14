@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+
 # @dependency-start
-# contract release packaging
-# responsibility Builds one versioned Unix release archive with package-local installers, renderer metadata, documentation, and checksums.
-# upstream design documents/release.md defines release asset contents and naming.
-# upstream configuration Cargo.toml owns the package version.
-# downstream workflow .github/workflows/ptymark-release.yml validates and publishes this archive.
+# contract implementation
+# responsibility Assembles and smoke-tests one Unix release archive.
+# upstream environment ../Cargo.toml package version
+# upstream design ../README.md documented package contents
+# downstream environment ../.github/workflows/ptymark-ci.yml package jobs
+# downstream implementation ../tests/install_smoke.sh installation expectations
 # @dependency-end
 
 set -euo pipefail
@@ -162,8 +164,10 @@ printf '%s\n' '$$' 'E = mc^2' '$$' \
   >"$smoke_root/preview.out"
 grep -F 'ptymark math' "$smoke_root/preview.out" >/dev/null
 
+# macOS PTYs can echo a non-TTY stdin EOF as control bytes on the current line.
+# Start semantic output after a newline so the safety gate can preserve that line raw.
 interactive_script=$(cat <<'EOF_INTERACTIVE_SCRIPT'
-printf '$$\nE = mc^2\n$$\n'
+printf '\n$$\nE = mc^2\n$$\n'
 EOF_INTERACTIVE_SCRIPT
 )
 "$installed_binary" --config "$smoke_root/config.toml" -- /bin/sh -c "$interactive_script" \

@@ -1,5 +1,16 @@
 # ptymark installer design
 
+<!--
+@dependency-start
+contract design
+responsibility Defines installer, managed renderer, path, and state behavior.
+upstream design ../README.md installation journeys
+downstream implementation ../src/install.rs state resolution
+downstream implementation ../scripts/installer.sh platform setup
+downstream implementation ../tests/install_smoke.sh installation validation
+@dependency-end
+-->
+
 ## 1. Purpose
 
 The installer must leave the user with a usable pre-display renderer after one platform-appropriate

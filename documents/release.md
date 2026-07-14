@@ -2,10 +2,10 @@
 @dependency-start
 contract design
 responsibility Defines immutable release publication, asset verification, and recovery behavior.
-upstream configuration ../Cargo.toml owns the package version.
-upstream implementation ../scripts/check-release-metadata.py validates release tree consistency.
-upstream implementation ../scripts/build-release-manifest.py writes checksums and machine-readable metadata.
-downstream workflow ../.github/workflows/ptymark-release.yml builds, attests, and publishes releases.
+upstream environment ../Cargo.toml package version
+upstream implementation ../scripts/check-release-metadata.py tree validation
+upstream implementation ../scripts/build-release-manifest.py release metadata generation
+downstream implementation ../.github/workflows/ptymark-release.yml publication orchestration
 @dependency-end
 -->
 

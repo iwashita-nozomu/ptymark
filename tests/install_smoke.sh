@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract test
+# responsibility Exercises source and package-local installation.
+# upstream implementation ../scripts/installer.sh source installation
+# upstream implementation ../distribution/install.sh package installation
+# downstream environment ../.github/workflows/ptymark-ci.yml test execution
+# @dependency-end
+
 set -euo pipefail
 
 binary="${1:-${CARGO_TARGET_DIR:-target}/debug/ptymark}"

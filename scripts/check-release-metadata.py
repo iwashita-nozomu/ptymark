@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
+
 # @dependency-start
 # contract implementation
 # responsibility Validates version, documentation, packaging, and workflow release metadata.
-# upstream configuration ../Cargo.toml package version and dependency declaration
-# upstream design ../documents/release.md immutable release and recovery contract
-# downstream workflow ../.github/workflows/ptymark-release.yml release publication gate
-# downstream test ../tests/tools/test_release_metadata.py release metadata contracts
+# upstream environment ../Cargo.toml package version
+# upstream design ../documents/release.md release contract
+# downstream implementation ../.github/workflows/ptymark-release.yml publication gate
+# downstream implementation ../tests/tools/test_release_metadata.py metadata tests
 # @dependency-end
+
 """Validate ptymark release metadata without changing the repository."""
 
 from __future__ import annotations

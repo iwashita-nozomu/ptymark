@@ -101,8 +101,7 @@ mod tests {
         let mut values = Vec::<OsString>::new().into_iter();
 
         assert!(
-            apply_render_option("--safe", &mut values, &mut pipeline, &mut config)
-                .expect("safe")
+            apply_render_option("--safe", &mut values, &mut pipeline, &mut config).expect("safe")
         );
         assert!(
             apply_render_option("--private", &mut values, &mut pipeline, &mut config)

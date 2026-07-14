@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# @dependency-start
+# contract implementation
+# responsibility Coordinates Unix and Windows-Bash installation.
+# upstream design ../documents/ptymark-installer.md installation semantics
+# upstream implementation ../src/install.rs state resolution
+# downstream implementation ../distribution/install.sh package entrypoint
+# downstream implementation ../tests/install_smoke.sh installer validation
+# @dependency-end
+
 # Canonical ptymark installer for POSIX shells and Windows Bash environments.
 set -euo pipefail
 

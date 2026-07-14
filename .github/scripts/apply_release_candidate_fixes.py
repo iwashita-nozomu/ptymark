@@ -1,9 +1,10 @@
 # @dependency-start
 # contract tool
 # responsibility Applies bounded release-candidate metadata and package-smoke repairs.
-# upstream design ../../documents/release.md defines release readiness and package evidence.
-# downstream implementation ../workflows/ptymark-release-metadata.yml validates and commits the repaired tree.
+# upstream design ../../documents/release.md release readiness and package evidence
+# downstream implementation ../workflows/ptymark-release-metadata.yml validates and commits the repaired tree
 # @dependency-end
+
 from __future__ import annotations
 
 import runpy

@@ -1,24 +1,13 @@
 <!--
 @dependency-start
 contract design
-responsibility Documents documents/ for this repository.
-upstream design ../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md documents ownership policy
-upstream design ../vendor/agent-canon/documents/shared-runtime-surfaces.toml machine-readable ownership manifest
-upstream design ../vendor/agent-canon/documents/algorithm-implementation-boundary.md algorithm math-to-code boundary policy
-upstream design ../vendor/agent-canon/documents/codex-configuration-reference.md Codex configuration reference
-upstream design ../vendor/agent-canon/documents/object-oriented-design.md general OOP coding policy
-upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md parent repo latest-state checklist
-upstream design ../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md runtime profile and validation routing policy
-upstream design ../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md audit resolution ledger
-upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
-downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
-downstream design ./interactive-session.md native PTY and Windows ConPTY interactive session contract
-downstream design ./filtered-command.md non-interactive child-stdout filtering contract
-downstream design ./release.md immutable release publication, verification, and recovery contract
-downstream design ./ptymark-installer.md installation-time engine resolution and replacement contract
-downstream compatibility ./shell-plugin-compatibility.md shell and rich-plugin coexistence matrix
-downstream verification ../verification/README.md canonical verification catalog and merge evidence policy
-downstream design ./licensing-policy.md repository license boundary
+responsibility Indexes repository-local design, verification, compatibility, and shared policy.
+upstream design ../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md shared ownership policy
+upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md parent readiness policy
+downstream design ./ptymark-design.md architecture contract
+downstream design ./ptymark-installer.md installation contract
+downstream design ./shell-plugin-compatibility.md coexistence evidence
+downstream design ../verification/README.md verification policy
 @dependency-end
 -->
 
