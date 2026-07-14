@@ -1,0 +1,59 @@
+name: apply doctor v1 to consolidated branch
+
+on:
+  pull_request:
+    branches:
+      - agent/alpha2-release-ready
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-doctor-v1-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/doctor-v1-alpha2'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out doctor feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/doctor-v1-alpha2
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
+          rustup override set 1.97.0
+
+      - name: Apply and verify doctor v1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 apply_doctor.py
+          rm -f \
+            apply_doctor.py \
+            doctor_payload.b85 \
+            .doctor-sync-trigger \
+            .github/workflows/apply-doctor-v1-once.yml \
+            .github/workflows/capture-doctor-v1-checks.yml
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          git add -A
+          git diff --cached --check
+
+      - name: Commit doctor v1 to feature branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/doctor-v1-alpha2
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'feat: add doctor v1 and redacted support reports'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
