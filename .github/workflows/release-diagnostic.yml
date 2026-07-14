@@ -4,57 +4,66 @@ on:
   push:
     branches:
       - agent/release-diagnostics
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  cargo-diagnostic:
-    name: Capture Rust release diagnostics
+  repair-release-candidate:
+    name: Repair and verify the release-candidate branch
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Check out repository
+      - name: Check out the release-candidate branch
         uses: actions/checkout@v7
         with:
+          ref: agent/filter-command-stdout
+          fetch-depth: 0
           submodules: false
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Install pinned Rust toolchain
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Generate lockfile and capture release diagnostics
-        id: diagnose
+      - name: Regenerate lockfile and remove temporary release payloads
         shell: bash
         run: |
-          set +e
-          : > release-diagnostic.log
-          for command in \
-            "cargo generate-lockfile" \
-            "cargo fmt --all -- --check" \
-            "cargo build --locked --all-targets" \
-            "cargo clippy --locked --all-targets -- -D warnings" \
-            "cargo test --locked --all-targets --no-run"
-          do
-            printf '\n$ %s\n' "$command" | tee -a release-diagnostic.log
-            bash -o pipefail -c "$command" 2>&1 | tee -a release-diagnostic.log
-            code=${PIPESTATUS[0]}
-            printf 'exit_code=%s\n' "$code" | tee -a release-diagnostic.log
-          done
-          exit 0
+          set -euo pipefail
+          rm -f \
+            .release-candidate-placeholder \
+            .github/workflows/ptymark-apply-refactor-once.yml \
+            .github/workflows/ptymark-interactive-mvp-finalize-once.yml \
+            .github/workflows/ptymark-source-snapshot-once.yml
+          cargo generate-lockfile
 
-      - name: Upload release diagnostics and generated lockfile
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-diagnostic
-          path: |
-            release-diagnostic.log
-            Cargo.lock
-          if-no-files-found: error
-          retention-days: 1
+      - name: Verify the repaired candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo build --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets --no-run
+          if find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -print -quit | grep -q .; then
+            echo 'temporary *-once.yml workflow remains in the release candidate' >&2
+            exit 1
+          fi
+          test ! -e .release-candidate-placeholder
+
+      - name: Commit the generated release-candidate state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A Cargo.lock .release-candidate-placeholder .github/workflows
+          if git diff --cached --quiet; then
+            echo 'release candidate already matches the generated state'
+            exit 0
+          fi
+          git commit -m 'chore: finalize release candidate inputs'
+          git push origin HEAD:agent/filter-command-stdout
