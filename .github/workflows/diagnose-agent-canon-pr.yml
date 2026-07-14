@@ -2,7 +2,6 @@
 # contract workflow
 # responsibility Captures bounded AgentCanon PR gate diagnostics for the OSS security pull request.
 # upstream implementation ../../tools/ci/check_agent_canon_pr.sh shared canon PR gate
-# downstream environment agent-canon-pr-diagnostics temporary Actions artifact
 # @dependency-end
 
 name: Diagnose AgentCanon PR Gate
