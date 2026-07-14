@@ -42,6 +42,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Review dependency changes
-        uses: actions/dependency-review-action@219bfff8dc43b986fdc35d4f24b3e92d33fd0c88 # v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: high
