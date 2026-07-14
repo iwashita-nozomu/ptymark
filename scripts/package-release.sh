@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# @dependency-start
+# contract release packaging
+# responsibility Builds one versioned Unix release archive with package-local installers, renderer metadata, documentation, and checksums.
+# upstream design documents/release.md defines release asset contents and naming.
+# upstream configuration Cargo.toml owns the package version.
+# downstream workflow .github/workflows/ptymark-release.yml validates and publishes this archive.
+# @dependency-end
+
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -69,6 +77,8 @@ install -m 644 "$repo_root/plugin/init.lua" "$package_root/plugin/init.lua"
 install -m 644 "$repo_root/examples/ptymark.toml" "$package_root/examples/ptymark.toml"
 install -m 644 "$repo_root/examples/wezterm.lua" "$package_root/examples/wezterm.lua"
 install -m 644 "$repo_root/README.md" "$package_root/README.md"
+install -m 644 "$repo_root/CHANGELOG.md" "$package_root/CHANGELOG.md"
+install -m 644 "$repo_root/SECURITY.md" "$package_root/SECURITY.md"
 install -m 644 "$repo_root/LICENSE" "$package_root/LICENSE"
 install -m 644 "$repo_root/documents/ptymark-design.md" "$package_root/documents/ptymark-design.md"
 install -m 644 "$repo_root/documents/interactive-session.md" "$package_root/documents/interactive-session.md"

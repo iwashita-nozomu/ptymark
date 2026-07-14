@@ -1,3 +1,11 @@
+# @dependency-start
+# contract release packaging
+# responsibility Builds one versioned Windows release archive with package-local installers, renderer metadata, documentation, and checksums.
+# upstream design documents/release.md defines release asset contents and naming.
+# upstream configuration Cargo.toml owns the package version.
+# downstream workflow .github/workflows/ptymark-release.yml validates and publishes this archive.
+# @dependency-end
+
 [CmdletBinding()]
 param(
   [string]$Binary = (Join-Path $PSScriptRoot '..\target\release\ptymark.exe'),
@@ -62,8 +70,13 @@ Copy-Required (Join-Path $RepoRoot 'plugin\init.lua') (Join-Path $PackageRoot 'p
 Copy-Required (Join-Path $RepoRoot 'examples\ptymark.toml') (Join-Path $PackageRoot 'examples\ptymark.toml')
 Copy-Required (Join-Path $RepoRoot 'examples\wezterm.lua') (Join-Path $PackageRoot 'examples\wezterm.lua')
 Copy-Required (Join-Path $RepoRoot 'README.md') (Join-Path $PackageRoot 'README.md')
+Copy-Required (Join-Path $RepoRoot 'CHANGELOG.md') (Join-Path $PackageRoot 'CHANGELOG.md')
+Copy-Required (Join-Path $RepoRoot 'SECURITY.md') (Join-Path $PackageRoot 'SECURITY.md')
 Copy-Required (Join-Path $RepoRoot 'LICENSE') (Join-Path $PackageRoot 'LICENSE')
 Copy-Required (Join-Path $RepoRoot 'documents\ptymark-design.md') (Join-Path $PackageRoot 'documents\ptymark-design.md')
+Copy-Required (Join-Path $RepoRoot 'documents\interactive-session.md') (Join-Path $PackageRoot 'documents\interactive-session.md')
+Copy-Required (Join-Path $RepoRoot 'documents\filtered-command.md') (Join-Path $PackageRoot 'documents\filtered-command.md')
+Copy-Required (Join-Path $RepoRoot 'documents\release.md') (Join-Path $PackageRoot 'documents\release.md')
 Copy-Required (Join-Path $RepoRoot 'documents\ptymark-installer.md') (Join-Path $PackageRoot 'documents\ptymark-installer.md')
 Copy-Required (Join-Path $RepoRoot 'documents\shell-plugin-compatibility.md') (Join-Path $PackageRoot 'documents\shell-plugin-compatibility.md')
 foreach ($Inventory in @('bash', 'zsh', 'fish', 'powershell', 'nushell')) {

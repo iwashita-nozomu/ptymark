@@ -7,8 +7,9 @@ responsibility Provides the user-facing entrypoint for installation, renderer se
 upstream design documents/ptymark-design.md defines the pre-display architecture and extension boundary.
 upstream design documents/ptymark-installer.md defines OS/shell-specific installation and managed-bundle behavior.
 upstream compatibility documents/shell-plugin-compatibility.md defines shell and rich-plugin coexistence evidence.
+upstream design documents/release.md defines immutable release publication, verification, and recovery.
 downstream implementation src/cli.rs, src/install.rs, scripts/installer.sh, scripts/installer.ps1, and distribution installers implement the documented surface.
-downstream test tests, release-package jobs, and GitHub Actions validate the documented behavior.
+downstream test tests, scripts/check-release-metadata.py, release-package jobs, and GitHub Actions validate the documented behavior.
 @dependency-end
 -->
 
@@ -66,23 +67,28 @@ Windows ConPTY, forwards input, propagates size changes, filters only safe child
 returns the child exit status. `ptymark run -- COMMAND` remains the pipe-oriented path for batch and
 log-producing commands.
 
-## Install from a GitHub Actions package
+## Install from a versioned GitHub Release
 
-Every product CI run builds and smoke-tests one package for each runner OS:
+Version tags publish smoke-tested native archives for Linux, macOS, and Windows. Asset names include
+the ptymark version, operating system, and architecture:
 
 ```text
-ptymark-linux-release
-ptymark-macos-release
-ptymark-windows-release
+ptymark-<version>-linux-<architecture>.tar.gz
+ptymark-<version>-macos-<architecture>.tar.gz
+ptymark-<version>-windows-<architecture>.zip
 ```
 
-Each package contains the native executable, platform installer entrypoints, managed-renderer
-metadata, the WezTerm plugin and example, configuration examples, and design documents. Each archive
-has a SHA-256 file beside it.
+Download the archive and its adjacent `.sha256` file, or download `SHA256SUMS` and
+`release-manifest.json` from the same GitHub Release. Verify the checksum before installation. GitHub
+CLI users can also verify the build-provenance attestation:
 
-The packages are currently unsigned alpha artifacts rather than published GitHub Releases. Download
-the artifact for the target OS from the `ptymark CI` workflow, verify the checksum, extract it, and
-run the package-local installer.
+```bash
+gh attestation verify ptymark-*.tar.gz --repo iwashita-nozomu/ptymark
+```
+
+```powershell
+gh attestation verify .\ptymark-*.zip --repo iwashita-nozomu/ptymark
+```
 
 ### Linux or macOS package
 
@@ -108,7 +114,11 @@ install.cmd
 
 The package installer uses the executable shipped in `bin/`; Rust and Cargo are not required for
 this path. Missing default renderer roles may still require network access during the first managed
-bundle installation.
+bundle installation. Release archives are currently unsigned alpha packages; SHA-256 verification
+and GitHub provenance do not replace Apple Developer ID or Windows Authenticode signing.
+
+The immutable asset, checksum, compatibility, and rollback rules are documented in
+[`documents/release.md`](documents/release.md).
 
 ## Install from a source checkout
 

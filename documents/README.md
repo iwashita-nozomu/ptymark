@@ -14,6 +14,7 @@ upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md 
 downstream design ./ptymark-design.md ptymark pre-display rendering, decision, and engine handoff contract
 downstream design ./interactive-session.md native PTY and Windows ConPTY interactive session contract
 downstream design ./filtered-command.md non-interactive child-stdout filtering contract
+downstream design ./release.md immutable release publication, verification, and recovery contract
 downstream design ./ptymark-installer.md installation-time engine resolution and replacement contract
 downstream compatibility ./shell-plugin-compatibility.md shell and rich-plugin coexistence matrix
 downstream verification ../verification/README.md canonical verification catalog and merge evidence policy
@@ -49,6 +50,9 @@ seed this file, but derived repositories own their local index.
 - [Filtered Command Execution](./filtered-command.md): the pipe-based
   `ptymark run -- COMMAND` contract, stdout-only filtering boundary, inherited
   stdin/stderr behavior, exit-status preservation, and explicit PTY limitations.
+- [Release And Recovery Contract](./release.md): immutable source and tag
+  requirements, stable archive names, checksums, provenance attestations, GitHub
+  Release publication, rollback, and failed-release recovery.
 - [ptymark Installer Design](./ptymark-installer.md): source and packaged core
   installation, OS/shell frontends, installation-time engine resolution,
   absolute-path snapshots, managed renderer isolation, idempotent replacement,
