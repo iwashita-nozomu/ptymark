@@ -1,0 +1,103 @@
+name: ptymark release status probe
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Capture release state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: v0.1.0-alpha.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-status
+          gh api "repos/${REPOSITORY}/actions/workflows/ptymark-release.yml/runs?per_page=20" > release-status/workflow-runs.json
+          gh api "repos/${REPOSITORY}/releases?per_page=20" > release-status/releases.json
+          gh api "repos/${REPOSITORY}/git/ref/heads/main" > release-status/main-ref.json
+          if ! gh api "repos/${REPOSITORY}/git/ref/heads/release/${RELEASE_TAG}" > release-status/release-branch-ref.json 2> release-status/release-branch-ref.error.txt; then
+            printf '{"missing":true}\n' > release-status/release-branch-ref.json
+          fi
+          if ! gh api "repos/${REPOSITORY}/git/ref/tags/${RELEASE_TAG}" > release-status/tag-ref.json 2> release-status/tag-ref.error.txt; then
+            printf '{"missing":true}\n' > release-status/tag-ref.json
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('release-status')
+          runs = json.loads((root / 'workflow-runs.json').read_text())
+          releases = json.loads((root / 'releases.json').read_text())
+          main = json.loads((root / 'main-ref.json').read_text())
+          branch = json.loads((root / 'release-branch-ref.json').read_text())
+          tag = json.loads((root / 'tag-ref.json').read_text())
+
+          summary = {
+              'main_sha': main.get('object', {}).get('sha'),
+              'release_branch_sha': branch.get('object', {}).get('sha'),
+              'release_branch_missing': branch.get('missing', False),
+              'tag_object_sha': tag.get('object', {}).get('sha'),
+              'tag_object_type': tag.get('object', {}).get('type'),
+              'tag_missing': tag.get('missing', False),
+              'workflow_runs': [
+                  {
+                      'id': run.get('id'),
+                      'name': run.get('name'),
+                      'event': run.get('event'),
+                      'status': run.get('status'),
+                      'conclusion': run.get('conclusion'),
+                      'head_branch': run.get('head_branch'),
+                      'head_sha': run.get('head_sha'),
+                      'run_number': run.get('run_number'),
+                      'run_attempt': run.get('run_attempt'),
+                      'html_url': run.get('html_url'),
+                      'created_at': run.get('created_at'),
+                      'updated_at': run.get('updated_at'),
+                  }
+                  for run in runs.get('workflow_runs', [])
+              ],
+              'releases': [
+                  {
+                      'id': release.get('id'),
+                      'tag_name': release.get('tag_name'),
+                      'name': release.get('name'),
+                      'draft': release.get('draft'),
+                      'prerelease': release.get('prerelease'),
+                      'html_url': release.get('html_url'),
+                      'published_at': release.get('published_at'),
+                      'target_commitish': release.get('target_commitish'),
+                      'assets': [
+                          {
+                              'id': asset.get('id'),
+                              'name': asset.get('name'),
+                              'size': asset.get('size'),
+                              'digest': asset.get('digest'),
+                              'browser_download_url': asset.get('browser_download_url'),
+                          }
+                          for asset in release.get('assets', [])
+                      ],
+                  }
+                  for release in releases
+              ],
+          }
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+          print(json.dumps(summary, indent=2))
+          PY
+
+      - name: Upload release status
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-release-status-probe
+          path: release-status/**
+          if-no-files-found: error
+          retention-days: 1
