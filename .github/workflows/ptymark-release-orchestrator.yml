@@ -1,0 +1,200 @@
+name: ptymark release completion orchestrator
+
+on:
+  push:
+    branches:
+      - agent/release-orchestrator
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  complete-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: 0.1.0-alpha.1
+      RELEASE_PR: '33'
+    steps:
+      - name: Complete reviewed merge and immutable release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          repo="$GITHUB_REPOSITORY"
+          tag="v${RELEASE_VERSION}"
+          release_branch="release/${tag}"
+          release_workflow="ptymark-release.yml"
+
+          ref_sha() {
+            gh api "repos/${repo}/git/ref/heads/$1" --jq '.object.sha'
+          }
+
+          tag_commit() {
+            local ref object_type object_sha
+            ref=$(gh api "repos/${repo}/git/ref/tags/${tag}" 2>/dev/null) || return 1
+            object_type=$(jq -r '.object.type' <<<"$ref")
+            object_sha=$(jq -r '.object.sha' <<<"$ref")
+            if [[ "$object_type" == tag ]]; then
+              gh api "repos/${repo}/git/tags/${object_sha}" --jq '.object.sha'
+            else
+              printf '%s\n' "$object_sha"
+            fi
+          }
+
+          acceptable_check_conclusion() {
+            case "$1" in
+              success|neutral|skipped) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          wait_for_pr_checks() {
+            local sha="$1" deadline=$((SECONDS + 2700))
+            while (( SECONDS < deadline )); do
+              local response total pending failed
+              response=$(gh api -H 'Accept: application/vnd.github+json' \
+                "repos/${repo}/commits/${sha}/check-runs?per_page=100")
+              total=$(jq '.total_count' <<<"$response")
+              pending=$(jq '[.check_runs[] | select(.status != "completed")] | length' <<<"$response")
+              failed=$(jq '[.check_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped"))] | length' <<<"$response")
+              echo "PR checks: total=${total} pending=${pending} failed=${failed}"
+              if (( failed > 0 )); then
+                jq -r '.check_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")) | "failed check: \(.name) [\(.conclusion)] \(.details_url)"' <<<"$response"
+                return 1
+              fi
+              if (( total > 0 && pending == 0 )); then
+                return 0
+              fi
+              sleep 30
+            done
+            echo 'timed out waiting for PR checks' >&2
+            return 1
+          }
+
+          pr=$(gh api "repos/${repo}/pulls/${RELEASE_PR}")
+          if [[ $(jq -r '.merged' <<<"$pr") != true ]]; then
+            head_sha=$(jq -r '.head.sha' <<<"$pr")
+            wait_for_pr_checks "$head_sha"
+            gh api --method PUT "repos/${repo}/pulls/${RELEASE_PR}/merge" \
+              -f merge_method=squash \
+              -f sha="$head_sha" \
+              -f commit_title='release: harden the PTY/ConPTY MVP for 0.1.0-alpha.1' \
+              -f commit_message='Ship the reviewed cross-platform PTY/ConPTY alpha release candidate.' \
+              --jq '.merged' | grep -Fx true
+          fi
+
+          main_sha=$(ref_sha main)
+          echo "release source main=${main_sha}"
+
+          cargo_toml=$(gh api "repos/${repo}/contents/Cargo.toml?ref=${main_sha}" --jq '.content' | base64 --decode)
+          grep -F 'version = "0.1.0-alpha.1"' <<<"$cargo_toml" >/dev/null
+          native_session=$(gh api "repos/${repo}/contents/src/native_session.rs?ref=${main_sha}" --jq '.content' | base64 --decode)
+          grep -F 'ChildMonitor' <<<"$native_session" >/dev/null
+          gh api "repos/${repo}/contents/.github/workflows/ptymark-release.yml?ref=${main_sha}" >/dev/null
+
+          if branch_json=$(gh api "repos/${repo}/git/ref/heads/${release_branch}" 2>/dev/null); then
+            branch_sha=$(jq -r '.object.sha' <<<"$branch_json")
+            if [[ "$branch_sha" != "$main_sha" ]]; then
+              gh api --method PATCH "repos/${repo}/git/refs/heads/${release_branch}" \
+                -f sha="$main_sha" -F force=true >/dev/null
+            fi
+          else
+            gh api --method POST "repos/${repo}/git/refs" \
+              -f ref="refs/heads/${release_branch}" -f sha="$main_sha" >/dev/null
+          fi
+
+          reruns=0
+          branch_retriggers=0
+          deadline=$((SECONDS + 3300))
+          while (( SECONDS < deadline )); do
+            if release=$(gh api "repos/${repo}/releases/tags/${tag}" 2>/dev/null); then
+              published_tag=$(jq -r '.tag_name' <<<"$release")
+              draft=$(jq -r '.draft' <<<"$release")
+              prerelease=$(jq -r '.prerelease' <<<"$release")
+              [[ "$published_tag" == "$tag" && "$draft" == false && "$prerelease" == true ]]
+
+              resolved_tag=$(tag_commit)
+              [[ "$resolved_tag" == "$main_sha" ]] || {
+                echo "release tag points to ${resolved_tag}, expected ${main_sha}" >&2
+                exit 1
+              }
+
+              assets=$(jq -r '.assets[].name' <<<"$release")
+              grep -Eq "^ptymark-${RELEASE_VERSION}-linux-.+\\.tar\\.gz$" <<<"$assets"
+              grep -Eq "^ptymark-${RELEASE_VERSION}-linux-.+\\.tar\\.gz\\.sha256$" <<<"$assets"
+              grep -Eq "^ptymark-${RELEASE_VERSION}-macos-.+\\.tar\\.gz$" <<<"$assets"
+              grep -Eq "^ptymark-${RELEASE_VERSION}-macos-.+\\.tar\\.gz\\.sha256$" <<<"$assets"
+              grep -Eq "^ptymark-${RELEASE_VERSION}-windows-.+\\.zip$" <<<"$assets"
+              grep -Eq "^ptymark-${RELEASE_VERSION}-windows-.+\\.zip\\.sha256$" <<<"$assets"
+              grep -Fx 'SHA256SUMS' <<<"$assets" >/dev/null
+              grep -Fx 'release-manifest.json' <<<"$assets" >/dev/null
+
+              marker="Release ${tag} published and verified from main commit ${main_sha}. Assets, adjacent checksums, aggregate SHA256SUMS, manifest, and prerelease state were validated by workflow run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+              existing=$(gh api "repos/${repo}/issues/42/comments?per_page=100" --jq '.[].body' 2>/dev/null || true)
+              if ! grep -Fq "Release ${tag} published and verified" <<<"$existing"; then
+                gh issue comment 42 --repo "$repo" --body "$marker"
+              fi
+
+              gh api --method DELETE "repos/${repo}/git/refs/heads/${release_branch}" >/dev/null 2>&1 || true
+              gh api --method DELETE "repos/${repo}/git/refs/heads/agent/release-orchestrator" >/dev/null 2>&1 || true
+              echo "$marker"
+              exit 0
+            fi
+
+            runs=$(gh api "repos/${repo}/actions/workflows/${release_workflow}/runs?per_page=30")
+            run=$(jq -c --arg sha "$main_sha" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | reverse | .[0] // empty' <<<"$runs")
+            if [[ -n "$run" ]]; then
+              run_id=$(jq -r '.id' <<<"$run")
+              status=$(jq -r '.status' <<<"$run")
+              conclusion=$(jq -r '.conclusion // ""' <<<"$run")
+              echo "release run ${run_id}: status=${status} conclusion=${conclusion}"
+              if [[ "$status" == completed ]]; then
+                if [[ "$conclusion" == success ]]; then
+                  sleep 20
+                  continue
+                fi
+                if (( reruns >= 3 )); then
+                  echo "release workflow failed after ${reruns} reruns" >&2
+                  exit 1
+                fi
+                gh api --method POST "repos/${repo}/actions/runs/${run_id}/rerun" >/dev/null
+                reruns=$((reruns + 1))
+                sleep 60
+                continue
+              fi
+              sleep 30
+              continue
+            fi
+
+            if resolved_tag=$(tag_commit 2>/dev/null); then
+              [[ "$resolved_tag" == "$main_sha" ]] || {
+                echo "existing immutable tag ${tag} does not point at current main" >&2
+                exit 1
+              }
+              if (( branch_retriggers >= 2 )); then
+                echo 'tag exists but no release workflow run was found' >&2
+                exit 1
+              fi
+              gh api --method DELETE "repos/${repo}/git/refs/heads/${release_branch}" >/dev/null 2>&1 || true
+              gh api --method POST "repos/${repo}/git/refs" \
+                -f ref="refs/heads/${release_branch}" -f sha="$main_sha" >/dev/null
+              branch_retriggers=$((branch_retriggers + 1))
+            else
+              tag_object=$(gh api --method POST "repos/${repo}/git/tags" \
+                -f tag="$tag" \
+                -f message="ptymark ${tag}" \
+                -f object="$main_sha" \
+                -f type=commit --jq '.sha')
+              gh api --method POST "repos/${repo}/git/refs" \
+                -f ref="refs/tags/${tag}" -f sha="$tag_object" >/dev/null
+            fi
+            sleep 45
+          done
+
+          echo 'timed out waiting for immutable GitHub Release publication' >&2
+          exit 1
