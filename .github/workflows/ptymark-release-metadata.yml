@@ -1,0 +1,46 @@
+# @dependency-start
+# contract release validation
+# responsibility Validates version, packaging, and release metadata on main and pull requests.
+# upstream design documents/release.md defines immutable publication and recovery behavior.
+# upstream implementation scripts/check-release-metadata.py and tests/tools/test_release_metadata.py implement the validation contract.
+# downstream workflow .github/workflows/ptymark-release.yml consumes validated release metadata.
+# @dependency-end
+
+name: ptymark Release Metadata
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ptymark-release-metadata-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate release metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate release tree
+        run: python scripts/check-release-metadata.py
+
+      - name: Run release metadata contracts
+        run: python -m unittest tests.tools.test_release_metadata -v
