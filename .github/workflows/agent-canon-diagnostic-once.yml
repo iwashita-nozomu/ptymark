@@ -81,14 +81,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          diagnostics="$RUNNER_TEMP/agent-canon-header-repair"
+          rm -rf "$diagnostics"
+          mkdir -p "$diagnostics"
           git diff --check
-          git diff --binary > agent-canon-repair.patch
+          git diff --binary > "$diagnostics/agent-canon-repair.patch"
           set +e
-          make agent-canon-pr-check > agent-canon-pr.log 2>&1
+          make agent-canon-pr-check > "$diagnostics/agent-canon-pr.log" 2>&1
           status=$?
           set -e
-          tail -n 500 agent-canon-pr.log > agent-canon-pr-tail.log
-          printf '%s\n' "$status" > agent-canon-pr-status.txt
+          tail -n 500 "$diagnostics/agent-canon-pr.log" > "$diagnostics/agent-canon-pr-tail.log"
+          printf '%s\n' "$status" > "$diagnostics/agent-canon-pr-status.txt"
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
 
       - name: Upload repair diagnostics
@@ -96,10 +99,10 @@ jobs:
         with:
           name: agent-canon-header-repair-diagnostics
           path: |
-            agent-canon-repair.patch
-            agent-canon-pr.log
-            agent-canon-pr-tail.log
-            agent-canon-pr-status.txt
+            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-repair.patch
+            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-pr.log
+            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-pr-tail.log
+            ${{ runner.temp }}/agent-canon-header-repair/agent-canon-pr-status.txt
           if-no-files-found: error
           retention-days: 1
 
