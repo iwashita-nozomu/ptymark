@@ -176,9 +176,10 @@ fi
 
 browser_no_sandbox=0
 browser_no_sandbox_toml=false
-if [[ "${PTYMARK_BROWSER_NO_SANDBOX:-0}" == 1 || -f /.dockerenv ]]; then
+if [[ "${PTYMARK_BROWSER_NO_SANDBOX:-0}" == 1 ]]; then
   browser_no_sandbox=1
   browser_no_sandbox_toml=true
+  echo 'warning: Chromium sandbox disabled by explicit PTYMARK_BROWSER_NO_SANDBOX=1 opt-in' >&2
 fi
 
 lock_sha="$(sha256_file "$repo_root/renderers/package-lock.json")"
