@@ -1,0 +1,47 @@
+name: alpha2 source snapshot
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p snapshot
+          git rev-parse HEAD > snapshot/head.txt
+          git status --short --branch > snapshot/status.txt
+          tar \
+            --exclude='./.git' \
+            --exclude='./target' \
+            --exclude='./snapshot' \
+            -czf snapshot/ptymark-source.tar.gz .
+          sha256sum snapshot/ptymark-source.tar.gz > snapshot/ptymark-source.tar.gz.sha256
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-alpha2-source-snapshot
+          path: snapshot/**
+          if-no-files-found: error
+          retention-days: 1
