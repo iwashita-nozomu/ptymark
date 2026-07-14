@@ -4,8 +4,8 @@
 # upstream implementation ../../src/lib.rs Rust library surface
 # upstream implementation ../../python Python tooling surface
 # upstream implementation ../../renderers managed renderer surface
-# upstream configuration ./*.yml GitHub Actions workflow surface
-# downstream policy ../../SECURITY.md vulnerability reporting and support policy
+# upstream environment ./*.yml GitHub Actions workflow surface
+# downstream design ../../SECURITY.md vulnerability reporting and support policy
 # @dependency-end
 
 name: CodeQL
