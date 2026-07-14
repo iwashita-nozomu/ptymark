@@ -1,0 +1,125 @@
+name: Terminal compatibility report
+description: Report lossless-output, PTY/ConPTY, shell, tmux, SSH, resize, or presentation compatibility problems.
+title: "compat: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when terminal behavior differs by terminal, shell, multiplexer, remote layer, or presentation capability. Redact private source, paths, hostnames, usernames, and environment values.
+
+  - type: input
+    id: version
+    attributes:
+      label: ptymark version
+      placeholder: ptymark 0.1.0-alpha.1
+    validations:
+      required: true
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system and architecture
+      placeholder: Windows 11 x86_64, macOS 15 arm64, Ubuntu 24.04 x86_64
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal application and version
+      placeholder: WezTerm 2026.x, Kitty 0.x, Windows Terminal 1.x
+    validations:
+      required: true
+
+  - type: input
+    id: shell
+    attributes:
+      label: Shell and prompt or line-editor integrations
+      placeholder: zsh 5.9 + Powerlevel10k + zsh-autosuggestions
+    validations:
+      required: true
+
+  - type: input
+    id: layers
+    attributes:
+      label: Multiplexer, remote, and compatibility layers
+      description: State `none` when not applicable.
+      placeholder: tmux 3.5 over SSH, WSL2, Git Bash, none
+    validations:
+      required: true
+
+  - type: dropdown
+    id: invocation
+    attributes:
+      label: Invocation path
+      options:
+        - ptymark preview
+        - ptymark run -- COMMAND
+        - ptymark -- COMMAND
+        - WezTerm plugin launcher
+        - packaged installer smoke
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: Primary symptom
+      options:
+        - ANSI/OSC/DCS bytes changed or displayed literally
+        - alternate-screen application corruption
+        - prompt, completion, or line-editor redraw corruption
+        - resize or terminal dimensions incorrect
+        - keyboard, paste, mouse, or signal forwarding failure
+        - child exit status incorrect
+        - semantic source rendered when it should be bypassed
+        - semantic block not rendered when expected
+        - Unicode, emoji, or CJK width problem
+        - color or monochrome presentation problem
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include exact commands and a safe, minimal byte or text fixture where possible.
+      placeholder: |
+        1. Launch `...`
+        2. Run `...`
+        3. Resize or press `...`
+        4. Observe `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-bytes
+    attributes:
+      label: Expected and observed behavior
+      description: Describe the first visible or byte-level difference. Attach a redacted hex dump only when necessary.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: bypass
+    attributes:
+      label: Bypass comparison
+      options:
+        - label: `--safe` preserves the expected terminal behavior.
+        - label: `--source` preserves the expected terminal behavior.
+        - label: The problem remains when semantic rendering is bypassed.
+        - label: The problem occurs only through the WezTerm launcher.
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Submission checks
+      options:
+        - label: I removed secrets, credentials, private terminal source, hostnames, usernames, and identifying paths.
+          required: true
+        - label: I included exact terminal, shell, and intermediate-layer versions where available.
+          required: true
+        - label: I searched existing compatibility reports for the same behavior.
+          required: true
