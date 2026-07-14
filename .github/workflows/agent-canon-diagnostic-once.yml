@@ -1,0 +1,79 @@
+name: AgentCanon Diagnostic Once
+
+# Temporary compact diagnostic for the submodule normalization PR. Removed after use.
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - .github/workflows/agent-canon-diagnostic-once.yml
+      - .gitmodules
+      - vendor/agent-canon
+      - vendor/agent-canon/**
+      - AGENTS.md
+      - agents/**
+      - .agents/**
+      - .codex/**
+      - tools/**
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: docker/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz ripgrep
+          PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+
+      - name: Capture compact gate diagnostics
+        id: diagnose
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/agent-canon-diagnostic"
+          make agent-canon-pr-check >"$RUNNER_TEMP/agent-canon-diagnostic/full.log" 2>&1
+          status=$?
+          {
+            printf 'status=%s\n' "$status"
+            printf '\n== matching diagnostics ==\n'
+            grep -Ein '(^|[^a-z])(error|failed|failure|mismatch|missing|stale|drift|invalid|forbidden|not found|diff)([^a-z]|$)' \
+              "$RUNNER_TEMP/agent-canon-diagnostic/full.log" || true
+            printf '\n== final 120 lines ==\n'
+            tail -n 120 "$RUNNER_TEMP/agent-canon-diagnostic/full.log"
+          } >"$RUNNER_TEMP/agent-canon-diagnostic/summary.txt"
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-canon-diagnostic-once
+          path: ${{ runner.temp }}/agent-canon-diagnostic
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce gate result
+        if: always()
+        run: test "${{ steps.diagnose.outputs.status }}" = 0
