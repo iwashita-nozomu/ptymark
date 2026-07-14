@@ -1,8 +1,10 @@
 # @dependency-start
-# contract configuration
-# responsibility Defines the ptymark product CI matrix for native, installer, renderer, Docker, and package validation.
-# upstream design README.md and documents/ptymark-design.md define the product and terminal-safety contract.
-# downstream test Cargo targets, shell/profile checks, managed-renderer smoke, and release package jobs validate the implementation.
+# contract workflow
+# responsibility Runs the cross-platform ptymark acceptance matrix.
+# upstream design ../../documents/ptymark-design.md terminal-safety architecture
+# upstream environment ../../rust-toolchain.toml supported Rust toolchain
+# downstream design ../../verification/README.md merge evidence policy
+# downstream implementation ../../tests/verification_manifest_contract.rs catalog validation
 # @dependency-end
 
 name: ptymark CI
