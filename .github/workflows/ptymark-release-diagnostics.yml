@@ -63,22 +63,39 @@ jobs:
       - name: Build release executable
         run: cargo build --release --locked
 
-      - name: Capture package diagnostics
+      - name: Capture package diagnostics and smoke outputs
         id: package
         shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('scripts/package-release.sh').read_text()
+          expected = "trap 'rm -rf \"$smoke_root\"' EXIT"
+          if expected not in source:
+              raise SystemExit('package smoke cleanup trap was not found')
+          Path('package-release-debug.sh').write_text(source.replace(expected, 'trap : EXIT'))
+          PY
+          chmod +x package-release-debug.sh
+          mkdir -p diagnostic-tmp macos-capture
           set +e
-          bash -x scripts/package-release.sh target/release/ptymark dist > macos-package.log 2>&1
+          TMPDIR="$PWD/diagnostic-tmp" bash -x ./package-release-debug.sh target/release/ptymark dist > macos-package.log 2>&1
           status=$?
+          set -e
           {
             printf 'exit_status=%s\n' "$status"
-            printf '\nrepository files:\n'
-            find . -maxdepth 3 -type f -print | LC_ALL=C sort
+            printf '\nsmoke files:\n'
+            find diagnostic-tmp -maxdepth 4 -type f -print | LC_ALL=C sort
             printf '\ndist files:\n'
             find dist -maxdepth 4 -print 2>/dev/null | LC_ALL=C sort
           } > macos-package-tree.txt
+          tar -czf macos-capture/smoke-root.tar.gz -C diagnostic-tmp .
+          for path in $(find diagnostic-tmp -type f -name '*.out' -print); do
+            base=$(basename "$path")
+            cp "$path" "macos-capture/$base"
+            od -An -tx1 -v "$path" > "macos-capture/$base.hex"
+          done
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
-          exit 0
 
       - name: Upload macOS package diagnostics
         uses: actions/upload-artifact@v7
@@ -87,8 +104,9 @@ jobs:
           path: |
             macos-package.log
             macos-package-tree.txt
+            macos-capture/**
             dist/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
 
       - name: Record captured package failure
