@@ -22,8 +22,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir decoded
-          cat .github/diagnostics/conpty/native-src.* | base64 --decode > decoded/native-session-initial.rs
-          cat .github/diagnostics/conpty/native.* | base64 --decode > decoded/native-session-final.rs
+          cat .github/diagnostics/conpty/native-src.00 | base64 --decode > decoded/native-session-initial.rs
+          cat \
+            .github/diagnostics/conpty/native.00 \
+            .github/diagnostics/conpty/native.01 \
+            .github/diagnostics/conpty/native.02 \
+            | base64 --decode > decoded/native-session-final.rs
           cp src/native_session.rs decoded/native-session-branch.rs
           cp src/interactive.rs decoded/interactive-branch.rs
           sha256sum decoded/* > decoded/SHA256SUMS
