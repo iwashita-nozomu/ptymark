@@ -1,6 +1,9 @@
 name: finalize diagnostic contract
 
 on:
+  push:
+    branches:
+      - agent/diagnostics-redaction-alpha2
   pull_request:
     branches:
       - main
@@ -10,7 +13,7 @@ permissions:
 
 jobs:
   finalize:
-    if: github.event.pull_request.head.ref == 'agent/diagnostics-redaction-alpha2'
+    if: github.ref == 'refs/heads/agent/diagnostics-redaction-alpha2' || github.event.pull_request.head.ref == 'agent/diagnostics-redaction-alpha2'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out feature branch
