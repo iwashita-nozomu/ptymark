@@ -3,7 +3,7 @@
 # responsibility Defines docker build YAML configuration.
 # upstream environment ../../docker/README.md docker runtime contract
 # upstream implementation ../../docker/check_build.sh submodule-aware docker build validation
-# upstream implementation ../scripts/checkout_agent_canon_submodule.sh private AgentCanon checkout gate
+# upstream implementation ../scripts/checkout_agent_canon_submodule.sh public AgentCanon checkout gate
 # @dependency-end
 name: Docker Build
 
@@ -38,15 +38,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e3f8c4d052d2b20b3c26 # v4
         with:
           submodules: false
           persist-credentials: false
 
       - name: Checkout AgentCanon submodule
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-          AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Run default Docker pack check
