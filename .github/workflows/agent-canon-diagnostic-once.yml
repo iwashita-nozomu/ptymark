@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Exports the validated bounded dependency-manifest repair for connector-backed publication.
+# responsibility Exports and commits the validated bounded dependency-manifest repair outside workflow-owned files.
 # upstream design ../../vendor/agent-canon/documents/dependency-manifest-design.md defines the manifest DSL.
 # upstream implementation ../scripts/repair_ptymark_dependency_headers.py performs the bounded repair.
 # downstream implementation ./ci.yml validates the published repaired tree through the standard gate.
@@ -23,7 +23,7 @@ on:
       - tools/**
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
@@ -75,3 +75,22 @@ jobs:
           path: ${{ runner.temp }}/agent-canon-repaired-tree/**
           if-no-files-found: error
           retention-days: 1
+
+      - name: Commit non-workflow repair files
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -u
+          git reset -- .github/workflows/ci.yml .github/workflows/ptymark-ci.yml
+          if git diff --cached --quiet; then
+            echo 'non-workflow dependency manifests already valid'
+            exit 0
+          fi
+          git commit -m 'docs: repair ptymark dependency manifests'
+          auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            push origin "HEAD:${GITHUB_HEAD_REF}"
