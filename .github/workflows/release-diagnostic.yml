@@ -6,7 +6,7 @@ on:
       - agent/release-diagnostics
   pull_request:
     branches:
-      - agent/filter-command-stdout
+      - main
   workflow_dispatch:
 
 permissions:
@@ -29,13 +29,14 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Capture formatting, build, Clippy, and test diagnostics
+      - name: Generate lockfile and capture release diagnostics
         id: diagnose
         shell: bash
         run: |
           set +e
           : > release-diagnostic.log
           for command in \
+            "cargo generate-lockfile" \
             "cargo fmt --all -- --check" \
             "cargo build --locked --all-targets" \
             "cargo clippy --locked --all-targets -- -D warnings" \
@@ -48,10 +49,12 @@ jobs:
           done
           exit 0
 
-      - name: Upload release diagnostics
+      - name: Upload release diagnostics and generated lockfile
         uses: actions/upload-artifact@v7
         with:
           name: release-diagnostic
-          path: release-diagnostic.log
+          path: |
+            release-diagnostic.log
+            Cargo.lock
           if-no-files-found: error
           retention-days: 1
