@@ -3,7 +3,7 @@ name: apply doctor v1
 on:
   pull_request:
     branches:
-      - agent/diagnostics-redaction-alpha2
+      - agent/alpha2-release-ready
 
 permissions:
   contents: write
@@ -42,41 +42,43 @@ jobs:
           doctor = Path('src/doctor.rs')
           text = doctor.read_text()
           old = '''#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DoctorRequest {
-    pub config_path: Option<PathBuf>,
-    pub pipeline: PipelineOptions,
-}
+          pub struct DoctorRequest {
+              pub config_path: Option<PathBuf>,
+              pub pipeline: PipelineOptions,
+          }
 
-impl Default for DoctorRequest {
-    fn default() -> Self {
-        Self {
-            config_path: None,
-            pipeline: PipelineOptions::default(),
-        }
-    }
-}
-'''
+          impl Default for DoctorRequest {
+              fn default() -> Self {
+                  Self {
+                      config_path: None,
+                      pipeline: PipelineOptions::default(),
+                  }
+              }
+          }
+          '''
+          old = '\n'.join(line.removeprefix('          ') for line in old.splitlines()) + '\n'
           new = '''#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct DoctorRequest {
-    pub config_path: Option<PathBuf>,
-    pub pipeline: PipelineOptions,
-}
-'''
+          pub struct DoctorRequest {
+              pub config_path: Option<PathBuf>,
+              pub pipeline: PipelineOptions,
+          }
+          '''
+          new = '\n'.join(line.removeprefix('          ') for line in new.splitlines()) + '\n'
           if text.count(old) != 1:
               raise SystemExit('DoctorRequest default block was not found exactly once')
           text = text.replace(old, new)
           old = '''fn load_configuration(
-    explicit: Option<&Path>,
-    selected_path: Option<&Path>,
-    redactor: &Redactor,
-    findings: &mut Vec<DiagnosticFinding>,
-)'''
+              explicit: Option<&Path>,
+              selected_path: Option<&Path>,
+              redactor: &Redactor,
+              findings: &mut Vec<DiagnosticFinding>,
+          )'''
           new = '''fn load_configuration(
-    explicit: Option<&Path>,
-    selected_path: Option<&Path>,
-    _redactor: &Redactor,
-    findings: &mut Vec<DiagnosticFinding>,
-)'''
+              explicit: Option<&Path>,
+              selected_path: Option<&Path>,
+              _redactor: &Redactor,
+              findings: &mut Vec<DiagnosticFinding>,
+          )'''
           if text.count(old) != 1:
               raise SystemExit('load_configuration signature was not found exactly once')
           doctor.write_text(text.replace(old, new))
@@ -84,26 +86,28 @@ pub struct DoctorRequest {
           test = Path('tests/doctor_contract.rs')
           text = test.read_text()
           old = '''    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(!marker.exists(), "doctor started an external process");
-    let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
-    assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
-'''
+              output.status.success(),
+              "{}",
+              String::from_utf8_lossy(&output.stderr)
+          );
+              assert!(!marker.exists(), "doctor started an external process");
+              let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
+              assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
+          '''
+          old = '\n'.join(line.removeprefix('          ') for line in old.splitlines()) + '\n'
           new = '''    assert_eq!(
-        output.status.code(),
-        Some(10),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(!marker.exists(), "doctor started an external process");
-    let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
-    assert!(json.contains("\\\"status\\\": \\\"degraded\\\""));
-    assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
-'''
+              output.status.code(),
+              Some(10),
+              "stdout={} stderr={}",
+              String::from_utf8_lossy(&output.stdout),
+              String::from_utf8_lossy(&output.stderr)
+          );
+              assert!(!marker.exists(), "doctor started an external process");
+              let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
+              assert!(json.contains("\\\"status\\\": \\\"degraded\\\""));
+              assert!(json.contains("\\\"state\\\": \\\"ready\\\""));
+          '''
+          new = '\n'.join(line.removeprefix('          ') for line in new.splitlines()) + '\n'
           if text.count(old) != 1:
               raise SystemExit('side-effect-free doctor assertion was not found exactly once')
           test.write_text(text.replace(old, new))
