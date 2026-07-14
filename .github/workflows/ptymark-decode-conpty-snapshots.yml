@@ -22,15 +22,45 @@ jobs:
         run: |
           set -euo pipefail
           mkdir decoded
-          cat .github/diagnostics/conpty/native-src.00 | base64 --decode > decoded/native-session-initial.rs
-          cat \
-            .github/diagnostics/conpty/native.00 \
-            .github/diagnostics/conpty/native.01 \
-            .github/diagnostics/conpty/native.02 \
-            | base64 --decode > decoded/native-session-final.rs
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+
+          source = Path('.github/diagnostics/conpty')
+          output = Path('decoded')
+          errors = []
+
+          groups = {
+              'native-session-initial.rs': sorted(source.glob('native-src.*')),
+              'native-session-final.rs': [source / 'native.00', source / 'native.01', source / 'native.02'],
+          }
+
+          for path in sorted(source.iterdir()):
+              if not path.is_file():
+                  continue
+              data = ''.join(path.read_text(encoding='utf-8').split())
+              try:
+                  decoded = base64.b64decode(data, validate=False)
+                  (output / f'{path.name}.decoded').write_bytes(decoded)
+              except Exception as error:
+                  errors.append(f'{path.name}: {error}')
+
+          for name, paths in groups.items():
+              data = ''.join(
+                  ''.join(path.read_text(encoding='utf-8').split())
+                  for path in paths
+                  if path.is_file()
+              )
+              try:
+                  (output / name).write_bytes(base64.b64decode(data, validate=False))
+              except Exception as error:
+                  errors.append(f'{name}: {error}')
+
+          (output / 'decode-errors.txt').write_text('\n'.join(errors) + ('\n' if errors else ''), encoding='utf-8')
+          PY
           cp src/native_session.rs decoded/native-session-branch.rs
           cp src/interactive.rs decoded/interactive-branch.rs
-          sha256sum decoded/* > decoded/SHA256SUMS
+          find decoded -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > decoded/SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
           name: ptymark-decoded-conpty-snapshots
