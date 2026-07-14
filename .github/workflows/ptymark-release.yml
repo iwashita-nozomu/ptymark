@@ -1,9 +1,11 @@
 # @dependency-start
-# contract release publication
-# responsibility Builds, verifies, attests, tags, and publishes immutable Linux, macOS, and Windows prerelease assets.
-# upstream design documents/release.md defines release invariants, assets, verification, and recovery.
-# upstream implementation scripts/check-release-metadata.py, scripts/build-release-manifest.py, and scripts/package-release.* implement release preparation.
-# downstream distribution GitHub Releases publish the verified archives, checksums, manifest, notes, and attestations.
+# contract workflow
+# responsibility Builds, verifies, attests, tags, and publishes immutable prerelease assets.
+# upstream design ../../documents/release.md release invariants and recovery
+# upstream implementation ../../scripts/check-release-metadata.py source validation
+# upstream implementation ../../scripts/build-release-manifest.py checksums and metadata
+# upstream implementation ../../scripts/package-release.sh Unix package assembly
+# upstream implementation ../../scripts/package-release.ps1 Windows package assembly
 # @dependency-end
 
 name: ptymark Release
