@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Captures a bounded serial Windows Rust test run for ConPTY diagnosis.
+# responsibility Captures a bounded serial Windows interactive PTY test run for ConPTY diagnosis.
 # upstream workflow ./ptymark-ci.yml Windows acceptance matrix
 # upstream implementation ../../src/native_session.rs PTY and ConPTY lifecycle
 # downstream evidence GitHub Actions diagnostic artifact
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   diagnose:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -43,7 +43,7 @@ jobs:
           rustup toolchain install 1.97.0 --profile minimal
           rustup override set 1.97.0
 
-      - name: Run serial Rust tests with a deadline
+      - name: Run interactive PTY tests with a deadline
         id: rust-tests
         continue-on-error: true
         shell: pwsh
@@ -53,7 +53,8 @@ jobs:
           $arguments = @(
             'test',
             '--locked',
-            '--all-targets',
+            '--test',
+            'interactive_pty_contract',
             '--',
             '--nocapture',
             '--test-threads=1'
@@ -65,7 +66,7 @@ jobs:
             -RedirectStandardError $stderr `
             -PassThru `
             -NoNewWindow
-          $finished = $process.WaitForExit(600000)
+          $finished = $process.WaitForExit(180000)
           if (-not $finished) {
             taskkill /PID $process.Id /T /F | Out-Null
             $code = 124
@@ -94,5 +95,5 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ steps.rust-tests.outcome }}' -ne 'success') {
-            throw 'Windows Rust tests did not complete successfully; inspect the diagnostic artifact'
+            throw 'Windows interactive PTY tests did not complete successfully; inspect the diagnostic artifact'
           }
