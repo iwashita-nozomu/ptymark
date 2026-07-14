@@ -16,7 +16,9 @@ FILTERED COMMAND RUNNER:
     Child stdin and stderr are inherited directly; stdout is a pipe, not a PTY.
 
 RUN OPTIONS:
-    --source              keep complete semantic blocks as source
+    --source              detect complete blocks but display their exact source
+    --safe                bypass semantic detection and rendering for this session
+    --private             disable cache and persistence-capable diagnostics for this session
     --strict              fail instead of restoring source after renderer errors
     --no-cache            disable the in-memory render cache
     --color               allow ANSI color in terminal renderers

@@ -43,6 +43,9 @@ native Unix PTY or Windows ConPTY host.
 
 ```bash
 ptymark run -- command-that-prints-markdown
+ptymark run --source -- command
+ptymark run --safe -- command
+ptymark run --private -- command
 ptymark run --no-cache -- command
 ptymark run --columns 100 -- command
 ptymark run --strict -- command
@@ -53,6 +56,8 @@ The options mirror the stream controls available to `preview`:
 
 ```text
 --source
+--safe
+--private
 --strict
 --no-cache
 --color
@@ -62,6 +67,11 @@ The options mirror the stream controls available to `preview`:
 
 The `--` separator is mandatory so child arguments can begin with `-` without being interpreted as
 ptymark options.
+
+`--source` keeps block detection but emits exact source, while `--safe` bypasses detection and never
+starts an external renderer or presenter. They are mutually exclusive. `--private` keeps the selected
+rendering behavior while selecting `NoopCache`; it may be combined with either mode. These overrides
+exist only for the current process and are validated before the child is spawned.
 
 ## Deliberate boundary
 

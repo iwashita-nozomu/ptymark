@@ -49,6 +49,7 @@ ptymark.apply_to_config(config, {
   login_shell = login_shell,
   cwd = home,
   label = 'ptymark shell',
+  -- mode = 'safe', -- source | safe | private; applies only to the new session
   key = {
     key = 'P',
     mods = 'CTRL|SHIFT',

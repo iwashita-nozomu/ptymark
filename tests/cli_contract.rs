@@ -63,6 +63,60 @@ fn explicit_source_mode_is_lossless() {
 }
 
 #[test]
+fn safe_mode_is_lossless_without_semantic_detection() {
+    let source = b"```mermaid\nflowchart LR\n  A --> B\n```\n";
+    let mut child = Command::new(binary())
+        .args(["preview", "--safe"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(source)
+        .expect("write");
+    let output = child.wait_with_output().expect("wait");
+    assert!(output.status.success());
+    assert_eq!(output.stdout, source);
+}
+
+#[test]
+fn private_mode_keeps_rendering_enabled() {
+    let mut child = Command::new(binary())
+        .args(["preview", "--private"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"$$\nE = mc^2\n$$\n")
+        .expect("write");
+    let output = child.wait_with_output().expect("wait");
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).expect("UTF-8");
+    assert!(text.contains("ptymark math"));
+    assert!(!text.contains("$$"));
+}
+
+#[test]
+fn source_and_safe_mode_conflict_is_reported() {
+    let output = Command::new(binary())
+        .args(["preview", "--source", "--safe"])
+        .output()
+        .expect("conflicting modes");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("`--source` and `--safe` cannot be combined")
+    );
+}
+
+#[test]
 fn config_check_rejects_unknown_keys() {
     let root = temp_root("config");
     let path = root.join("ptymark.toml");
@@ -89,10 +143,13 @@ fn engine_check_reports_dependency_free_defaults() {
 }
 
 #[test]
-fn help_lists_engine_check() {
+fn help_lists_engine_check_and_session_modes() {
     let output = Command::new(binary()).arg("--help").output().expect("help");
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("engine check"));
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("engine check"));
+    assert!(text.contains("--safe"));
+    assert!(text.contains("--private"));
 }
 
 #[cfg(unix)]
