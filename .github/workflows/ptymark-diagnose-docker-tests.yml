@@ -1,0 +1,75 @@
+# @dependency-start
+# contract workflow
+# responsibility Captures canonical Docker Rust test output for release-candidate diagnosis.
+# upstream environment ../../docker/ptymark-compose.yaml canonical product container
+# upstream workflow ./ptymark-ci.yml production acceptance matrix
+# downstream evidence GitHub Actions diagnostic artifact
+# @dependency-end
+
+name: ptymark diagnose Docker tests
+
+on:
+  pull_request:
+    branches:
+      - agent/filter-command-stdout
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptymark-diagnose-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Build canonical image
+        run: >-
+          docker compose
+          --env-file docker/ptymark-versions.env
+          --file docker/ptymark-compose.yaml
+          build --pull
+
+      - name: Capture Rust test output
+        id: rust-tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          docker compose \
+            --env-file docker/ptymark-versions.env \
+            --file docker/ptymark-compose.yaml \
+            run --rm --no-TTY dev cargo test --locked --all-targets \
+            > docker-test.log 2>&1
+          code=$?
+          printf '%s\n' "$code" > docker-test.exit
+          cat docker-test.log
+          exit "$code"
+
+      - name: Upload Docker test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ptymark-docker-test-diagnostics
+          path: |
+            docker-test.log
+            docker-test.exit
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve test result
+        if: always()
+        run: test '${{ steps.rust-tests.outcome }}' = success
