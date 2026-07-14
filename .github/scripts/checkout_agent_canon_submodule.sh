@@ -34,20 +34,6 @@ cleanup_ssh_key() {
 
 trap cleanup_ssh_key EXIT
 
-github_repo_path() {
-  case "$submodule_url" in
-    https://github.com/*)
-      printf '%s\n' "${submodule_url#https://github.com/}"
-      ;;
-    git@github.com:*)
-      printf '%s\n' "${submodule_url#git@github.com:}"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 if git -C "$submodule_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if [ -n "$(git -C "$submodule_path" status --short --untracked-files=all)" ]; then
     cat >&2 <<EOF
