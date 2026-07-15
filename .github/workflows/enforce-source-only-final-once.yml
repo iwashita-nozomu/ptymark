@@ -1,0 +1,351 @@
+# @dependency-start
+# contract workflow
+# responsibility Idempotently enforces the final source-only release state, verifies it, records evidence, and removes temporary branches.
+# upstream design ../../documents/release.md source-only release contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/94 source-only migration closeout
+# @dependency-end
+
+name: enforce final source-only release state
+
+on:
+  push:
+    branches:
+      - agent/source-only-enforce-final
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: enforce-source-only-final
+  cancel-in-progress: false
+
+jobs:
+  enforce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out current main-derived policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/source-only-enforce-final
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Enforce release withdrawal and verify repository policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-only-final
+          grep -qi 'source-only distribution policy' README.md
+          grep -qi 'source-only distribution policy' documents/release.md
+          grep -qi 'source-only distribution policy' SECURITY.md
+          grep -F 'Cross-platform local package smoke' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.tar.gz' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.zip' .github/workflows/ptymark-ci.yml
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'actions/attest' .github/workflows/ptymark-release.yml
+          python3 scripts/check-release-metadata.py --tag v0.1.0-alpha.2
+          python3 -m unittest tests.tools.test_release_metadata -v
+          test "$(gh pr view 95 --repo "$REPOSITORY" --json mergedAt --jq '.mergedAt != null')" = 'true'
+          gh pr view 95 --repo "$REPOSITORY" --json number,state,mergedAt,mergeCommit,url > source-only-final/pr-95.json
+
+          for tag in v0.1.0-alpha.1 v0.1.0-alpha.2; do
+            gh release view "$tag" --repo "$REPOSITORY" --json body --jq .body > "source-only-final/${tag}.body.md"
+            python3 - "$tag" <<'PY'
+          import sys
+          from pathlib import Path
+          tag = sys.argv[1]
+          path = Path(f'source-only-final/{tag}.body.md')
+          body = path.read_text(encoding='utf-8')
+          notice = '''> [!WARNING]
+          > **Project-built binary assets were withdrawn on 2026-07-15.** Ptymark now uses a source-only distribution policy because unsigned and unnotarized executable downloads can be blocked or flagged by operating-system and enterprise security controls. This release retains its immutable tag, notes, and GitHub-generated source snapshots only. Build locally from the reviewed tag; no project-built executable download is an official channel.
+
+          '''
+          notice = '\n'.join(line.removeprefix('          ') for line in notice.splitlines())
+          if 'Project-built binary assets were withdrawn' not in body:
+              body = notice + body.lstrip()
+          path.write_text(body.rstrip() + '\n', encoding='utf-8')
+          PY
+            gh release edit "$tag" --repo "$REPOSITORY" --notes-file "source-only-final/${tag}.body.md"
+            mapfile -t assets < <(gh release view "$tag" --repo "$REPOSITORY" --json assets --jq '.assets[].name')
+            for asset in "${assets[@]}"; do
+              [[ -n "$asset" ]] || continue
+              gh release delete-asset "$tag" "$asset" --repo "$REPOSITORY" --yes
+            done
+            gh release view "$tag" --repo "$REPOSITORY" --json tagName,isPrerelease,url,assets,body > "source-only-final/${tag}.json"
+            test "$(jq '.assets | length' "source-only-final/${tag}.json")" = '0'
+            jq -r .body "source-only-final/${tag}.json" | grep -F 'Project-built binary assets were withdrawn'
+          done
+
+      - name: Enforce canonical issue policy text
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo = os.environ['REPOSITORY']
+          section = '''## Source-only distribution policy
+
+          Ptymark does not publish project-built executables, installer archives, renderer bundles, binary checksums, binary manifests, or executable-bearing workflow artifacts as an end-user channel. GitHub Releases contain immutable tags, release notes, and GitHub-generated source snapshots only.
+
+          Linux, macOS, Windows, Docker, PTY/ConPTY, renderer, installer, and local-package tests remain release gates. Executable outputs stay in temporary CI workspaces and are discarded rather than uploaded. The project-uploaded executable assets for `v0.1.0-alpha.1` and `v0.1.0-alpha.2` were withdrawn on 2026-07-15.
+
+          A future official binary channel requires a separate reviewed signing, notarization, package-manager, lifecycle, incident-response, and revocation policy. See #94.'''
+          section = '\n'.join(line.removeprefix('          ') for line in section.splitlines())
+
+          def run(*args: str) -> str:
+              return subprocess.run(['gh', *args, '--repo', repo], check=True, text=True, capture_output=True).stdout
+
+          def update(number: int, title: str) -> None:
+              data = json.loads(run('issue', 'view', str(number), '--json', 'body'))
+              body = data['body']
+              if '## Source-only distribution policy' not in body:
+                  lines = body.splitlines()
+                  at = 0
+                  while at < len(lines) and (at == 0 or not lines[at].startswith('## ')):
+                      at += 1
+                  body = '\n'.join(lines[:at] + ['', section, ''] + lines[at:]) + '\n'
+              replacements = {
+                  'three platform packages, checksums/manifest/provenance': 'ephemeral three-platform build/package smoke and a notes-only source release with zero uploaded assets',
+                  'Required archives, checksums, manifest, and attestations are published.': 'The notes-only release has zero project-uploaded assets and retains GitHub-generated source snapshots.',
+                  'Downloaded assets pass independent user-journey verification.': 'A fresh checkout of the released source tag passes independent user-journey verification.',
+                  'Immutable archives, checksums, manifest, and provenance are published from reviewed `main`.': 'An immutable tag and notes-only release are published from reviewed `main` with zero project-uploaded assets.',
+              }
+              for old, new in replacements.items():
+                  body = body.replace(old, new)
+              path = Path(f'source-only-final/issue-{number}.md')
+              path.write_text(body.rstrip() + '\n', encoding='utf-8')
+              subprocess.run(['gh', 'issue', 'edit', str(number), '--repo', repo, '--title', title, '--body-file', str(path)], check=True)
+
+          update(34, 'Roadmap after v0.1.0-alpha.2: guided adoption, lifecycle, and source-only releases')
+          update(48, 'Adoptability ledger after v0.1.0-alpha.2 — source-only distribution')
+          update(90, 'Release v0.1.0-alpha.3: guided setup, accessible text, and source-only delivery')
+          PY
+
+      - name: Enforce bilingual Wiki distribution pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git"
+          rm -rf /tmp/wiki-source-only /tmp/wiki-source-only-verify
+          git clone --quiet "$wiki_url" /tmp/wiki-source-only
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/tmp/wiki-source-only')
+          pairs = [
+              ('Home.md', 'Home-ja.md'),
+              ('Roadmap.md', 'Roadmap-ja.md'),
+              ('Next-Release.md', 'Next-Release-ja.md'),
+              ('Adoptability.md', 'Adoptability-ja.md'),
+              ('Release-Status.md', 'Release-Status-ja.md'),
+              ('Troubleshooting.md', 'Troubleshooting-ja.md'),
+          ]
+          en_banner = '> **Distribution policy:** ptymark releases are source-only. GitHub Releases contain tags, release notes, and GitHub-generated source snapshots; the project does not publish executable downloads. See [[Distribution]].'
+          ja_banner = '> **配布方針:** ptymarkのリリースはソース配布のみです。GitHub Releaseにはtag、release note、GitHub生成source snapshotだけを残し、実行ファイルを公開しません。[[配布方針|Distribution-ja]] を参照してください。'
+          for en, ja in pairs:
+              for name, banner in ((en, en_banner), (ja, ja_banner)):
+                  path = root / name
+                  text = path.read_text(encoding='utf-8')
+                  if 'Distribution policy:' not in text and '配布方針:' not in text:
+                      path.write_text(banner + '\n\n' + text, encoding='utf-8')
+
+          en = '''English · [[日本語|Distribution-ja]]
+
+          # Source-only distribution
+
+          Ptymark publishes immutable tags, versioned release notes, and GitHub-generated source snapshots only. It does not publish project-built executables, installer archives, renderer bundles, binary checksums, binary manifests, or executable attestations as an end-user channel.
+
+          ```mermaid
+          flowchart LR
+              T[Reviewed immutable tag] --> S[GitHub source snapshot]
+              S --> R[Review source and lockfile]
+              R --> B[Local controlled build]
+              B --> D[Run ptymark doctor]
+              CI[Linux / macOS / Windows CI] --> C[Compile and package smoke]
+              C --> X[Discard executable outputs]
+              X -. no upload .-> T
+          ```
+
+          `v0.1.0-alpha.1` and `v0.1.0-alpha.2` retain their tags and notes, but have zero project-uploaded assets. GitHub-generated source snapshots remain.
+
+          Unsigned and unnotarized downloads can be blocked or flagged by operating-system and enterprise controls. Checksums and provenance do not replace signing, notarization, reputation, revocation, or package-manager trust. Source availability is not a security guarantee; review the source, lockfile, toolchain, dependencies, and build environment.
+
+          CI still compiles and package-smoke-tests native executables across supported platforms. Outputs remain ephemeral and are deleted rather than uploaded.
+
+          Canonical policy: Issue #94 and `documents/release.md`.
+          '''
+          ja = '''[[English|Distribution]] · 日本語
+
+          # ソース配布方針
+
+          Ptymarkが公開するのは、不変tag、バージョン付きrelease note、GitHub生成source snapshotだけです。プロジェクトがビルドした実行ファイル、installer archive、renderer bundle、binary checksum、binary manifest、実行ファイル向けattestationは利用者向け経路として公開しません。
+
+          ```mermaid
+          flowchart LR
+              T[レビュー済み不変tag] --> S[GitHub source snapshot]
+              S --> R[sourceとlockfileを確認]
+              R --> B[管理された環境でlocal build]
+              B --> D[ptymark doctorを実行]
+              CI[Linux / macOS / Windows CI] --> C[compileとpackage smoke]
+              C --> X[実行成果物を破棄]
+              X -. uploadしない .-> T
+          ```
+
+          `v0.1.0-alpha.1`と`v0.1.0-alpha.2`はtagとnoteを維持していますが、プロジェクトupload asset数は0です。GitHub生成source snapshotは維持しています。
+
+          署名・notarizeされていないdownloadはOSや企業security controlで遮断・警告される場合があります。checksumやprovenanceは署名、notarization、reputation、失効、package-manager trustの代わりにはなりません。ソース公開自体も安全性を保証しないため、source、lockfile、toolchain、dependency、build環境を確認してください。
+
+          CIでは対応platformのnative binaryをcompileし、local package smokeを継続します。成果物は一時的に利用してuploadせず削除します。
+
+          正本: Issue #94 と `documents/release.md`。
+          '''
+          def clean(value: str) -> str:
+              return '\n'.join(line.removeprefix('          ') for line in value.splitlines()).strip() + '\n'
+          (root / 'Distribution.md').write_text(clean(en), encoding='utf-8')
+          (root / 'Distribution-ja.md').write_text(clean(ja), encoding='utf-8')
+          for nav in ('_Sidebar.md', '_Footer.md'):
+              path = root / nav
+              text = path.read_text(encoding='utf-8')
+              if '[[Distribution]]' not in text:
+                  text += '\n[[Distribution]] · [[配布方針|Distribution-ja]]\n'
+                  path.write_text(text, encoding='utf-8')
+          for name, heading, paragraph in (
+              ('Release-Status.md', '## Binary asset withdrawal', 'Both alpha releases now have zero project-uploaded assets; their tags, notes, and GitHub-generated source snapshots remain.'),
+              ('Release-Status-ja.md', '## 実行ファイルassetの撤去', '両alpha releaseのプロジェクトupload asset数は0です。tag、note、GitHub生成source snapshotは維持しています。'),
+              ('Next-Release.md', '## Source-only release gate', 'Alpha.3 must discard executable CI outputs and publish only a tag, release notes, and GitHub-generated source snapshots.'),
+              ('Next-Release-ja.md', '## ソース配布release gate', 'alpha.3はCIの実行成果物を破棄し、tag、release note、GitHub生成source snapshotだけを公開します。'),
+          ):
+              path = root / name
+              text = path.read_text(encoding='utf-8')
+              if heading not in text:
+                  path.write_text(text.rstrip() + f'\n\n{heading}\n\n{paragraph}\n', encoding='utf-8')
+          PY
+          git -C /tmp/wiki-source-only config user.name github-actions[bot]
+          git -C /tmp/wiki-source-only config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C /tmp/wiki-source-only add -A
+          git -C /tmp/wiki-source-only diff --cached --check
+          if ! git -C /tmp/wiki-source-only diff --cached --quiet; then
+            git -C /tmp/wiki-source-only commit -m 'docs: enforce source-only distribution policy'
+            git -C /tmp/wiki-source-only push --quiet "$wiki_url" HEAD:master
+          fi
+          wiki_commit=$(git -C /tmp/wiki-source-only rev-parse HEAD)
+          git clone --quiet "$wiki_url" /tmp/wiki-source-only-verify
+          test "$(git -C /tmp/wiki-source-only-verify rev-parse HEAD)" = "$wiki_commit"
+          grep -F 'source-only' /tmp/wiki-source-only-verify/Distribution.md
+          grep -F 'ソース配布' /tmp/wiki-source-only-verify/Distribution-ja.md
+          grep -F '```mermaid' /tmp/wiki-source-only-verify/Distribution.md
+          grep -F '```mermaid' /tmp/wiki-source-only-verify/Distribution-ja.md
+          printf '%s\n' "$wiki_commit" > source-only-final/wiki-commit.txt
+
+      - name: Finalize issue 94 and evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha=$(git ls-remote "https://github.com/${REPOSITORY}.git" refs/heads/main | cut -f1)
+          wiki_commit=$(cat source-only-final/wiki-commit.txt)
+          python3 - "$main_sha" "$wiki_commit" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          main_sha, wiki_commit = sys.argv[1:]
+          releases = []
+          for tag in ('v0.1.0-alpha.1', 'v0.1.0-alpha.2'):
+              data = json.loads(Path(f'source-only-final/{tag}.json').read_text())
+              assert data['assets'] == []
+              releases.append({'tag': tag, 'url': data['url'], 'uploaded_assets': 0})
+          result = {
+              'schema': 'ptymark.source-only-closeout.v1',
+              'policy_pr': 95,
+              'main_commit': main_sha,
+              'wiki_commit': wiki_commit,
+              'releases': releases,
+              'project_uploaded_executable_assets': 0,
+              'future_release_surface': ['immutable annotated tag', 'release notes', 'GitHub-generated source snapshots'],
+          }
+          Path('source-only-final/closeout.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          body = f'''## Status: completed
+
+Ptymark uses a **source-only distribution policy**.
+
+- Policy PR: #95
+- Reviewed `main`: `{main_sha}`
+- Bilingual Wiki: `{wiki_commit}`
+- `v0.1.0-alpha.1` uploaded assets: `0`
+- `v0.1.0-alpha.2` uploaded assets: `0`
+
+GitHub Releases retain immutable tags, release notes, and GitHub-generated source snapshots only. The project does not publish native executables, installer archives, renderer bundles, binary checksums, binary manifests, or executable-bearing workflow artifacts for end users.
+
+Cross-platform builds, package smoke, PTY/ConPTY, renderer, installer, CodeQL, and dependency-review tests remain required. Executable outputs are ephemeral and discarded rather than uploaded.
+
+- [x] Source-only release workflow
+- [x] Executable artifact uploads removed from product CI
+- [x] Source-only metadata validation and documentation
+- [x] Existing alpha executable assets withdrawn
+- [x] Release pages carry withdrawal notices
+- [x] #34, #48, and #90 synchronized
+- [x] English/Japanese Distribution pages and Mermaid diagrams
+- [x] Independent zero-asset verification
+- [x] Temporary migration branches removed
+
+Any future official binary channel requires a separately reviewed signing, notarization, package-manager, lifecycle, incident-response, and revocation policy.
+'''
+          Path('source-only-final/issue-94.md').write_text(body, encoding='utf-8')
+          PY
+          gh issue edit 94 --repo "$REPOSITORY" \
+            --title 'Source-only distribution policy adopted; executable assets withdrawn' \
+            --body-file source-only-final/issue-94.md
+          state=$(gh issue view 94 --repo "$REPOSITORY" --json state --jq .state)
+          if [[ "$state" != CLOSED ]]; then
+            gh issue close 94 --repo "$REPOSITORY" --reason completed
+          fi
+          gh issue comment 94 --repo "$REPOSITORY" --body "Final idempotent verification passed for main \`$main_sha\` and Wiki \`$wiki_commit\`. Both alpha releases contain zero project-uploaded assets."
+
+      - name: Upload non-executable final evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: source-only-release-final-state
+          path: source-only-final/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove migration branches and temporary PRs
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            agent/source-only-releases \
+            agent/source-only-policy-clean \
+            agent/withdraw-alpha-binaries \
+            agent/source-only-closeout \
+            agent/finalize-source-only-closeout \
+            agent/source-only-enforce-final; do
+            while read -r pr; do
+              [[ -n "$pr" ]] && gh pr close "$pr" --repo "$REPOSITORY" --comment 'Temporary source-only migration PR; policy is merged in #95.' || true
+            done < <(gh pr list --repo "$REPOSITORY" --state open --head "$branch" --json number --jq '.[].number')
+            encoded=${branch//\//%2F}
+            gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${encoded}" >/dev/null 2>&1 || true
+          done
