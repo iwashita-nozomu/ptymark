@@ -1,0 +1,150 @@
+# @dependency-start
+# contract workflow
+# responsibility Withdraws previously uploaded executable release assets after the source-only policy is merged, verifies zero uploaded assets, records evidence, and removes itself with its branch.
+# upstream design ../../documents/release.md source-only distribution contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/94 source-only migration closeout
+# @dependency-end
+
+name: withdraw published alpha executable assets
+
+on:
+  push:
+    branches:
+      - agent/withdraw-alpha-binaries
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: withdraw-alpha-binaries
+  cancel-in-progress: false
+
+jobs:
+  withdraw:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out policy commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/withdraw-alpha-binaries
+          submodules: false
+          persist-credentials: false
+
+      - name: Confirm source-only policy is merged
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -qi 'source-only distribution policy' documents/release.md
+          grep -qi 'source-only distribution policy' README.md
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'actions/attest' .github/workflows/ptymark-release.yml
+
+      - name: Withdraw executable assets and add release notices
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p withdrawal-evidence
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          Path('withdrawal-evidence/result.json').write_text(
+              json.dumps({'schema': 'ptymark.source-only-withdrawal.v1', 'releases': []}, indent=2) + '\n'
+          )
+          PY
+
+          for tag in v0.1.0-alpha.1 v0.1.0-alpha.2; do
+            gh release view "$tag" --repo "$REPOSITORY" --json body --jq .body > "withdrawal-evidence/${tag}.body.before.md"
+            python3 - "$tag" <<'PY'
+          import sys
+          from pathlib import Path
+          tag = sys.argv[1]
+          path = Path(f'withdrawal-evidence/{tag}.body.before.md')
+          body = path.read_text(encoding='utf-8')
+          notice = '''> [!WARNING]
+          > **Project-built binary assets were withdrawn on 2026-07-15.** Ptymark now uses a source-only distribution policy because unsigned and unnotarized executable downloads can be blocked or flagged by operating-system and enterprise security controls. This release retains its immutable tag, notes, and GitHub-generated source snapshots only. Build locally from the reviewed tag; no project-built executable download is an official channel.
+
+          '''
+          notice = '\n'.join(line.removeprefix('          ') for line in notice.splitlines())
+          if 'Project-built binary assets were withdrawn' not in body:
+              body = notice + body.lstrip()
+          Path(f'withdrawal-evidence/{tag}.body.after.md').write_text(body.rstrip() + '\n', encoding='utf-8')
+          PY
+            gh release edit "$tag" --repo "$REPOSITORY" --notes-file "withdrawal-evidence/${tag}.body.after.md"
+
+            mapfile -t assets < <(gh release view "$tag" --repo "$REPOSITORY" --json assets --jq '.assets[].name')
+            printf '%s\n' "${assets[@]}" > "withdrawal-evidence/${tag}.removed-assets.txt"
+            for asset in "${assets[@]}"; do
+              [[ -n "$asset" ]] || continue
+              gh release delete-asset "$tag" "$asset" --repo "$REPOSITORY" --yes
+            done
+
+            remaining=$(gh release view "$tag" --repo "$REPOSITORY" --json assets --jq '.assets | length')
+            test "$remaining" = '0'
+            gh release view "$tag" --repo "$REPOSITORY" --json tagName,isPrerelease,url,assets > "withdrawal-evidence/${tag}.after.json"
+          done
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          result = {'schema': 'ptymark.source-only-withdrawal.v1', 'releases': []}
+          for tag in ('v0.1.0-alpha.1', 'v0.1.0-alpha.2'):
+              after = json.loads(Path(f'withdrawal-evidence/{tag}.after.json').read_text())
+              removed = [line for line in Path(f'withdrawal-evidence/{tag}.removed-assets.txt').read_text().splitlines() if line]
+              assert after['assets'] == [], after
+              result['releases'].append({
+                  'tag': tag,
+                  'url': after['url'],
+                  'prerelease': after['isPrerelease'],
+                  'removed_assets': removed,
+                  'remaining_uploaded_assets': 0,
+                  'source_archives': 'GitHub-generated tag snapshots only',
+              })
+          Path('withdrawal-evidence/result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Record source-only withdrawal on issue 94
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > withdrawal-evidence/issue-comment.md
+          import json
+          from pathlib import Path
+          data = json.loads(Path('withdrawal-evidence/result.json').read_text())
+          print('## Existing executable release assets withdrawn')
+          print()
+          print('The source-only distribution policy is active. The immutable tags and release notes remain, while project-uploaded executable assets have been removed.')
+          print()
+          for release in data['releases']:
+              print(f"- `{release['tag']}`: removed {len(release['removed_assets'])} uploaded asset(s); remaining uploaded assets = `0`.")
+          print()
+          print('GitHub-generated source-code snapshots remain available for each tag. CI continues to compile and package locally for verification, but executable outputs are not uploaded or distributed.')
+          PY
+          gh issue comment 94 --repo "$REPOSITORY" --body-file withdrawal-evidence/issue-comment.md
+
+      - name: Upload non-executable withdrawal evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: source-only-release-withdrawal-evidence
+          path: withdrawal-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent%2Fwithdraw-alpha-binaries"
