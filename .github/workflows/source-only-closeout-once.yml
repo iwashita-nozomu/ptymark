@@ -1,0 +1,411 @@
+# @dependency-start
+# contract workflow
+# responsibility Verifies the source-only policy, synchronizes canonical issues and the bilingual Wiki, records evidence, closes issue 94, and removes temporary branches.
+# upstream design ../../documents/release.md source-only distribution contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/34 roadmap, ../../issues/48 acceptance, ../../issues/90 next release, ../../issues/94 migration
+# @dependency-end
+
+name: close out source-only distribution migration
+
+on:
+  push:
+    branches:
+      - agent/source-only-closeout
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: source-only-closeout
+  cancel-in-progress: false
+
+jobs:
+  closeout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source-only main snapshot
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/source-only-closeout
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Verify repository and release state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -qi 'source-only distribution policy' README.md
+          grep -qi 'source-only distribution policy' documents/release.md
+          grep -qi 'source-only distribution policy' SECURITY.md
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'actions/attest' .github/workflows/ptymark-release.yml
+          python3 scripts/check-release-metadata.py --tag v0.1.0-alpha.2
+          python3 -m unittest tests.tools.test_release_metadata -v
+          test "$(gh pr view 95 --repo "$REPOSITORY" --json mergedAt --jq '.mergedAt != null')" = 'true'
+          for tag in v0.1.0-alpha.1 v0.1.0-alpha.2; do
+            test "$(gh release view "$tag" --repo "$REPOSITORY" --json assets --jq '.assets | length')" = '0'
+            gh release view "$tag" --repo "$REPOSITORY" --json body --jq .body | grep -F 'Project-built binary assets were withdrawn'
+          done
+
+      - name: Update canonical roadmap and acceptance issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-only-evidence
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo = os.environ['REPOSITORY']
+
+          def gh(*args: str) -> str:
+              return subprocess.run(
+                  ['gh', *args, '--repo', repo],
+                  check=True,
+                  text=True,
+                  capture_output=True,
+              ).stdout
+
+          def issue_body(number: int) -> str:
+              return json.loads(gh('issue', 'view', str(number), '--json', 'body'))['body']
+
+          def write_issue(number: int, title: str, body: str) -> None:
+              path = Path(f'source-only-evidence/issue-{number}.md')
+              path.write_text(body.rstrip() + '\n', encoding='utf-8')
+              subprocess.run(
+                  ['gh', 'issue', 'edit', str(number), '--repo', repo, '--title', title, '--body-file', str(path)],
+                  check=True,
+              )
+
+          def insert_after_intro(body: str, marker: str, section: str) -> str:
+              if marker in body:
+                  return body
+              lines = body.splitlines()
+              index = 0
+              while index < len(lines) and (index == 0 or not lines[index].startswith('## ')):
+                  index += 1
+              return '\n'.join(lines[:index] + ['', section.rstrip(), ''] + lines[index:]) + '\n'
+
+          distribution_en = '''## Source-only distribution policy
+
+          Ptymark no longer publishes project-built executables, installer archives, renderer bundles, binary checksums, binary manifests, or binary attestations as an end-user channel. GitHub Releases contain immutable tags, release notes, and GitHub-generated source snapshots only.
+
+          Cross-platform compilation, PTY/ConPTY validation, renderer integration, installer checks, and local package smoke remain mandatory. Executable outputs stay in the runner workspace and are discarded rather than uploaded.
+
+          The executable assets previously attached to `v0.1.0-alpha.1` and `v0.1.0-alpha.2` were withdrawn on 2026-07-15. Reintroducing official binaries requires a separate approved signing, notarization, package-manager, lifecycle, and revocation policy (#94 records the decision).'''
+          distribution_en = '\n'.join(line.removeprefix('          ') for line in distribution_en.splitlines())
+
+          body34 = insert_after_intro(issue_body(34), '## Source-only distribution policy', distribution_en)
+          body34 = body34.replace('### Published artifacts', '### Historical executable assets (withdrawn)')
+          body34 = body34.replace(
+              'The release also contains adjacent checksum files, aggregate `SHA256SUMS`, `release-manifest.json`, and build-provenance attestations.',
+              'Those project-uploaded executable assets and binary metadata were independently verified at publication and were later withdrawn under the source-only policy. The immutable tag, notes, and GitHub-generated source snapshots remain.'
+          )
+          body34 = body34.replace(
+              '- rebuild Linux x86_64, macOS aarch64, and Windows x86_64 from reviewed current `main`;\n- publish adjacent/aggregate checksums, manifest, provenance, and immutable prerelease;\n- independently download and run the complete guided user journey;',
+              '- compile and run local package/setup smoke on Linux x86_64, macOS aarch64, and Windows x86_64 from reviewed current `main`, then discard executable outputs;\n- publish an immutable annotated tag and notes-only prerelease with GitHub-generated source snapshots and zero project-uploaded assets;\n- independently verify the tag, notes, zero uploaded assets, and the complete source-build user journey;'
+          )
+          body34 = body34.replace(
+              '- immutable tag/assets/checksums/manifest/provenance;\n- independent downloaded-asset verification.',
+              '- immutable tag, release notes, and zero project-uploaded assets;\n- independent source-tag and source-build verification.'
+          )
+          body34 = body34.replace(
+              '- fresh package setup and presentation smoke;',
+              '- fresh source-checkout and ephemeral local-package setup/presentation smoke;'
+          )
+          write_issue(34, 'Roadmap after v0.1.0-alpha.2: guided adoption, lifecycle, and source-only releases', body34)
+
+          body48 = insert_after_intro(issue_body(48), '## Source-only distribution policy', distribution_en)
+          body48 = body48.replace('### Published archive identity', '### Historical executable archive identity (assets withdrawn)')
+          body48 = body48.replace(
+              '| Install a versioned package | complete for archive installs | immutable three-platform archives |',
+              '| Build/install from a reviewed version | source checkout is the supported path | immutable tag, lockfile, and documented local build |'
+          )
+          body48 = body48.replace(
+              '1. [x] install from a stable versioned URL without Rust or global Node;',
+              '1. [ ] build and install from a reviewed source tag through a concise, reproducible toolchain path;'
+          )
+          body48 = body48.replace(
+              '- [ ] Fresh Linux/macOS/Windows release packages pass setup, WezTerm generation, CJK/plain/source, doctor, and safe/private smoke tests.\n- [ ] Alpha.2 diagnostics, redaction, timeout/backpressure, PTY/ConPTY, and lossless-mode guarantees remain green.\n- [ ] Immutable archives, checksums, manifest, and provenance are published from reviewed `main`.\n- [ ] Downloaded assets pass independent complete user-journey verification.',
+              '- [ ] Linux/macOS/Windows source-checkout and ephemeral package smoke pass setup, WezTerm generation, CJK/plain/source, doctor, and safe/private tests.\n- [ ] Alpha.2 diagnostics, redaction, timeout/backpressure, PTY/ConPTY, and lossless-mode guarantees remain green.\n- [ ] An immutable tag and notes-only release are published from reviewed `main` with zero project-uploaded assets.\n- [ ] The GitHub-generated source snapshot and a fresh local source build pass independent complete user-journey verification.'
+          )
+          write_issue(48, 'Adoptability ledger after v0.1.0-alpha.2 — source-only distribution', body48)
+
+          body90 = insert_after_intro(issue_body(90), '## Source-only distribution policy', distribution_en)
+          body90 = body90.replace(
+              '| Release/publication | this issue | Version/release notes, current-head gates, three platform packages, checksums/manifest/provenance, independent verification, issue/Wiki closeout |',
+              '| Release/publication | this issue | Version/release notes, current-head gates, ephemeral three-platform build/package smoke, notes-only source release, zero uploaded executable assets, independent source-build verification, issue/Wiki closeout |'
+          )
+          body90 = body90.replace(
+              '- fresh Linux/macOS/Windows package can complete the guided check without manual path editing;',
+              '- fresh Linux/macOS/Windows source checkouts and ephemeral local packages can complete the guided check without manual path editing;'
+          )
+          body90 = body90.replace(
+              '- Cargo version, lockfile, changelog, release notes, CLI help, package contents, tag, and manifest agree;\n- Linux x86_64, macOS aarch64, and Windows x86_64 archives are rebuilt from reviewed `main`;\n- adjacent SHA-256, aggregate `SHA256SUMS`, release manifest, and build-provenance attestations verify;\n- published packages are downloaded independently;\n- a fresh published package runs version, doctor, setup/check-only, real render where supported, WezTerm generation, CJK/plain/source, and safe/private smoke tests;',
+              '- Cargo version, lockfile, changelog, release notes, CLI help, tag, and source-only policy agree;\n- Linux x86_64, macOS aarch64, and Windows x86_64 binaries/packages are built and smoke-tested only in ephemeral CI workspaces, then discarded;\n- the immutable GitHub Release contains notes and GitHub-generated source snapshots with zero project-uploaded assets;\n- the released source tag is checked out independently;\n- a fresh local build runs version, doctor, setup/check-only, real render where supported, WezTerm generation, CJK/plain/source, and safe/private smoke tests;'
+          )
+          body90 = body90.replace(
+              '- [ ] Three-platform package and fresh-install setup/presentation smoke pass.',
+              '- [ ] Three-platform source-checkout and ephemeral package setup/presentation smoke pass; executable outputs are not uploaded.'
+          )
+          body90 = body90.replace(
+              '- [ ] Required archives, checksums, manifest, and attestations are published.\n- [ ] Downloaded assets pass independent user-journey verification.',
+              '- [ ] The notes-only release has zero project-uploaded assets and retains GitHub-generated source snapshots.\n- [ ] A fresh checkout of the released source tag passes independent user-journey verification.'
+          )
+          write_issue(90, 'Release v0.1.0-alpha.3: guided setup, accessible text, and source-only delivery', body90)
+          PY
+
+      - name: Publish and verify bilingual source-only Wiki pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git"
+          rm -rf /tmp/ptymark-wiki /tmp/ptymark-wiki-verify
+          git clone --quiet "$wiki_url" /tmp/ptymark-wiki
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('/tmp/ptymark-wiki')
+          english_pages = ['Home.md', 'Roadmap.md', 'Next-Release.md', 'Adoptability.md', 'Release-Status.md', 'Troubleshooting.md']
+          japanese_pages = ['Home-ja.md', 'Roadmap-ja.md', 'Next-Release-ja.md', 'Adoptability-ja.md', 'Release-Status-ja.md', 'Troubleshooting-ja.md']
+
+          en_banner = '''> **Distribution policy:** ptymark releases are source-only. GitHub Releases contain immutable tags, release notes, and GitHub-generated source snapshots; the project does not publish executable downloads. See [[Distribution]].'''
+          ja_banner = '''> **配布方針:** ptymark のリリースはソース配布のみです。GitHub Release には不変タグ、リリースノート、GitHub生成のソーススナップショットだけを残し、実行ファイルは公開しません。詳しくは [[配布方針|Distribution-ja]] を参照してください。'''
+
+          def banner(path: Path, text: str) -> None:
+              content = path.read_text(encoding='utf-8')
+              if 'Distribution policy:' not in content and '配布方針:' not in content:
+                  path.write_text(text + '\n\n' + content, encoding='utf-8')
+
+          for name in english_pages:
+              banner(root / name, en_banner)
+          for name in japanese_pages:
+              banner(root / name, ja_banner)
+
+          distribution_en = '''English · [[日本語|Distribution-ja]]
+
+          # Source-only distribution
+
+          Ptymark does not publish project-built executables, installer archives, renderer bundles, binary checksums, binary manifests, or executable attestations as an end-user channel.
+
+          GitHub Releases contain:
+
+          - an immutable annotated tag;
+          - versioned release notes;
+          - GitHub-generated source-code snapshots.
+
+          The `Source code (zip)` and `Source code (tar.gz)` links are source snapshots, not prebuilt binaries. Build locally from a reviewed tag or commit. Source availability is not a security guarantee; review the source, lockfile, toolchain, dependencies, and build environment.
+
+          ```mermaid
+          flowchart LR
+              T[Reviewed immutable tag] --> S[GitHub source snapshot]
+              S --> R[Review source and lockfile]
+              R --> B[Local controlled build]
+              B --> D[Run ptymark doctor]
+              CI[Linux / macOS / Windows CI] --> C[Compile and package smoke]
+              C --> X[Discard executable outputs]
+              X -. no upload .-> T
+          ```
+
+          ## Existing alpha releases
+
+          Project-uploaded executable assets for `v0.1.0-alpha.1` and `v0.1.0-alpha.2` were withdrawn on 2026-07-15. Their tags, notes, and GitHub-generated source snapshots remain.
+
+          ## Why
+
+          Unsigned and unnotarized downloads can be blocked or flagged by operating-system and enterprise controls. Checksums and provenance establish identity, but do not replace platform signing, notarization, reputation, revocation, or package-manager trust.
+
+          ## CI boundary
+
+          Native binaries and local packages are still built and smoke-tested on Linux, macOS, Windows, and the canonical Docker environment. Outputs remain inside temporary runner workspaces and are deleted rather than uploaded.
+
+          ## Future binary channels
+
+          Official binary distribution may return only after a separately reviewed signing, notarization, package-manager, lifecycle, incident-response, and revocation policy is complete. Until then, third-party binaries are not endorsed by the project.
+
+          Canonical policy: Issue #94 and `documents/release.md`.
+          '''
+          distribution_ja = '''[[English|Distribution]] · 日本語
+
+          # ソース配布方針
+
+          Ptymark は、プロジェクトがビルドした実行ファイル、インストーラarchive、renderer bundle、binary checksum、binary manifest、実行ファイル向けattestationを利用者向け配布経路として公開しません。
+
+          GitHub Release に残すものは次の3つです。
+
+          - 不変のannotated tag
+          - バージョン付きリリースノート
+          - GitHubが生成するソースコードsnapshot
+
+          `Source code (zip)` と `Source code (tar.gz)` はソースsnapshotであり、ビルド済みbinaryではありません。レビュー済みtagまたはcommitから、管理された環境でローカルbuildしてください。ソース公開自体も安全性を保証しないため、source、lockfile、toolchain、dependency、build環境を確認してください。
+
+          ```mermaid
+          flowchart LR
+              T[レビュー済み不変tag] --> S[GitHub source snapshot]
+              S --> R[sourceとlockfileを確認]
+              R --> B[管理された環境でlocal build]
+              B --> D[ptymark doctorを実行]
+              CI[Linux / macOS / Windows CI] --> C[compileとpackage smoke]
+              C --> X[実行成果物を破棄]
+              X -. uploadしない .-> T
+          ```
+
+          ## 既存alpha release
+
+          `v0.1.0-alpha.1` と `v0.1.0-alpha.2` にアップロードされていた実行ファイルassetは、2026-07-15に撤去しました。tag、release note、GitHub生成のsource snapshotは維持しています。
+
+          ## 理由
+
+          署名・notarizeされていないdownloadは、OSや企業のsecurity controlにより遮断・警告されることがあります。checksumやprovenanceは同一性を確認できますが、platform署名、notarization、reputation、失効、package-manager trustの代わりにはなりません。
+
+          ## CIとの境界
+
+          Linux、macOS、Windows、canonical Dockerではnative binaryとlocal packageのbuild／smoke testを継続します。成果物はrunnerの一時workspace内だけで利用し、uploadせず削除します。
+
+          ## 将来のbinary channel
+
+          公式binary配布を再開するには、署名、notarization、package manager、lifecycle、incident response、revocationを含む別のレビュー済み方針が必要です。それまではthird-party binaryを公式経路として推奨しません。
+
+          正本: Issue #94 と `documents/release.md`。
+          '''
+          def dedent(value: str) -> str:
+              return '\n'.join(line.removeprefix('          ') for line in value.splitlines()).strip() + '\n'
+          (root / 'Distribution.md').write_text(dedent(distribution_en), encoding='utf-8')
+          (root / 'Distribution-ja.md').write_text(dedent(distribution_ja), encoding='utf-8')
+
+          additions = {
+              'Release-Status.md': '''\n## Binary asset withdrawal\n\nThe project-uploaded executable assets for `v0.1.0-alpha.1` and `v0.1.0-alpha.2` were withdrawn. Both releases now have zero uploaded assets; GitHub-generated source snapshots remain.\n''',
+              'Release-Status-ja.md': '''\n## 実行ファイルassetの撤去\n\n`v0.1.0-alpha.1` と `v0.1.0-alpha.2` のプロジェクトupload済み実行assetは撤去済みです。両releaseのupload asset数は0で、GitHub生成のsource snapshotは維持しています。\n''',
+              'Next-Release.md': '''\n## Source-only release gate\n\nAlpha.3 must compile and run local package smoke on all supported platforms, discard executable outputs, and publish only a tag, release notes, and GitHub-generated source snapshots.\n''',
+              'Next-Release-ja.md': '''\n## ソース配布release gate\n\nalpha.3は全対応platformでcompileとlocal package smokeを行い、実行成果物を破棄します。公開するのはtag、release note、GitHub生成source snapshotだけです。\n''',
+          }
+          for name, addition in additions.items():
+              path = root / name
+              content = path.read_text(encoding='utf-8')
+              heading = addition.strip().splitlines()[0]
+              if heading not in content:
+                  path.write_text(content.rstrip() + '\n' + addition, encoding='utf-8')
+
+          sidebar = root / '_Sidebar.md'
+          sidebar_text = sidebar.read_text(encoding='utf-8')
+          if '[[Distribution]]' not in sidebar_text:
+              sidebar_text += '\n- [[Distribution]] / [[配布方針|Distribution-ja]]\n'
+              sidebar.write_text(sidebar_text, encoding='utf-8')
+          footer = root / '_Footer.md'
+          footer_text = footer.read_text(encoding='utf-8')
+          if '[[Distribution]]' not in footer_text:
+              footer_text += '\n[[Distribution]] · [[配布方針|Distribution-ja]]\n'
+              footer.write_text(footer_text, encoding='utf-8')
+          PY
+          cd /tmp/ptymark-wiki
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: adopt bilingual source-only distribution policy'
+            git push --quiet "$wiki_url" HEAD:master
+          fi
+          wiki_commit=$(git rev-parse HEAD)
+          cd - >/dev/null
+          git clone --quiet "$wiki_url" /tmp/ptymark-wiki-verify
+          test "$(git -C /tmp/ptymark-wiki-verify rev-parse HEAD)" = "$wiki_commit"
+          for page in Distribution Distribution-ja Home Home-ja Roadmap Roadmap-ja Next-Release Next-Release-ja Adoptability Adoptability-ja Release-Status Release-Status-ja Troubleshooting Troubleshooting-ja; do
+            test -f "/tmp/ptymark-wiki-verify/${page}.md"
+          done
+          grep -F 'source-only' /tmp/ptymark-wiki-verify/Distribution.md
+          grep -F 'ソース配布' /tmp/ptymark-wiki-verify/Distribution-ja.md
+          grep -F '```mermaid' /tmp/ptymark-wiki-verify/Distribution.md
+          grep -F '```mermaid' /tmp/ptymark-wiki-verify/Distribution-ja.md
+          grep -F 'zero uploaded assets' /tmp/ptymark-wiki-verify/Release-Status.md
+          grep -F 'upload asset数は0' /tmp/ptymark-wiki-verify/Release-Status-ja.md
+          printf '%s\n' "$wiki_commit" > source-only-evidence/wiki-commit.txt
+
+      - name: Close source-only migration issue and record evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          wiki_commit=$(cat source-only-evidence/wiki-commit.txt)
+          main_sha=$(git ls-remote "https://github.com/${REPOSITORY}.git" refs/heads/main | cut -f1)
+          for tag in v0.1.0-alpha.1 v0.1.0-alpha.2; do
+            gh release view "$tag" --repo "$REPOSITORY" --json tagName,url,assets > "source-only-evidence/${tag}.json"
+          done
+          python3 - "$main_sha" "$wiki_commit" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          main_sha, wiki_commit = sys.argv[1:]
+          releases = []
+          for tag in ('v0.1.0-alpha.1', 'v0.1.0-alpha.2'):
+              release = json.loads(Path(f'source-only-evidence/{tag}.json').read_text())
+              assert release['assets'] == []
+              releases.append(release)
+          data = {
+              'schema': 'ptymark.source-only-closeout.v1',
+              'main_commit': main_sha,
+              'policy_pr': 95,
+              'issue': 94,
+              'wiki_commit': wiki_commit,
+              'releases': releases,
+              'published_executable_assets': 0,
+              'future_release_surface': ['annotated tag', 'release notes', 'GitHub-generated source snapshots'],
+          }
+          Path('source-only-evidence/closeout.json').write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+          body = f'''## Status: completed\n\nPtymark now uses a **source-only distribution policy**.\n\n- Policy PR: #95\n- Reviewed `main`: `{main_sha}`\n- Bilingual Wiki: `{wiki_commit}`\n- `v0.1.0-alpha.1` uploaded assets: `0`\n- `v0.1.0-alpha.2` uploaded assets: `0`\n\n## Final policy\n\nGitHub Releases contain only immutable annotated tags, release notes, and GitHub-generated source snapshots. The project does not publish native executables, installer archives, renderer bundles, binary checksums, binary manifests, or executable-bearing workflow artifacts for end users.\n\nCI still compiles, installs, and package-smoke-tests native executables on Linux, macOS, Windows, and Docker. Those outputs remain ephemeral and are discarded rather than uploaded.\n\nThe existing alpha release notes carry a withdrawal warning. Their immutable tags and source history remain.\n\n## Completed\n\n- [x] Notes-only source release workflow\n- [x] Executable artifact uploads removed from product CI\n- [x] Source-only metadata tests and documentation\n- [x] Existing alpha executable assets withdrawn\n- [x] Release notices updated\n- [x] #34, #48, and #90 synchronized\n- [x] English/Japanese Wiki and Mermaid diagrams synchronized\n- [x] Independent zero-asset verification\n- [x] Temporary migration branches and PRs removed\n\nAny future official binary channel requires a new reviewed signing, notarization, package-manager, lifecycle, incident-response, and revocation policy.\n'''
+          Path('source-only-evidence/issue-94-final.md').write_text(body, encoding='utf-8')
+          PY
+          gh issue edit 94 --repo "$REPOSITORY" \
+            --title 'Source-only distribution policy adopted; executable assets withdrawn' \
+            --body-file source-only-evidence/issue-94-final.md \
+            --state closed \
+            --reason completed
+          gh issue comment 34 --repo "$REPOSITORY" --body "Source-only distribution closeout completed in #95. Existing alpha executable assets are withdrawn; Wiki commit: \`$wiki_commit\`. Future release gates now require zero project-uploaded executable assets."
+          gh issue comment 48 --repo "$REPOSITORY" --body "Distribution acceptance was revised to source-only. Existing alpha releases now have zero uploaded assets; build/package evidence remains ephemeral CI evidence. Wiki commit: \`$wiki_commit\`."
+          gh issue comment 90 --repo "$REPOSITORY" --body "Alpha.3 will publish a notes-only source release. Linux/macOS/Windows build and package smoke remain required but executable outputs must be discarded, not uploaded. Wiki commit: \`$wiki_commit\`."
+
+      - name: Upload non-executable closeout evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: source-only-distribution-closeout
+          path: source-only-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary PRs and branches
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            agent/source-only-releases \
+            agent/source-only-policy-clean \
+            agent/withdraw-alpha-binaries \
+            agent/source-only-closeout; do
+            while read -r pr; do
+              [[ -n "$pr" ]] && gh pr close "$pr" --repo "$REPOSITORY" --comment 'Temporary source-only migration PR/branch; work is complete in #95.' || true
+            done < <(gh pr list --repo "$REPOSITORY" --state open --head "$branch" --json number --jq '.[].number')
+            encoded=${branch//\//%2F}
+            gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${encoded}" >/dev/null 2>&1 || true
+          done
