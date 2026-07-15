@@ -41,10 +41,10 @@ The following are execution-environment details, not product dependency sources:
 - the generic AgentCanon/Python/Jupyter repository environment;
 - software preinstalled on GitHub-hosted runners.
 
-Those surfaces may be changed when their own build or CI requirements change, but this
-dependency check does not inventory or pin them. Runtime executable discovery,
-browser compatibility, external presenter selection, and managed-bundle lifecycle
-remain owned by issue #16.
+The alignment checker does not read any file under `docker/`. Those surfaces may be
+changed when their own build or CI requirements change without expanding this product
+dependency contract. Runtime executable discovery, browser compatibility, external
+presenter selection, and managed-bundle lifecycle remain owned by issue #16.
 
 ## Sources of truth
 
