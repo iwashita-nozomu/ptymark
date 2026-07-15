@@ -1,45 +1,40 @@
 # @dependency-start
 # contract environment
-# responsibility Pins Python packages installed in the container runtime.
-# upstream environment README.md docker runtime guidance
-# upstream environment Dockerfile installs Python dependencies
+# responsibility Provides the generated full Python development aggregate for compatibility installers.
+# upstream environment requirements-runtime.txt canonical workload runtime dependencies
+# upstream environment requirements-dev.txt canonical verification-only dependencies
+# upstream tool ../scripts/check-python-dependency-layers.py validates and regenerates this aggregate
+# downstream implementation install_python_dependencies.sh default verification profile
 # @dependency-end
-# Core numerical computing
+# Generated file. Edit requirements-runtime.txt or requirements-dev.txt, then run:
+# python3 scripts/check-python-dependency-layers.py --write
+
+# Runtime dependencies
 jax
 jaxtyping
 typeguard
 equinox
 optax
 scipy
-scipy-stubs
+jupyterlab
+notebook
+ipykernel
+pydantic>=2.13.4
 
-# Testing
+# Verification dependencies
 pytest>=9.1.1
-
-# Development & Analysis
+scipy-stubs
 pyright
+pydocstyle
+ruff
 pydeps
 pipdeptree
 deptry
 snakeviz
 psutil
-pydocstyle
-ruff
-
-# Notebook Runtime
-jupyterlab
-notebook
-ipykernel
-
-# Documentation & Formatting
 mdformat
 mdformat-myst
 pyyaml>=6.0.3
 tomli>=2.4.1
-
-# Security & Audit
 jsonschema>=4.26.0
 cryptography>=49.0.0
-
-# Data validation
-pydantic>=2.13.4
