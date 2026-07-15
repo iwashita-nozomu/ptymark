@@ -1,0 +1,30 @@
+# @dependency-start
+# contract environment
+# responsibility Pins Python packages used only for verification, analysis, documentation, and audits.
+# upstream environment README.md repository validation guidance
+# downstream environment requirements.txt generated full development aggregate
+# downstream implementation install_python_dependencies.sh verification installation profile
+# downstream design ../documents/dependency-layers.md dependency ownership and upgrade rules
+# @dependency-end
+
+# Tests and static analysis
+pytest>=9.1.1
+scipy-stubs
+pyright
+pydocstyle
+ruff
+
+# Dependency and performance analysis
+pydeps
+pipdeptree
+deptry
+snakeviz
+psutil
+
+# Documentation and metadata validation
+mdformat
+mdformat-myst
+pyyaml>=6.0.3
+tomli>=2.4.1
+jsonschema>=4.26.0
+cryptography>=49.0.0

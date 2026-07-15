@@ -3,7 +3,9 @@
 # responsibility Schedules security-focused dependency updates for every supported package ecosystem.
 # upstream implementation ../Cargo.toml Rust dependency manifest
 # upstream implementation ../renderers/package-lock.json renderer dependency lock
-# upstream environment ../docker/requirements.txt Python tooling dependencies
+# upstream implementation ../pyproject.toml Python project metadata
+# upstream environment ../docker/requirements-runtime.txt Python workload runtime dependencies
+# upstream environment ../docker/requirements-dev.txt Python verification dependencies
 # downstream implementation ./workflows/dependency-review.yml validates dependency changes in pull requests
 # @dependency-end
 
@@ -37,6 +39,8 @@ updates:
 
   - package-ecosystem: pip
     directory: "/"
+    exclude-paths:
+      - "docker/**"
     schedule:
       interval: weekly
       day: monday
@@ -44,7 +48,12 @@ updates:
       timezone: Asia/Tokyo
     open-pull-requests-limit: 5
     groups:
-      python-project-dependencies:
+      python-project-runtime:
+        dependency-type: production
+        patterns:
+          - "*"
+      python-project-verification:
+        dependency-type: development
         patterns:
           - "*"
 
@@ -57,9 +66,36 @@ updates:
       timezone: Asia/Tokyo
     open-pull-requests-limit: 5
     groups:
-      python-container-dependencies:
+      python-container-runtime:
         patterns:
-          - "*"
+          - "jax"
+          - "jaxtyping"
+          - "typeguard"
+          - "equinox"
+          - "optax"
+          - "scipy"
+          - "jupyterlab"
+          - "notebook"
+          - "ipykernel"
+          - "pydantic"
+      python-container-verification:
+        patterns:
+          - "pytest"
+          - "scipy-stubs"
+          - "pyright"
+          - "pydocstyle"
+          - "ruff"
+          - "pydeps"
+          - "pipdeptree"
+          - "deptry"
+          - "snakeviz"
+          - "psutil"
+          - "mdformat"
+          - "mdformat-myst"
+          - "pyyaml"
+          - "tomli"
+          - "jsonschema"
+          - "cryptography"
 
   - package-ecosystem: docker
     directory: "/docker"

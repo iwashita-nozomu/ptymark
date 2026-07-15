@@ -7,6 +7,7 @@ upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-c
 downstream design ./ptymark-design.md architecture contract
 downstream design ./ptymark-installer.md installation contract
 downstream design ./ptymark-runtime-dependencies.md product dependency ownership
+downstream design ./dependency-layers.md runtime and verification dependency ownership
 downstream design ./shell-plugin-compatibility.md coexistence evidence
 downstream design ../verification/README.md verification policy
 @dependency-end
@@ -50,6 +51,9 @@ seed this file, but derived repositories own their local index.
 - [ptymark Product Dependencies](./ptymark-runtime-dependencies.md): shipped Rust
   and managed-bundle version ownership, alignment checks, and the safe upgrade
   sequence.
+- [Dependency Layers](./dependency-layers.md): ownership boundaries for shipped
+  product dependencies, repository Python runtime packages, verification-only
+  tools, installer profiles, and update automation.
 - [Shell And Rich-Plugin Compatibility](./shell-plugin-compatibility.md): behavior
   profiles, verification levels, unchanged-profile and environment contracts,
   and twenty reviewed integrations each for Bash, Zsh, Fish, PowerShell, and

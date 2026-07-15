@@ -1,0 +1,84 @@
+# @dependency-start
+# contract workflow
+# responsibility Validates the separation between repository runtime and verification-only Python dependencies.
+# upstream environment ../../docker/requirements-runtime.txt canonical Python runtime dependencies
+# upstream environment ../../docker/requirements-dev.txt canonical Python verification dependencies
+# upstream environment ../../docker/requirements.txt generated compatibility aggregate
+# upstream tool ../../scripts/check-python-dependency-layers.py dependency layer validator
+# upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
+# downstream design ../../documents/dependency-layers.md dependency ownership and upgrade rules
+# @dependency-end
+
+name: Python Dependency Layers
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+    paths:
+      - "pyproject.toml"
+      - "docker/requirements*.txt"
+      - "docker/install_python_dependencies.sh"
+      - "scripts/check-python-dependency-layers.py"
+      - "documents/dependency-layers.md"
+      - ".github/dependabot.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/python-dependency-layers.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "pyproject.toml"
+      - "docker/requirements*.txt"
+      - "docker/install_python_dependencies.sh"
+      - "scripts/check-python-dependency-layers.py"
+      - "documents/dependency-layers.md"
+      - ".github/dependabot.yml"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/python-dependency-layers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-dependency-layers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate dependency ownership and installer profiles
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+
+      - name: Validate dependency layers
+        run: python3 scripts/check-python-dependency-layers.py
+
+      - name: Validate installer interface
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n docker/install_python_dependencies.sh
+          bash docker/install_python_dependencies.sh --help
+          test "$(bash docker/install_python_dependencies.sh "$PWD" --profile runtime --print-requirements)" = \
+            "python_dependency_profile=runtime requirements=docker/requirements-runtime.txt"
+          test "$(bash docker/install_python_dependencies.sh "$PWD" --profile verification --print-requirements)" = \
+            "python_dependency_profile=verification requirements=docker/requirements.txt"
