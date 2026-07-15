@@ -30,6 +30,10 @@ The Python environment is a repository workspace facility. It is not a runtime
 requirement of the shipped Rust executable. The complete product dependency contract
 remains in [ptymark Product Dependencies](./ptymark-runtime-dependencies.md).
 
+Python package build requirements under `[build-system]` are isolated packaging tools.
+They are neither normal workload runtime packages nor verification packages and remain
+owned by `pyproject.toml`.
+
 ## Python manifests
 
 ### Runtime leaf
@@ -69,8 +73,8 @@ python3 scripts/check-python-dependency-layers.py
 ```
 
 The checker rejects stale generated content, duplicate declarations inside a layer,
-packages present in both layers, installer/profile drift, incomplete CI cache inputs,
-and dependency-update routing drift.
+packages present in both layers, installer/profile drift, shared-CI compatibility drift,
+focused-workflow drift, and dependency-update routing gaps.
 
 ## Installer profiles
 
@@ -79,10 +83,18 @@ and dependency-update routing drift.
 - `runtime` installs only `docker/requirements-runtime.txt`;
 - `verification` installs the generated aggregate, which is runtime plus verification.
 
-The default remains `verification` so existing devcontainer, runtime-pack, and local
-development entrypoints retain their previous capabilities. CI always selects
-`--profile verification` explicitly. Marker hashes are profile-specific, so a prior
+The default remains `verification` so existing devcontainer, runtime-pack, shared CI,
+and local development entrypoints retain their previous capabilities without modifying
+AgentCanon-owned root workflow copies. The project-owned focused workflow exercises
+both explicit profile selections. Marker hashes are profile-specific, so a prior
 runtime-only installation is never mistaken for a complete verification environment.
+
+The selected manifest can be inspected without installing packages:
+
+```bash
+bash docker/install_python_dependencies.sh "$PWD" --profile runtime --print-requirements
+bash docker/install_python_dependencies.sh "$PWD" --profile verification --print-requirements
+```
 
 ## Package metadata
 
@@ -97,9 +109,15 @@ those lists to be owned by `docker/requirements-dev.txt`.
 
 ## CI and update automation
 
-Repository CI caches all three requirements files and installs the verification
-profile. A focused `Python Dependency Layers` workflow validates the dependency
-contract without downloading the heavy runtime stack.
+Shared repository CI continues to cache and install the generated
+`docker/requirements.txt` aggregate. Because the focused checker requires that aggregate
+to be an exact rendering of both leaf files, every leaf change also changes the shared
+cache key. This preserves the AgentCanon-owned workflow while keeping the new ownership
+boundary enforceable.
+
+A project-owned `Python Dependency Layers` workflow validates the two leaf files,
+generated aggregate, installer profile selection, package metadata, and Dependabot
+routing without downloading the heavy runtime stack.
 
 Dependabot uses separate groups for:
 
@@ -113,10 +131,10 @@ aggregate together.
 
 ## Upgrade procedure
 
-1. Decide whether the dependency is shipped product, repository runtime, or
-   verification-only.
+1. Decide whether the dependency is shipped product, package-build, repository runtime,
+   or verification-only.
 2. Edit only the canonical source for that layer.
-3. For Python changes, regenerate `docker/requirements.txt`.
+3. For Python runtime or verification changes, regenerate `docker/requirements.txt`.
 4. Run the focused contract:
 
    ```bash
