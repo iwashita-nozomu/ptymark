@@ -1,0 +1,120 @@
+# @dependency-start
+# contract workflow
+# responsibility Deletes every active pre-policy GitHub Actions artifact so no historical executable package or verification bundle remains downloadable, records the purge on issue 94, and removes itself.
+# upstream design ../../documents/release.md source-only release contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/94 source-only migration closeout
+# @dependency-end
+
+name: purge all pre-policy Actions artifacts
+
+on:
+  push:
+    branches:
+      - agent/purge-all-prepolicy-artifacts
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+
+concurrency:
+  group: purge-all-prepolicy-artifacts
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source-only policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/purge-all-prepolicy-artifacts
+          submodules: false
+          persist-credentials: false
+
+      - name: Verify source-only repository state
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eqi 'source[- ]only|source only' README.md
+          grep -Eqi 'source[- ]only' documents/release.md
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'dist/*.tar.gz' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.zip' .github/workflows/ptymark-ci.yml
+
+      - name: Delete every active pre-policy Actions artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/source-only-artifact-purge
+          : > /tmp/source-only-artifact-purge/deleted.tsv
+          deleted=0
+          for pass in 1 2 3 4 5; do
+            gh api --paginate "repos/${REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | select(.expired == false) | [.id, .name, .size_in_bytes] | @tsv' \
+              > /tmp/source-only-artifact-purge/current.tsv
+            if [[ ! -s /tmp/source-only-artifact-purge/current.tsv ]]; then
+              break
+            fi
+            while IFS=$'\t' read -r id name size; do
+              [[ -n "$id" ]] || continue
+              printf '%s\t%s\t%s\n' "$id" "$name" "$size" >> /tmp/source-only-artifact-purge/deleted.tsv
+              gh api --method DELETE "repos/${REPOSITORY}/actions/artifacts/${id}"
+              deleted=$((deleted + 1))
+            done < /tmp/source-only-artifact-purge/current.tsv
+            sleep 2
+          done
+          remaining=$(gh api --paginate "repos/${REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | length' | awk '{sum += $1} END {print sum + 0}')
+          test "$remaining" = '0'
+          sort -u /tmp/source-only-artifact-purge/deleted.tsv -o /tmp/source-only-artifact-purge/deleted.tsv
+          deleted_unique=$(wc -l < /tmp/source-only-artifact-purge/deleted.tsv | tr -d ' ')
+          printf '{\n  "schema": "ptymark.prepolicy-artifact-purge.v1",\n  "deleted_active_artifacts": %s,\n  "remaining_active_artifacts": 0\n}\n' "$deleted_unique" > /tmp/source-only-artifact-purge/result.json
+          cat /tmp/source-only-artifact-purge/result.json
+
+      - name: Record complete artifact purge on issue 94
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deleted=$(jq -r .deleted_active_artifacts /tmp/source-only-artifact-purge/result.json)
+          body=$(gh issue view 94 --repo "$REPOSITORY" --json body --jq .body)
+          section='## GitHub Actions artifact purge
+
+All active GitHub Actions artifacts that predated the final source-only closeout were deleted. This deliberately removes executable packages, release archives, and verification ZIPs that could embed those files, as well as older non-executable artifacts, so no historical ambiguity remains. Future CI may retain bounded non-executable diagnostic evidence, but product executables and native packages must be discarded before job completion.'
+          if ! grep -Fq '## GitHub Actions artifact purge' <<<"$body"; then
+            printf '%s\n\n%b\n' "$body" "$section" > /tmp/source-only-artifact-purge/issue-body.md
+            gh issue edit 94 --repo "$REPOSITORY" --body-file /tmp/source-only-artifact-purge/issue-body.md
+          fi
+          cat > /tmp/source-only-artifact-purge/comment.md <<EOF
+          ## All pre-policy Actions artifacts purged
+
+          - Deleted active artifacts: **${deleted}**
+          - Remaining active artifacts immediately after purge: **0**
+
+          The purge intentionally removed every active historical Actions artifact, including any executable package, release archive, or verification ZIP that might contain one. Future workflows may retain only bounded non-executable diagnostics; product binaries and native packages are not uploaded.
+          EOF
+          sed -i 's/^          //' /tmp/source-only-artifact-purge/comment.md
+          gh issue comment 94 --repo "$REPOSITORY" --body-file /tmp/source-only-artifact-purge/comment.md
+
+      - name: Remove temporary purge branches
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            agent/purge-executable-actions-artifacts \
+            agent/purge-all-prepolicy-artifacts; do
+            encoded=${branch//\//%2F}
+            gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${encoded}" >/dev/null 2>&1 || true
+          done
