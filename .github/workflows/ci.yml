@@ -3,9 +3,7 @@
 # responsibility Runs repository CI and routes inherited gates.
 # upstream implementation ../../tools/ci/run_all_checks.sh repository CI entrypoint
 # upstream implementation ../../Makefile CI target contract
-# upstream environment ../../docker/requirements-runtime.txt Python runtime dependencies
-# upstream environment ../../docker/requirements-dev.txt Python verification dependencies
-# upstream environment ../../docker/install_python_dependencies.sh Python dependency profile installer
+# upstream environment ../../docker/install_python_dependencies.sh Python dependency installer
 # upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
 # downstream implementation ./ptymark-ci.yml product validation workflow
 # @dependency-end
@@ -122,16 +120,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: |
-            docker/requirements.txt
-            docker/requirements-runtime.txt
-            docker/requirements-dev.txt
+          cache-dependency-path: docker/requirements.txt
 
       - name: Install system packages
         run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
 
       - name: Install pip dependencies
-        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD" --profile verification
+        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
       - name: Run repository CI
         run: make ci
@@ -161,16 +156,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: |
-            docker/requirements.txt
-            docker/requirements-runtime.txt
-            docker/requirements-dev.txt
+          cache-dependency-path: docker/requirements.txt
 
       - name: Install system packages
         run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
 
       - name: Install pip dependencies
-        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD" --profile verification
+        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
       - name: Run shared canon PR gate
         run: make agent-canon-pr-check
@@ -200,16 +192,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: |
-            docker/requirements.txt
-            docker/requirements-runtime.txt
-            docker/requirements-dev.txt
+          cache-dependency-path: docker/requirements.txt
 
       - name: Install system packages
         run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
 
       - name: Install pip dependencies
-        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD" --profile verification
+        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
       - name: Run fresh clone acceptance
         run: make fresh-clone-check
