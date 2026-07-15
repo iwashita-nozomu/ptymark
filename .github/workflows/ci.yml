@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Temporarily captures the failing AgentCanon PR gate from an exact clone of current main.
+# responsibility Temporarily captures the AgentCanon PR gate result from the alpha.2 dependency-header fix branch.
 # upstream implementation ../../tools/ci/check_agent_canon_pr.sh shared AgentCanon PR gate
 # @dependency-end
 
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: diagnose-agent-canon-main-${{ github.ref }}
+  group: diagnose-agent-canon-fix-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,13 +23,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - name: Clone exact current main
+      - name: Clone dependency-header fix branch
         shell: bash
         run: |
           set -euo pipefail
-          git clone --quiet --depth=1 --branch main \
-            https://github.com/${GITHUB_REPOSITORY}.git "$RUNNER_TEMP/ptymark-main"
-          cd "$RUNNER_TEMP/ptymark-main"
+          git clone --quiet --depth=1 --branch agent/fix-alpha2-dependency-headers \
+            https://github.com/${GITHUB_REPOSITORY}.git "$RUNNER_TEMP/ptymark-fix"
+          cd "$RUNNER_TEMP/ptymark-fix"
           AGENT_CANON_REPO_TOKEN='' AGENT_CANON_REPO_SSH_KEY='' \
             bash .github/scripts/checkout_agent_canon_submodule.sh >/dev/null
 
@@ -39,15 +39,15 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq >/dev/null
           sudo apt-get install -y -qq graphviz ripgrep >/dev/null
-          cd "$RUNNER_TEMP/ptymark-main"
+          cd "$RUNNER_TEMP/ptymark-fix"
           PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps \
             bash docker/install_python_dependencies.sh "$PWD" >/dev/null
 
-      - name: Capture failing gate tail
+      - name: Capture gate result
         shell: bash
         run: |
           set +e
-          cd "$RUNNER_TEMP/ptymark-main"
+          cd "$RUNNER_TEMP/ptymark-fix"
           make agent-canon-pr-check >"$RUNNER_TEMP/agent-canon-pr.log" 2>&1
           status=$?
           echo "AGENT_CANON_PR_GATE_STATUS=$status"
