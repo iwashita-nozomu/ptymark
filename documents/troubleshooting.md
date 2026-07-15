@@ -1,3 +1,13 @@
+<!--
+@dependency-start
+contract reference
+responsibility Documents public-safe diagnosis, recovery, and support-report handling for doctor v1 and bounded renderer failures.
+upstream implementation ../src/doctor.rs implements doctor and support-report behavior
+upstream implementation ../src/render.rs enforces bounded rendering and exact-source recovery
+downstream environment ../.github/ISSUE_TEMPLATE/bug-report.yml routes redacted public support intake
+@dependency-end
+-->
+
 # Troubleshooting and public-safe support reports
 
 `ptymark 0.1.0-alpha.2` adds one side-effect-free diagnosis path:
