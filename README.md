@@ -52,6 +52,8 @@ Implemented:
 - installation-time path normalization and absolute-path configuration;
 - role-by-role engine replacement without resetting unrelated settings;
 - bounded in-memory and no-op caches;
+- `ptymark doctor`, versioned redacted JSON/support reports, and stable ready/degraded/unusable status;
+- bounded external-renderer deadlines, output limits, ordered exact-source recovery, and process cleanup;
 - a thin WezTerm launcher plugin and portable example;
 - release executable packages for Linux, macOS, and Windows in GitHub Actions;
 - shell coexistence contracts for Bash, Zsh, Fish, PowerShell, and Nushell;
@@ -60,9 +62,11 @@ Implemented:
 Not implemented yet:
 
 - WezTerm/Kitty/iTerm2/Sixel pixel placement;
+- guided first-run rendering and generated WezTerm setup;
+- complete CJK/grapheme-width and screen-reader-oriented presentation;
 - persistent renderer workers;
-- cancellation of a renderer already running during a resize storm;
-- persistent cache.
+- resize-generation cancellation and persistent cache;
+- supported upgrade, rollback, uninstall, purge, signing, and package-manager channels.
 
 `ptymark -- COMMAND` is the practical interactive path. It starts the child in a native Unix PTY or
 Windows ConPTY, forwards input, propagates size changes, filters only safe child-output regions, and
@@ -390,6 +394,8 @@ ptymark install status
 ptymark config check
 ptymark config show
 ptymark engine check
+ptymark doctor
+ptymark doctor --json
 ```
 
 On Windows, use `ptymark.exe` when the executable directory is not already on `PATH`.
@@ -401,6 +407,37 @@ mermaid    mermaid-cli    ready    C:\Users\name\AppData\Local\ptymark\...\mmdc.
 math       mathjax-cli    ready    C:\Users\name\AppData\Local\ptymark\...\tex2svg.exe
 presenter  chafa-symbols  ready    C:\Users\name\AppData\Local\ptymark\...\chafa.exe
 ```
+
+## Diagnose and recover safely
+
+Use one side-effect-free command to inspect the selected configuration, installation state, native host, terminal context, engine/browser/presenter resolution, and effective source/safe/private mode:
+
+```text
+ptymark doctor
+ptymark doctor --json
+ptymark doctor --support-report ./ptymark-support.json
+ptymark doctor --config /absolute/path/config.toml
+```
+
+The JSON schema is `ptymark.doctor.v1`. Status and exit codes are:
+
+| Status | Exit code | Meaning |
+| --- | ---: | --- |
+| `ready` | `0` | selected configuration is usable |
+| `degraded` | `10` | usable through a documented fallback or without an optional capability |
+| `unusable` | `20` | selected config, required host, or strict path cannot operate |
+
+Default doctor performs no installation, download, network request, renderer/browser execution, PTY/ConPTY child launch, or mutation. Human, JSON, and support-report output exclude semantic source, child environment, credentials, raw source-bearing renderer stderr, sensitive path prefixes, and terminal-control bytes by default. Support-report files are created atomically and existing paths are not overwritten.
+
+Immediate per-session recovery keeps the native host:
+
+```text
+ptymark --source -- COMMAND
+ptymark --safe -- COMMAND
+ptymark --private -- COMMAND
+```
+
+See [the troubleshooting contract](documents/troubleshooting.md) for finding categories, ordering guarantees, redaction, and public issue-report guidance.
 
 ## Use `preview`
 
@@ -498,9 +535,7 @@ profile is exercised with arbitrary chunk boundaries. It does not claim that pty
 pins every third-party project. The complete 100-entry list, evidence levels, and limitations are in
 [the shell compatibility matrix](documents/shell-plugin-compatibility.md).
 
-The current live checks cover the installer, transparent command launcher, and reusable pre-display
-pipeline. The same matrix becomes a mandatory live PTY regression suite when the interactive PTY host
-is implemented.
+The live suite covers package installers, native Unix PTY and Windows ConPTY sessions, pipe-oriented runs, managed renderers, profile preservation, and the reusable pre-display pipeline.
 
 ## Safety and failure behavior
 
@@ -527,10 +562,11 @@ command, pipe, redirect, or argument template.
 Initial bounds:
 
 ```text
-process timeout      30 seconds per cold-start process
-layout artifact       8 MiB
-terminal output       8 MiB
-diagnostic output    64 KiB
+render attempt       10 seconds across engine and presentation
+layout artifact        8 MiB
+terminal output        8 MiB
+pending later output   1 MiB per unresolved semantic block
+diagnostic output     64 KiB, sanitized and source-redacted
 ```
 
 ## Cache
@@ -556,8 +592,7 @@ The example uses `wezterm.target_triple` to select Unix or Windows defaults. `PT
 `PTYMARK_CONFIG` override those paths. The plugin appends one launch-menu entry and one
 `CTRL|SHIFT+P` binding; it does not replace existing entries.
 
-The plugin is currently a launcher. Interactive interception becomes active after the PTY host is
-implemented.
+The plugin remains a thin launcher, while the spawned ptymark process owns the active native PTY/ConPTY host, validation, detection, rendering, fallback, and session-mode policy.
 
 ## Extension boundaries
 

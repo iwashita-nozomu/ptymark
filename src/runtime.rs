@@ -2,7 +2,7 @@ use crate::cache::{ArtifactCache, MemoryCache, NoopCache};
 use crate::config::{Config, RenderMode};
 use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 use crate::pipeline::DisplayPipeline;
-use crate::render::{RenderContext, RenderService, Renderer, SourceRenderer};
+use crate::render::{RenderCancellation, RenderContext, RenderService, Renderer, SourceRenderer};
 use crate::routing::RoutedRenderer;
 
 /// Per-invocation overrides applied on top of the resolved user configuration.
@@ -45,10 +45,14 @@ impl<'a> PipelineFactory<'a> {
             };
 
         let source_mode = options.source || self.config.rendering.mode == RenderMode::Source;
+        let cancellation = RenderCancellation::default();
         let renderer: Box<dyn Renderer> = if options.safe || source_mode {
             Box::new(SourceRenderer)
         } else {
-            Box::new(RoutedRenderer::configured(&self.config.engines))
+            Box::new(RoutedRenderer::configured_with_cancellation(
+                &self.config.engines,
+                cancellation.clone(),
+            ))
         };
         let cache: Box<dyn ArtifactCache> = if options.safe
             || options.private
@@ -64,9 +68,10 @@ impl<'a> PipelineFactory<'a> {
             ))
         };
 
-        DisplayPipeline::new(
+        DisplayPipeline::with_cancellation(
             detector,
             RenderService::new(renderer, cache),
+            cancellation,
             RenderContext {
                 columns: options
                     .columns

@@ -1,7 +1,31 @@
 use crate::cache::{ArtifactCache, CacheKey, CacheStats};
+use crate::diagnostics::{
+    DiagnosticComponent, DiagnosticEvidence, DiagnosticFinding, DiagnosticSeverity, code,
+};
 use crate::model::SemanticBlock;
 use std::error::Error;
 use std::fmt;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[derive(Clone, Debug, Default)]
+pub struct RenderCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl RenderCancellation {
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    pub fn reset(&self) {
+        self.cancelled.store(false, Ordering::Release);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RenderContext {
@@ -42,14 +66,71 @@ impl RenderArtifact {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RenderError {
+    code: String,
     message: String,
 }
 
 impl RenderError {
     pub fn new(message: impl Into<String>) -> Self {
+        Self::coded(code::RENDER_FAILED, message)
+    }
+
+    pub fn coded(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
+            code: code.into(),
             message: message.into(),
         }
+    }
+
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+
+    pub fn diagnostic_finding(&self, strict: bool) -> DiagnosticFinding {
+        let (component, summary, remedy) = match self.code.as_str() {
+            code::ENGINE_MISSING => (
+                DiagnosticComponent::Engine,
+                "a configured renderer executable is unavailable",
+                "install the configured executable, select preview/source, or use --safe",
+            ),
+            code::ENGINE_INCOMPATIBLE => (
+                DiagnosticComponent::Engine,
+                "a renderer or artifact is incompatible",
+                "select a compatible renderer or use preview/source fallback",
+            ),
+            code::RENDER_TIMEOUT => (
+                DiagnosticComponent::Render,
+                "an external rendering attempt exceeded its hard deadline",
+                "retry with source/safe mode or inspect the configured renderer",
+            ),
+            code::RENDER_OUTPUT_LIMIT => (
+                DiagnosticComponent::Render,
+                "an external renderer exceeded a bounded output limit",
+                "reduce the block size or use source/safe mode",
+            ),
+            code::PRESENTATION_FALLBACK | code::PRESENTER_UNSUPPORTED => (
+                DiagnosticComponent::Presentation,
+                "the rendered artifact could not be presented safely",
+                "install a supported presenter or use preview/source mode",
+            ),
+            _ => (
+                DiagnosticComponent::Render,
+                "an external rendering attempt failed",
+                "inspect the renderer selection or use preview/source fallback",
+            ),
+        };
+        DiagnosticFinding::new(
+            self.code.clone(),
+            if strict {
+                DiagnosticSeverity::Error
+            } else {
+                DiagnosticSeverity::Warning
+            },
+            component,
+            summary,
+        )
+        .with_remedy(remedy)
+        .with_evidence("detail", DiagnosticEvidence::omitted())
     }
 }
 

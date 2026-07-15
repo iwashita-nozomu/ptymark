@@ -60,6 +60,7 @@ mkdir -p \
   "$package_root/plugin" \
   "$package_root/examples" \
   "$package_root/documents" \
+  "$package_root/release-notes" \
   "$package_root/compat/shell-integrations"
 
 install -m 755 "$binary" "$package_root/bin/ptymark"
@@ -86,6 +87,8 @@ install -m 644 "$repo_root/documents/ptymark-design.md" "$package_root/documents
 install -m 644 "$repo_root/documents/interactive-session.md" "$package_root/documents/interactive-session.md"
 install -m 644 "$repo_root/documents/filtered-command.md" "$package_root/documents/filtered-command.md"
 install -m 644 "$repo_root/documents/release.md" "$package_root/documents/release.md"
+install -m 644 "$repo_root/documents/troubleshooting.md" "$package_root/documents/troubleshooting.md"
+install -m 644 "$repo_root/release-notes/$version.md" "$package_root/release-notes/$version.md"
 install -m 644 "$repo_root/documents/ptymark-installer.md" "$package_root/documents/ptymark-installer.md"
 install -m 644 "$repo_root/documents/shell-plugin-compatibility.md" "$package_root/documents/shell-plugin-compatibility.md"
 for inventory in bash zsh fish powershell nushell; do
