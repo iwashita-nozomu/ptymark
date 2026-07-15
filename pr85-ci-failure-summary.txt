@@ -1,0 +1,729 @@
+2026-07-15T12:13:24.7697332Z ##[group]Runner Image
+2026-07-15T12:13:24.7697814Z Image: ubuntu-24.04
+2026-07-15T12:13:24.7698275Z Version: 20260705.232.1
+2026-07-15T12:13:24.7699325Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260705.232/images/ubuntu/Ubuntu2404-Readme.md
+2026-07-15T12:13:24.7700508Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260705.232
+2026-07-15T12:13:24.7701399Z ##[endgroup]
+2026-07-15T12:13:24.7702341Z ##[group]GITHUB_TOKEN Permissions
+2026-07-15T12:13:24.7697814Z Image: ubuntu-24.04
+2026-07-15T12:13:24.7698275Z Version: 20260705.232.1
+2026-07-15T12:13:24.7699325Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260705.232/images/ubuntu/Ubuntu2404-Readme.md
+2026-07-15T12:13:24.7700508Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260705.232
+2026-07-15T12:13:24.7701399Z ##[endgroup]
+2026-07-15T12:13:24.7702341Z ##[group]GITHUB_TOKEN Permissions
+2026-07-15T12:13:24.7703830Z Contents: read
+2026-07-15T12:13:24.7704305Z Metadata: read
+2026-07-15T12:13:24.7704821Z ##[endgroup]
+2026-07-15T12:13:24.7706393Z Secret source: Dependabot
+2026-07-15T12:13:24.7706996Z Prepare workflow directory
+2026-07-15T12:13:24.8085835Z Prepare all required actions
+2026-07-15T12:13:24.8118560Z Getting action download info
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:24.7704821Z ##[endgroup]
+2026-07-15T12:13:24.7706393Z Secret source: Dependabot
+2026-07-15T12:13:24.7706996Z Prepare workflow directory
+2026-07-15T12:13:24.8085835Z Prepare all required actions
+2026-07-15T12:13:24.8118560Z Getting action download info
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:25.4859036Z Download action repository 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+2026-07-15T12:13:24.7706393Z Secret source: Dependabot
+2026-07-15T12:13:24.7706996Z Prepare workflow directory
+2026-07-15T12:13:24.8085835Z Prepare all required actions
+2026-07-15T12:13:24.8118560Z Getting action download info
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:25.4859036Z Download action repository 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+2026-07-15T12:13:25.7906636Z Complete job name: AgentCanon PR Gate (3.11)
+2026-07-15T12:13:24.7706996Z Prepare workflow directory
+2026-07-15T12:13:24.8085835Z Prepare all required actions
+2026-07-15T12:13:24.8118560Z Getting action download info
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:25.4859036Z Download action repository 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+2026-07-15T12:13:25.7906636Z Complete job name: AgentCanon PR Gate (3.11)
+2026-07-15T12:13:25.8523640Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-07-15T12:13:24.8085835Z Prepare all required actions
+2026-07-15T12:13:24.8118560Z Getting action download info
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:25.4859036Z Download action repository 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+2026-07-15T12:13:25.7906636Z Complete job name: AgentCanon PR Gate (3.11)
+2026-07-15T12:13:25.8523640Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-07-15T12:13:25.8524520Z with:
+2026-07-15T12:13:24.8118560Z Getting action download info
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:25.4859036Z Download action repository 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+2026-07-15T12:13:25.7906636Z Complete job name: AgentCanon PR Gate (3.11)
+2026-07-15T12:13:25.8523640Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-07-15T12:13:25.8524520Z with:
+2026-07-15T12:13:25.8524875Z   submodules: false
+2026-07-15T12:13:25.1058034Z Download action repository 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' (SHA:9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0)
+2026-07-15T12:13:25.4859036Z Download action repository 'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1' (SHA:ece7cb06caefa5fff74198d8649806c4678c61a1)
+2026-07-15T12:13:25.7906636Z Complete job name: AgentCanon PR Gate (3.11)
+2026-07-15T12:13:25.8523640Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-07-15T12:13:25.8524520Z with:
+2026-07-15T12:13:25.8524875Z   submodules: false
+2026-07-15T12:13:25.8525266Z   persist-credentials: false
+2026-07-15T12:13:25.8523640Z ##[group]Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+2026-07-15T12:13:25.8524520Z with:
+2026-07-15T12:13:25.8524875Z   submodules: false
+2026-07-15T12:13:25.8525266Z   persist-credentials: false
+2026-07-15T12:13:25.8525718Z   repository: iwashita-nozomu/ptymark
+2026-07-15T12:13:25.8529173Z   token: ***
+2026-07-15T12:13:25.8529547Z   ssh-strict: true
+2026-07-15T12:13:26.0377406Z Removing HTTP extra header
+2026-07-15T12:13:26.0383240Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:13:26.0411801Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:13:26.0598661Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:13:26.0603123Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:13:26.0632033Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:26.0825436Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-15T12:13:26.0598661Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:13:26.0603123Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:13:26.0632033Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:26.0825436Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-15T12:13:26.1257930Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.1888469Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.3072173Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.0603123Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:13:26.0632033Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:26.0825436Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-15T12:13:26.1257930Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.1888469Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.3072173Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.4191771Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.0632033Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:26.0825436Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-15T12:13:26.1257930Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.1888469Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.3072173Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.4191771Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.5095172Z ##[endgroup]
+2026-07-15T12:13:26.0825436Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-15T12:13:26.1257930Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.1888469Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.3072173Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.4191771Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.5095172Z ##[endgroup]
+2026-07-15T12:13:26.5096770Z ##[group]Fetching the repository
+2026-07-15T12:13:26.1257930Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.1888469Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.3072173Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.4191771Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:26.5095172Z ##[endgroup]
+2026-07-15T12:13:26.5096770Z ##[group]Fetching the repository
+2026-07-15T12:13:26.5099844Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +dd214bff73c726d12445b2353edb390c7a41efd7:refs/remotes/pull/85/merge
+2026-07-15T12:13:27.2198414Z Removing HTTP extra header
+2026-07-15T12:13:27.2200553Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:13:27.2231118Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:13:27.2417559Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:13:27.2419483Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:13:27.2443664Z includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path
+2026-07-15T12:13:27.2445898Z includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:13:27.2447696Z includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:13:27.2449297Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:13:27.2452893Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path
+2026-07-15T12:13:27.2471874Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2479874Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2508328Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:13:27.2531050Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2449297Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:13:27.2452893Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path
+2026-07-15T12:13:27.2471874Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2479874Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2508328Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:13:27.2531050Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2537788Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2471874Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2479874Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2508328Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:13:27.2531050Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2537788Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2565517Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:13:27.2586954Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2479874Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2508328Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:13:27.2531050Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2537788Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2565517Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:13:27.2586954Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2596287Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2531050Z /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2537788Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2565517Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:13:27.2586954Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2596287Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2628079Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:13:27.2650739Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2537788Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2565517Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:13:27.2586954Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2596287Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2628079Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:13:27.2650739Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2660284Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2586954Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2596287Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2628079Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:13:27.2650739Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2660284Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2703175Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:27.2915029Z Removing credentials config '/home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config'
+2026-07-15T12:13:27.2596287Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2628079Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:13:27.2650739Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2660284Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2703175Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:27.2915029Z Removing credentials config '/home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config'
+2026-07-15T12:13:27.2920642Z ##[endgroup]
+2026-07-15T12:13:27.2650739Z /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2660284Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config
+2026-07-15T12:13:27.2703175Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:13:27.2915029Z Removing credentials config '/home/runner/work/_temp/git-credentials-70973256-1448-4f0d-bf64-42cf2cfac7f4.config'
+2026-07-15T12:13:27.2920642Z ##[endgroup]
+2026-07-15T12:13:27.3202050Z ##[group]Run bash .github/scripts/checkout_agent_canon_submodule.sh
+2026-07-15T12:13:27.3203538Z [36;1mbash .github/scripts/checkout_agent_canon_submodule.sh[0m
+2026-07-15T12:13:29.7162511Z  * branch            11f7e13f3fb457b38c6e5072c070ff5ec889b454 -> FETCH_HEAD
+2026-07-15T12:13:29.7847173Z Submodule path 'vendor/agent-canon': checked out '11f7e13f3fb457b38c6e5072c070ff5ec889b454'
+2026-07-15T12:13:29.7899121Z AGENT_CANON_SUBMODULE=ready path=vendor/agent-canon sha=11f7e13f3fb457b38c6e5072c070ff5ec889b454
+2026-07-15T12:13:29.7982867Z ##[group]Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+2026-07-15T12:13:29.7983186Z with:
+2026-07-15T12:13:29.7983362Z   python-version: 3.11
+2026-07-15T12:13:29.7983538Z   cache: pip
+2026-07-15T12:13:29.7983186Z with:
+2026-07-15T12:13:29.7983362Z   python-version: 3.11
+2026-07-15T12:13:29.7983538Z   cache: pip
+2026-07-15T12:13:29.7983729Z   cache-dependency-path: docker/requirements.txt
+2026-07-15T12:13:29.7983986Z   check-latest: false
+2026-07-15T12:13:29.7986045Z   token: ***
+2026-07-15T12:13:29.7986220Z   update-environment: true
+2026-07-15T12:13:35.2702562Z Fetched 10.3 MB in 1s (10.4 MB/s)
+2026-07-15T12:13:35.7931361Z Reading package lists...
+2026-07-15T12:13:35.8189280Z Reading package lists...
+2026-07-15T12:13:35.9435767Z Building dependency tree...
+2026-07-15T12:13:35.9441493Z Reading state information...
+2026-07-15T12:13:36.0611742Z The following additional packages will be installed:
+2026-07-15T12:13:36.0613080Z   fonts-liberation2 libann0 libcdt5 libcgraph6 libgts-0.7-5t64 libgts-bin
+2026-07-15T12:13:42.6264031Z No user sessions are running outdated binaries.
+2026-07-15T12:13:42.6264200Z 
+2026-07-15T12:13:42.6264362Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-07-15T12:13:43.2805191Z ##[group]Run PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+2026-07-15T12:13:43.2805825Z [36;1mPYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"[0m
+2026-07-15T12:13:43.2834648Z shell: /usr/bin/bash -e {0}
+2026-07-15T12:13:43.2834862Z env:
+2026-07-15T12:13:42.6264200Z 
+2026-07-15T12:13:42.6264362Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-07-15T12:13:43.2805191Z ##[group]Run PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+2026-07-15T12:13:43.2805825Z [36;1mPYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"[0m
+2026-07-15T12:13:43.2834648Z shell: /usr/bin/bash -e {0}
+2026-07-15T12:13:43.2834862Z env:
+2026-07-15T12:13:43.2835028Z   AGENT_CANON_REPO_TOKEN: 
+2026-07-15T12:14:13.8156237Z link[notes/experiments/results/README.md]=ok
+2026-07-15T12:14:13.8168017Z link[notes/branches/README.md]=ok
+2026-07-15T12:14:13.8180117Z link[notes/branches/BRANCH_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8192109Z link[notes/failures/README.md]=ok
+2026-07-15T12:14:13.8204249Z link[notes/failures/FAILURE_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8216594Z link[notes/guardrails/README.md]=ok
+2026-07-15T12:14:13.8229478Z link[notes/guardrails/engineering_avoidances.md]=ok
+2026-07-15T12:14:13.8168017Z link[notes/branches/README.md]=ok
+2026-07-15T12:14:13.8180117Z link[notes/branches/BRANCH_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8192109Z link[notes/failures/README.md]=ok
+2026-07-15T12:14:13.8204249Z link[notes/failures/FAILURE_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8216594Z link[notes/guardrails/README.md]=ok
+2026-07-15T12:14:13.8229478Z link[notes/guardrails/engineering_avoidances.md]=ok
+2026-07-15T12:14:13.8241932Z link[notes/knowledge/README.md]=ok
+2026-07-15T12:14:13.8687494Z link[tests/agent_tools/test_log_surface_inventory.py]=ok
+2026-07-15T12:14:13.8700158Z link[tests/agent_tools/test_parent_repo_readiness.py]=ok
+2026-07-15T12:14:13.8712354Z link[tests/agent_tools/test_tool_rejection_preflight.py]=ok
+2026-07-15T12:14:13.8724369Z link[tests/agent_tools/test_check_dependency_headers.py]=ok
+2026-07-15T12:14:13.8736784Z link[tests/agent_tools/test_dependency_manifest_tools.py]=ok
+2026-07-15T12:14:13.8748793Z link[tests/agent_tools/test_compare_agent_run_paths.py]=ok
+2026-07-15T12:14:13.8760760Z link[tests/agent_tools/test_evaluate_agent_run.py]=ok
+2026-07-15T12:14:13.8700158Z link[tests/agent_tools/test_parent_repo_readiness.py]=ok
+2026-07-15T12:14:13.8712354Z link[tests/agent_tools/test_tool_rejection_preflight.py]=ok
+2026-07-15T12:14:13.8724369Z link[tests/agent_tools/test_check_dependency_headers.py]=ok
+2026-07-15T12:14:13.8736784Z link[tests/agent_tools/test_dependency_manifest_tools.py]=ok
+2026-07-15T12:14:13.8748793Z link[tests/agent_tools/test_compare_agent_run_paths.py]=ok
+2026-07-15T12:14:13.8760760Z link[tests/agent_tools/test_evaluate_agent_run.py]=ok
+2026-07-15T12:14:13.8772937Z link[tests/agent_tools/test_evaluate_codex_agent_roles.py]=ok
+2026-07-15T12:14:13.8748793Z link[tests/agent_tools/test_compare_agent_run_paths.py]=ok
+2026-07-15T12:14:13.8760760Z link[tests/agent_tools/test_evaluate_agent_run.py]=ok
+2026-07-15T12:14:13.8772937Z link[tests/agent_tools/test_evaluate_codex_agent_roles.py]=ok
+2026-07-15T12:14:13.8785051Z link[tests/agent_tools/test_evaluate_skill_workflow_prompts.py]=ok
+2026-07-15T12:14:13.8797128Z link[tests/agent_tools/test_evaluate_workflow_selection.py]=ok
+2026-07-15T12:14:13.8809093Z link[tests/agent_tools/test_evaluate_report_quality.py]=ok
+2026-07-15T12:14:13.8821630Z link[tests/agent_tools/test_generate_agent_improvement_guide.py]=ok
+2026-07-15T12:14:13.8760760Z link[tests/agent_tools/test_evaluate_agent_run.py]=ok
+2026-07-15T12:14:13.8772937Z link[tests/agent_tools/test_evaluate_codex_agent_roles.py]=ok
+2026-07-15T12:14:13.8785051Z link[tests/agent_tools/test_evaluate_skill_workflow_prompts.py]=ok
+2026-07-15T12:14:13.8797128Z link[tests/agent_tools/test_evaluate_workflow_selection.py]=ok
+2026-07-15T12:14:13.8809093Z link[tests/agent_tools/test_evaluate_report_quality.py]=ok
+2026-07-15T12:14:13.8821630Z link[tests/agent_tools/test_generate_agent_improvement_guide.py]=ok
+2026-07-15T12:14:13.8834555Z link[tests/agent_tools/test_generate_agent_runtime_dashboard.py]=ok
+2026-07-15T12:14:13.8907087Z link[tests/agent_tools/test_task_start_and_close.py]=ok
+2026-07-15T12:14:13.8919022Z link[tests/agent_tools/test_vendor_skill_adapters.py]=ok
+2026-07-15T12:14:13.8931196Z link[tests/agent_tools/test_waterfall_gate_check.py]=ok
+2026-07-15T12:14:13.8943227Z link[tests/agent_tools/test_workflow_monitor.py]=ok
+2026-07-15T12:14:13.8955174Z link[tests/agent_tools/test_work_log.py]=ok
+2026-07-15T12:14:13.8968605Z link[tests/agent_tools/test_worktree_scope_lint.py]=ok
+2026-07-15T12:14:13.8981517Z link[tests/tools/test_check_merge_structure.py]=ok
+2026-07-15T12:14:13.8994732Z link[tests/tools/test_check_markdown_math.py]=ok
+2026-07-15T12:14:13.9007296Z link[tests/tools/test_container_config.py]=ok
+2026-07-15T12:14:13.9019316Z link[tests/tools/test_check_bootstrap_docs.py]=ok
+2026-07-15T12:14:13.9031607Z link[tests/tools/test_check_github_workflows.py]=ok
+2026-07-15T12:14:13.9043595Z link[tests/tools/test_python_env_policy.py]=ok
+2026-07-15T12:14:13.9055631Z link[tests/tools/test_run_codex_in_repo_container.py]=ok
+2026-07-15T12:14:13.9067638Z link[tests/tools/test_run_managed_experiment.py]=ok
+2026-07-15T12:14:13.9103029Z link[tests/tools/test_result_log_tools.py]=ok
+2026-07-15T12:14:13.9114886Z link[tests/tools/test_update_latest_result.py]=ok
+2026-07-15T12:14:13.9126637Z link[AGENTS.md]=ok
+2026-07-15T12:14:13.9534298Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:13.9545671Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:13.9557184Z copy[.github/PULL_REQUEST_TEMPLATE/agent_canon.md]=ok
+2026-07-15T12:14:13.9569042Z copy[.github/scripts/checkout_agent_canon_submodule.sh]=ok
+2026-07-15T12:14:13.9114886Z link[tests/tools/test_update_latest_result.py]=ok
+2026-07-15T12:14:13.9126637Z link[AGENTS.md]=ok
+2026-07-15T12:14:13.9534298Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:13.9545671Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:13.9557184Z copy[.github/PULL_REQUEST_TEMPLATE/agent_canon.md]=ok
+2026-07-15T12:14:13.9569042Z copy[.github/scripts/checkout_agent_canon_submodule.sh]=ok
+2026-07-15T12:14:13.9963171Z regular[LICENSE]=ok
+2026-07-15T12:14:14.0420098Z absent[documents/result-log-retention-and-visualization.md]=ok
+2026-07-15T12:14:14.0420662Z absent[documents/repo-local-tool-imports.md]=ok
+2026-07-15T12:14:14.0421241Z absent[documents/agent-canon-github-remote.md]=ok
+2026-07-15T12:14:14.0421707Z absent[documents/dependency-manifest-design.md]=ok
+2026-07-15T12:14:14.0422141Z absent[documents/notes-lifecycle.md]=ok
+2026-07-15T12:14:14.0422532Z absent[documents/REVIEW_PROCESS.md]=ok
+2026-07-15T12:14:14.0423264Z absent[documents/SHARED_RUNTIME_SURFACES.md]=ok
+2026-07-15T12:14:14.0451599Z absent[documents/tools/oop/cpp/readability.md]=ok
+2026-07-15T12:14:14.0452034Z absent[documents/tools/oop/cpp/rule_inventory.md]=ok
+2026-07-15T12:14:14.0452568Z absent[mcp]=ok
+2026-07-15T12:14:14.0452849Z absent[documents/WORKFLOW_GUIDE.md]=ok
+2026-07-15T12:14:14.0453247Z absent[documents/academic-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0452034Z absent[documents/tools/oop/cpp/rule_inventory.md]=ok
+2026-07-15T12:14:14.0452568Z absent[mcp]=ok
+2026-07-15T12:14:14.0452849Z absent[documents/WORKFLOW_GUIDE.md]=ok
+2026-07-15T12:14:14.0453247Z absent[documents/academic-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0452568Z absent[mcp]=ok
+2026-07-15T12:14:14.0452849Z absent[documents/WORKFLOW_GUIDE.md]=ok
+2026-07-15T12:14:14.0453247Z absent[documents/academic-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0452849Z absent[documents/WORKFLOW_GUIDE.md]=ok
+2026-07-15T12:14:14.0453247Z absent[documents/academic-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0453247Z absent[documents/academic-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0457265Z absent[documents/research-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0457265Z absent[documents/research-workflow.md]=ok
+2026-07-15T12:14:14.0457651Z absent[documents/workflow-references.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0457265Z absent[documents/research-workflow.md]=ok
+2026-07-15T12:14:14.0457651Z absent[documents/workflow-references.md]=ok
+2026-07-15T12:14:14.0458039Z absent[notes/themes/AGENT_PHILOSOPHY.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0457265Z absent[documents/research-workflow.md]=ok
+2026-07-15T12:14:14.0457651Z absent[documents/workflow-references.md]=ok
+2026-07-15T12:14:14.0458039Z absent[notes/themes/AGENT_PHILOSOPHY.md]=ok
+2026-07-15T12:14:14.0458425Z absent[notes/themes/USER_PREFERENCES.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0457265Z absent[documents/research-workflow.md]=ok
+2026-07-15T12:14:14.0457651Z absent[documents/workflow-references.md]=ok
+2026-07-15T12:14:14.0458039Z absent[notes/themes/AGENT_PHILOSOPHY.md]=ok
+2026-07-15T12:14:14.0458425Z absent[notes/themes/USER_PREFERENCES.md]=ok
+2026-07-15T12:14:14.0458847Z absent[memory/global]=ok
+2026-07-15T12:14:14.0459141Z absent[memory/methods]=ok
+2026-07-15T12:14:14.0459438Z absent[memory/candidates]=ok
+2026-07-15T12:14:14.0459767Z absent[memory/subagent_loadouts.yaml]=ok
+2026-07-15T12:14:14.0460347Z absent[.github/workflows/agent-runtime-dashboard.yml]=ok
+2026-07-15T12:14:14.0461008Z absent[.github/workflows/issue-mirror.yml]=ok
+2026-07-15T12:14:14.0461441Z absent[.github/PULL_REQUEST_TEMPLATE.md]=ok
+2026-07-15T12:14:14.0473689Z 
+2026-07-15T12:14:14.0459438Z absent[memory/candidates]=ok
+2026-07-15T12:14:14.0459767Z absent[memory/subagent_loadouts.yaml]=ok
+2026-07-15T12:14:14.0460347Z absent[.github/workflows/agent-runtime-dashboard.yml]=ok
+2026-07-15T12:14:14.0461008Z absent[.github/workflows/issue-mirror.yml]=ok
+2026-07-15T12:14:14.0461441Z absent[.github/PULL_REQUEST_TEMPLATE.md]=ok
+2026-07-15T12:14:14.0473689Z 
+2026-07-15T12:14:14.0474056Z 2️⃣  shared surface drift check
+2026-07-15T12:14:14.0461441Z absent[.github/PULL_REQUEST_TEMPLATE.md]=ok
+2026-07-15T12:14:14.0473689Z 
+2026-07-15T12:14:14.0474056Z 2️⃣  shared surface drift check
+2026-07-15T12:14:14.2524159Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:14.2535832Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:14.5202364Z sync_agent_canon.sh: shared surface drift detected; run 'bash tools/sync_agent_canon.sh link-root'
+2026-07-15T12:14:14.5216564Z make: *** [Makefile:199: agent-canon-pr-check] Error 1
+2026-07-15T12:14:14.0473689Z 
+2026-07-15T12:14:14.0474056Z 2️⃣  shared surface drift check
+2026-07-15T12:14:14.2524159Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:14.2535832Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:14.5202364Z sync_agent_canon.sh: shared surface drift detected; run 'bash tools/sync_agent_canon.sh link-root'
+2026-07-15T12:14:14.5216564Z make: *** [Makefile:199: agent-canon-pr-check] Error 1
+2026-07-15T12:14:14.5231970Z ##[error]Process completed with exit code 2.
+2026-07-15T12:14:14.2524159Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:14.2535832Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:14.5202364Z sync_agent_canon.sh: shared surface drift detected; run 'bash tools/sync_agent_canon.sh link-root'
+2026-07-15T12:14:14.5216564Z make: *** [Makefile:199: agent-canon-pr-check] Error 1
+2026-07-15T12:14:14.5231970Z ##[error]Process completed with exit code 2.
+2026-07-15T12:14:14.5339448Z Post job cleanup.
+2026-07-15T12:14:14.6016877Z [command]/usr/bin/git version
+2026-07-15T12:14:14.2535832Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:14.5202364Z sync_agent_canon.sh: shared surface drift detected; run 'bash tools/sync_agent_canon.sh link-root'
+2026-07-15T12:14:14.5216564Z make: *** [Makefile:199: agent-canon-pr-check] Error 1
+2026-07-15T12:14:14.5231970Z ##[error]Process completed with exit code 2.
+2026-07-15T12:14:14.5339448Z Post job cleanup.
+2026-07-15T12:14:14.6016877Z [command]/usr/bin/git version
+2026-07-15T12:14:14.6093111Z git version 2.54.0
+2026-07-15T12:14:14.6432875Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:14:14.6463020Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:14:14.6665888Z Entering 'vendor/agent-canon'
+2026-07-15T12:14:14.6711674Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:14:14.6724844Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:14:14.6755828Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:14:14.6947187Z Entering 'vendor/agent-canon'
+
+--- LAST 300 LINES ---
+2026-07-15T12:13:56.0203427Z Downloading traitlets-5.15.1-py3-none-any.whl (85 kB)
+2026-07-15T12:13:56.0387714Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-07-15T12:13:56.0571072Z Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+2026-07-15T12:13:56.0756349Z Downloading wadler_lindig-0.1.7-py3-none-any.whl (20 kB)
+2026-07-15T12:13:56.0939746Z Downloading wcwidth-0.8.2-py3-none-any.whl (323 kB)
+2026-07-15T12:13:56.1125231Z Downloading webcolors-25.10.0-py3-none-any.whl (14 kB)
+2026-07-15T12:13:56.1307898Z Downloading webencodings-0.5.1-py2.py3-none-any.whl (11 kB)
+2026-07-15T12:13:56.1491854Z Downloading websocket_client-1.9.0-py3-none-any.whl (82 kB)
+2026-07-15T12:13:56.1677129Z Downloading argon2_cffi_bindings-25.1.0-cp39-abi3-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl (87 kB)
+2026-07-15T12:13:56.1865381Z Downloading beautifulsoup4-4.15.0-py3-none-any.whl (109 kB)
+2026-07-15T12:13:56.2049979Z Downloading soupsieve-2.8.4-py3-none-any.whl (37 kB)
+2026-07-15T12:13:56.2233501Z Downloading defusedxml-0.7.1-py2.py3-none-any.whl (25 kB)
+2026-07-15T12:13:56.2417279Z Downloading fqdn-1.5.1-py3-none-any.whl (9.1 kB)
+2026-07-15T12:13:56.2601946Z Downloading isoduration-20.11.0-py3-none-any.whl (11 kB)
+2026-07-15T12:13:56.2786012Z Downloading arrow-1.4.0-py3-none-any.whl (68 kB)
+2026-07-15T12:13:56.2970452Z Downloading jupyterlab_pygments-0.3.0-py3-none-any.whl (15 kB)
+2026-07-15T12:13:56.3154429Z Downloading opt_einsum-3.4.0-py3-none-any.whl (71 kB)
+2026-07-15T12:13:56.3337398Z Downloading pure_eval-0.2.3-py3-none-any.whl (11 kB)
+2026-07-15T12:13:56.3519646Z Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+2026-07-15T12:13:56.3702571Z Downloading rfc3339_validator-0.1.4-py2.py3-none-any.whl (3.5 kB)
+2026-07-15T12:13:56.3895623Z Downloading stdlib_list-0.12.0-py3-none-any.whl (87 kB)
+2026-07-15T12:13:56.4080311Z Downloading tzdata-2026.3-py2.py3-none-any.whl (348 kB)
+2026-07-15T12:13:56.4268123Z Downloading uri_template-1.3.0-py3-none-any.whl (11 kB)
+2026-07-15T12:13:56.9258583Z Installing collected packages: webencodings, pure-eval, ptyprocess, fastjsonschema, websocket-client, webcolors, wcwidth, wadler-lindig, urllib3, uri-template, tzdata, typing_extensions, traitlets, tornado, tomli, toml, tinycss2, stdlib_list, soupsieve, snowballstemmer, six, send2trash, ruff, ruamel.yaml, rpds-py, rfc3986-validator, pyzmq, pyyaml, python-json-logger, pygments, pycparser, psutil, prometheus-client, pluggy, platformdirs, pexpect, parso, pandocfilters, packaging, overrides, opt_einsum, numpy, nodeenv, nest-asyncio2, mistune, mdurl, MarkupSafe, lark, jupyterlab-pygments, jsonpointer, json5, iniconfig, idna, h11, fqdn, executing, defusedxml, decorator, debugpy, comm, click, charset_normalizer, certifi, bleach, babel, attrs, async-lru, asttokens, annotated-types, absl-py, typing-inspection, typeguard, terminado, stack_data, snakeviz, scipy, rfc3987-syntax, rfc3339-validator, requirements-parser, requests, referencing, python-dateutil, pytest, pyright, pydocstyle, pydeps, pydantic-core, prompt_toolkit, pipdeptree, optype, numpy-typing-compat, ml_dtypes, matplotlib-inline, markdown-it-py, jupyter-core, jinja2, jedi, jaxtyping, ipython-pygments-lexers, httpcore, cffi, beautifulsoup4, anyio, pydantic, mdit-py-plugins, mdformat, jupyter-server-terminals, jupyter-client, jupyter-builder, jsonschema-specifications, jaxlib, ipython, httpx, deptry, cryptography, arrow, argon2-cffi-bindings, scipy-stubs, mdformat-gfm, mdformat-front-matters, mdformat-footnote, jsonschema, jax, isoduration, ipykernel, argon2-cffi, optax, nbformat, mdformat-myst, equinox, nbclient, jupyter-events, nbconvert, jupyter-server, notebook-shim, jupyterlab-server, jupyter-lsp, jupyterlab, notebook
+2026-07-15T12:14:13.1508338Z 
+2026-07-15T12:14:13.1553358Z Successfully installed MarkupSafe-3.0.3 absl-py-2.5.0 annotated-types-0.7.0 anyio-4.14.2 argon2-cffi-25.1.0 argon2-cffi-bindings-25.1.0 arrow-1.4.0 asttokens-3.0.2 async-lru-2.3.0 attrs-26.1.0 babel-2.18.0 beautifulsoup4-4.15.0 bleach-6.4.0 certifi-2026.6.17 cffi-2.1.0 charset_normalizer-3.4.9 click-8.4.2 comm-0.2.3 cryptography-49.0.0 debugpy-1.8.21 decorator-5.3.1 defusedxml-0.7.1 deptry-0.25.1 equinox-0.13.8 executing-2.2.1 fastjsonschema-2.21.2 fqdn-1.5.1 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.18 iniconfig-2.3.0 ipykernel-7.3.0 ipython-9.15.0 ipython-pygments-lexers-1.1.1 isoduration-20.11.0 jax-0.10.2 jaxlib-0.10.2 jaxtyping-0.3.11 jedi-0.20.0 jinja2-3.1.6 json5-0.15.0 jsonpointer-3.1.1 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 jupyter-builder-1.1.0 jupyter-client-8.9.1 jupyter-core-5.9.1 jupyter-events-0.12.1 jupyter-lsp-2.3.1 jupyter-server-2.20.0 jupyter-server-terminals-0.5.4 jupyterlab-4.6.1 jupyterlab-pygments-0.3.0 jupyterlab-server-2.28.0 lark-1.3.1 markdown-it-py-4.2.0 matplotlib-inline-0.2.2 mdformat-1.0.0 mdformat-footnote-0.1.3 mdformat-front-matters-2.0.0 mdformat-gfm-1.0.0 mdformat-myst-0.3.0 mdit-py-plugins-0.6.1 mdurl-0.1.2 mistune-3.3.3 ml_dtypes-0.5.4 nbclient-0.11.0 nbconvert-7.17.1 nbformat-5.10.4 nest-asyncio2-1.7.2 nodeenv-1.10.0 notebook-7.6.0 notebook-shim-0.2.4 numpy-2.4.6 numpy-typing-compat-20251206.2.4 opt_einsum-3.4.0 optax-0.2.8 optype-0.17.1 overrides-7.7.0 packaging-26.2 pandocfilters-1.5.1 parso-0.8.7 pexpect-4.9.0 pipdeptree-3.1.1 platformdirs-4.10.0 pluggy-1.6.0 prometheus-client-0.25.0 prompt_toolkit-3.0.52 psutil-7.2.2 ptyprocess-0.7.0 pure-eval-0.2.3 pycparser-3.0 pydantic-2.13.4 pydantic-core-2.46.4 pydeps-3.0.6 pydocstyle-6.3.0 pygments-2.20.0 pyright-1.1.411 pytest-9.1.1 python-dateutil-2.9.0.post0 python-json-logger-4.1.0 pyyaml-6.0.3 pyzmq-27.1.0 referencing-0.37.0 requests-2.34.2 requirements-parser-0.13.1 rfc3339-validator-0.1.4 rfc3986-validator-0.1.1 rfc3987-syntax-1.1.0 rpds-py-2026.6.3 ruamel.yaml-0.19.1 ruff-0.15.21 scipy-1.17.1 scipy-stubs-1.17.1.5 send2trash-2.1.0 six-1.17.0 snakeviz-2.2.2 snowballstemmer-3.1.1 soupsieve-2.8.4 stack_data-0.6.3 stdlib_list-0.12.0 terminado-0.18.1 tinycss2-1.5.1 toml-0.10.2 tomli-2.4.1 tornado-6.5.7 traitlets-5.15.1 typeguard-4.5.2 typing-inspection-0.4.2 typing_extensions-4.16.0 tzdata-2026.3 uri-template-1.3.0 urllib3-2.7.0 wadler-lindig-0.1.7 wcwidth-0.8.2 webcolors-25.10.0 webencodings-0.5.1 websocket-client-1.9.0
+2026-07-15T12:14:13.6557991Z No broken requirements found.
+2026-07-15T12:14:13.6834427Z python_dependencies=installed hash=bd9005a3b9169b5ce571fd580da8a12d02d0789a43be79ef1a96f5506ca85874
+2026-07-15T12:14:13.6873457Z ##[group]Run make agent-canon-pr-check
+2026-07-15T12:14:13.6873743Z [36;1mmake agent-canon-pr-check[0m
+2026-07-15T12:14:13.6902066Z shell: /usr/bin/bash -e {0}
+2026-07-15T12:14:13.6902272Z env:
+2026-07-15T12:14:13.6902441Z   AGENT_CANON_REPO_TOKEN: 
+2026-07-15T12:14:13.6902641Z   AGENT_CANON_REPO_SSH_KEY: 
+2026-07-15T12:14:13.6902887Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.15/x64
+2026-07-15T12:14:13.6903222Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.15/x64/lib/pkgconfig
+2026-07-15T12:14:13.6903708Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.15/x64
+2026-07-15T12:14:13.6904012Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.15/x64
+2026-07-15T12:14:13.6904438Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.15/x64
+2026-07-15T12:14:13.6904901Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.15/x64/lib
+2026-07-15T12:14:13.6905291Z ##[endgroup]
+2026-07-15T12:14:13.6972798Z bash tools/ci/check_agent_canon_pr.sh
+2026-07-15T12:14:13.7071135Z ==========================================
+2026-07-15T12:14:13.7071403Z AGENT-CANON PR CHECK
+2026-07-15T12:14:13.7071597Z ==========================================
+2026-07-15T12:14:13.7071846Z workspace_root=/home/runner/work/ptymark/ptymark
+2026-07-15T12:14:13.7072149Z agent_canon_pr_temp_root=/tmp/agent-canon-pr-check.NBWYst
+2026-07-15T12:14:13.7072468Z agent_canon_repository_mode=template_or_derived
+2026-07-15T12:14:13.7072714Z agent_canon_remote=<unset>
+2026-07-15T12:14:13.7310698Z agent_canon_submodule_status= 11f7e13f3fb457b38c6e5072c070ff5ec889b454 vendor/agent-canon (11f7e13)
+2026-07-15T12:14:13.7365434Z agent_canon_gitmodules_url=https://github.com/iwashita-nozomu/agent-canon.git
+2026-07-15T12:14:13.7365983Z agent_canon_submodule_mode=160000
+2026-07-15T12:14:13.7366441Z agent_canon_submodule_pin=11f7e13f3fb457b38c6e5072c070ff5ec889b454
+2026-07-15T12:14:13.7366929Z AGENT_CANON_SUBMODULE_EVIDENCE=pass
+2026-07-15T12:14:13.7367162Z 
+2026-07-15T12:14:13.7367570Z 1️⃣  shared surface status
+2026-07-15T12:14:13.7472165Z repo_root=/home/runner/work/ptymark/ptymark
+2026-07-15T12:14:13.7472538Z prefix=vendor/agent-canon
+2026-07-15T12:14:13.7472833Z remote_name=agent-canon
+2026-07-15T12:14:13.7473129Z default_branch=main
+2026-07-15T12:14:13.7493555Z prefix_mode=160000
+2026-07-15T12:14:13.7493830Z prefix_mode_name=submodule
+2026-07-15T12:14:13.7509954Z submodule_url=https://github.com/iwashita-nozomu/agent-canon.git
+2026-07-15T12:14:13.7525672Z submodule_pin=11f7e13f3fb457b38c6e5072c070ff5ec889b454
+2026-07-15T12:14:13.7526030Z remote_url=<unset>
+2026-07-15T12:14:13.7526234Z prefix_status=present
+2026-07-15T12:14:13.7939663Z link[agents]=ok
+2026-07-15T12:14:13.7954421Z link[.agents]=ok
+2026-07-15T12:14:13.7971581Z link[.vscode]=ok
+2026-07-15T12:14:13.7985994Z link[.codex/config.toml]=ok
+2026-07-15T12:14:13.7998597Z link[.codex/README.md]=ok
+2026-07-15T12:14:13.8012840Z link[.codex/agents]=ok
+2026-07-15T12:14:13.8025118Z link[.codex/hooks.json]=ok
+2026-07-15T12:14:13.8037204Z link[.codex/hooks]=ok
+2026-07-15T12:14:13.8049091Z link[.devcontainer]=ok
+2026-07-15T12:14:13.8061264Z link[.github/AGENTS.md]=ok
+2026-07-15T12:14:13.8072545Z link[tools]=ok
+2026-07-15T12:14:13.8084339Z link[evidence]=ok
+2026-07-15T12:14:13.8096085Z link[memory/README.md]=ok
+2026-07-15T12:14:13.8107983Z link[memory/USER_PREFERENCES.md]=ok
+2026-07-15T12:14:13.8119833Z link[memory/AGENT_PHILOSOPHY.md]=ok
+2026-07-15T12:14:13.8132110Z link[notes/experiments/README.md]=ok
+2026-07-15T12:14:13.8144181Z link[notes/experiments/REPORT_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8156237Z link[notes/experiments/results/README.md]=ok
+2026-07-15T12:14:13.8168017Z link[notes/branches/README.md]=ok
+2026-07-15T12:14:13.8180117Z link[notes/branches/BRANCH_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8192109Z link[notes/failures/README.md]=ok
+2026-07-15T12:14:13.8204249Z link[notes/failures/FAILURE_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8216594Z link[notes/guardrails/README.md]=ok
+2026-07-15T12:14:13.8229478Z link[notes/guardrails/engineering_avoidances.md]=ok
+2026-07-15T12:14:13.8241932Z link[notes/knowledge/README.md]=ok
+2026-07-15T12:14:13.8253517Z link[notes/knowledge/KNOWLEDGE_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8266189Z link[notes/knowledge/benchmark_levels_analysis.md]=ok
+2026-07-15T12:14:13.8278286Z link[notes/knowledge/benchmark_vs_experiment.md]=ok
+2026-07-15T12:14:13.8290517Z link[notes/knowledge/coding_decision_methods.md]=ok
+2026-07-15T12:14:13.8302720Z link[notes/knowledge/environment_setup.md]=ok
+2026-07-15T12:14:13.8314807Z link[notes/knowledge/experiment_directory_planning.md]=ok
+2026-07-15T12:14:13.8326447Z link[notes/knowledge/experiment_operations.md]=ok
+2026-07-15T12:14:13.8338074Z link[notes/knowledge/git_mirroring.md]=ok
+2026-07-15T12:14:13.8349770Z link[notes/knowledge/literature_intake.md]=ok
+2026-07-15T12:14:13.8361412Z link[notes/knowledge/path_resolution.md]=ok
+2026-07-15T12:14:13.8373126Z link[notes/knowledge/pyright_operations.md]=ok
+2026-07-15T12:14:13.8384965Z link[notes/themes/README.md]=ok
+2026-07-15T12:14:13.8396798Z link[notes/themes/THEME_NOTE_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8408276Z link[notes/themes/from_another_agent.md]=ok
+2026-07-15T12:14:13.8419604Z link[notes/worktrees/README.md]=ok
+2026-07-15T12:14:13.8431550Z link[notes/worktrees/WORKTREE_LOG_TEMPLATE.md]=ok
+2026-07-15T12:14:13.8443796Z link[tests/agent_tools/__init__.py]=ok
+2026-07-15T12:14:13.8455936Z link[tests/agent_tools/test_check_agent_runtime_alignment.py]=ok
+2026-07-15T12:14:13.8468525Z link[tests/agent_tools/test_tool_catalog.py]=ok
+2026-07-15T12:14:13.8480048Z link[tests/agent_tools/test_tool_drift.py]=ok
+2026-07-15T12:14:13.8491626Z link[tests/agent_tools/test_route.py]=ok
+2026-07-15T12:14:13.8503590Z link[tests/agent_tools/test_oop_rule_inventory.py]=ok
+2026-07-15T12:14:13.8515825Z link[tests/agent_tools/test_check_algorithm_module_public_surface.py]=ok
+2026-07-15T12:14:13.8527687Z link[tests/agent_tools/test_check_convention_compliance.py]=ok
+2026-07-15T12:14:13.8539331Z link[tests/agent_tools/test_check_hardcoded_numbers.py]=ok
+2026-07-15T12:14:13.8551656Z link[tests/agent_tools/test_check_static_any.py]=ok
+2026-07-15T12:14:13.8564734Z link[tests/agent_tools/test_check_algorithm_module_nested_contract.py]=ok
+2026-07-15T12:14:13.8576893Z link[tests/agent_tools/test_check_log_helper_names.py]=ok
+2026-07-15T12:14:13.8589323Z link[tests/agent_tools/test_compare_codex_token_footprints.py]=ok
+2026-07-15T12:14:13.8602218Z link[tests/agent_tools/test_analyze_refactor_surface.py]=ok
+2026-07-15T12:14:13.8614869Z link[tests/agent_tools/test_analyze_oop_readability.py]=ok
+2026-07-15T12:14:13.8626906Z link[tests/agent_tools/test_doc_start.py]=ok
+2026-07-15T12:14:13.8638980Z link[tests/agent_tools/test_log_user_preference.py]=ok
+2026-07-15T12:14:13.8651433Z link[tests/agent_tools/test_log_agent_learning.py]=ok
+2026-07-15T12:14:13.8663621Z link[tests/agent_tools/test_persist_agent_memory.py]=ok
+2026-07-15T12:14:13.8675348Z link[tests/agent_tools/test_codex_hooks.py]=ok
+2026-07-15T12:14:13.8687494Z link[tests/agent_tools/test_log_surface_inventory.py]=ok
+2026-07-15T12:14:13.8700158Z link[tests/agent_tools/test_parent_repo_readiness.py]=ok
+2026-07-15T12:14:13.8712354Z link[tests/agent_tools/test_tool_rejection_preflight.py]=ok
+2026-07-15T12:14:13.8724369Z link[tests/agent_tools/test_check_dependency_headers.py]=ok
+2026-07-15T12:14:13.8736784Z link[tests/agent_tools/test_dependency_manifest_tools.py]=ok
+2026-07-15T12:14:13.8748793Z link[tests/agent_tools/test_compare_agent_run_paths.py]=ok
+2026-07-15T12:14:13.8760760Z link[tests/agent_tools/test_evaluate_agent_run.py]=ok
+2026-07-15T12:14:13.8772937Z link[tests/agent_tools/test_evaluate_codex_agent_roles.py]=ok
+2026-07-15T12:14:13.8785051Z link[tests/agent_tools/test_evaluate_skill_workflow_prompts.py]=ok
+2026-07-15T12:14:13.8797128Z link[tests/agent_tools/test_evaluate_workflow_selection.py]=ok
+2026-07-15T12:14:13.8809093Z link[tests/agent_tools/test_evaluate_report_quality.py]=ok
+2026-07-15T12:14:13.8821630Z link[tests/agent_tools/test_generate_agent_improvement_guide.py]=ok
+2026-07-15T12:14:13.8834555Z link[tests/agent_tools/test_generate_agent_runtime_dashboard.py]=ok
+2026-07-15T12:14:13.8846435Z link[tests/agent_tools/test_file_surface_inventory.py]=ok
+2026-07-15T12:14:13.8858248Z link[tests/agent_tools/test_goal_loop.py]=ok
+2026-07-15T12:14:13.8870597Z link[tests/agent_tools/test_helper_function_inventory.py]=ok
+2026-07-15T12:14:13.8882853Z link[tests/agent_tools/test_review_backlog_scan.py]=ok
+2026-07-15T12:14:13.8895141Z link[tests/agent_tools/test_smoke_test_research_perspective_pack.py]=ok
+2026-07-15T12:14:13.8907087Z link[tests/agent_tools/test_task_start_and_close.py]=ok
+2026-07-15T12:14:13.8919022Z link[tests/agent_tools/test_vendor_skill_adapters.py]=ok
+2026-07-15T12:14:13.8931196Z link[tests/agent_tools/test_waterfall_gate_check.py]=ok
+2026-07-15T12:14:13.8943227Z link[tests/agent_tools/test_workflow_monitor.py]=ok
+2026-07-15T12:14:13.8955174Z link[tests/agent_tools/test_work_log.py]=ok
+2026-07-15T12:14:13.8968605Z link[tests/agent_tools/test_worktree_scope_lint.py]=ok
+2026-07-15T12:14:13.8981517Z link[tests/tools/test_check_merge_structure.py]=ok
+2026-07-15T12:14:13.8994732Z link[tests/tools/test_check_markdown_math.py]=ok
+2026-07-15T12:14:13.9007296Z link[tests/tools/test_container_config.py]=ok
+2026-07-15T12:14:13.9019316Z link[tests/tools/test_check_bootstrap_docs.py]=ok
+2026-07-15T12:14:13.9031607Z link[tests/tools/test_check_github_workflows.py]=ok
+2026-07-15T12:14:13.9043595Z link[tests/tools/test_python_env_policy.py]=ok
+2026-07-15T12:14:13.9055631Z link[tests/tools/test_run_codex_in_repo_container.py]=ok
+2026-07-15T12:14:13.9067638Z link[tests/tools/test_run_managed_experiment.py]=ok
+2026-07-15T12:14:13.9079446Z link[tests/tools/test_run_repo_program.py]=ok
+2026-07-15T12:14:13.9091245Z link[tests/tools/test_update_agent_canon.py]=ok
+2026-07-15T12:14:13.9103029Z link[tests/tools/test_result_log_tools.py]=ok
+2026-07-15T12:14:13.9114886Z link[tests/tools/test_update_latest_result.py]=ok
+2026-07-15T12:14:13.9126637Z link[AGENTS.md]=ok
+2026-07-15T12:14:13.9534298Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:13.9545671Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:13.9557184Z copy[.github/PULL_REQUEST_TEMPLATE/agent_canon.md]=ok
+2026-07-15T12:14:13.9569042Z copy[.github/scripts/checkout_agent_canon_submodule.sh]=ok
+2026-07-15T12:14:13.9963171Z regular[LICENSE]=ok
+2026-07-15T12:14:13.9963495Z regular[documents/README.md]=ok
+2026-07-15T12:14:13.9963987Z regular[documents/licensing-policy.md]=ok
+2026-07-15T12:14:13.9965002Z regular[documents/template-bootstrap.md]=ok
+2026-07-15T12:14:13.9966086Z regular[documents/template-github-remote.md]=ok
+2026-07-15T12:14:13.9967189Z regular[documents/linux-wsl-host-requirements.md]=ok
+2026-07-15T12:14:13.9968161Z regular[documents/server-host-contract.md]=ok
+2026-07-15T12:14:13.9969371Z regular[documents/remote-execution-repo-contract.md]=ok
+2026-07-15T12:14:14.0405493Z absent[documents/BRANCH_SCOPE.md]=ok
+2026-07-15T12:14:14.0406012Z absent[documents/AGENTS_COORDINATION.md]=ok
+2026-07-15T12:14:14.0406453Z absent[documents/DOCSTRING_GUIDE.md]=ok
+2026-07-15T12:14:14.0406909Z absent[documents/FILE_CHECKLIST_OPERATIONS.md]=ok
+2026-07-15T12:14:14.0407388Z absent[documents/codex-configuration-reference.md]=ok
+2026-07-15T12:14:14.0407841Z absent[documents/codex-configuration-slides.md]=ok
+2026-07-15T12:14:14.0418476Z absent[documents/project-template-overview-slides.md]=ok
+2026-07-15T12:14:14.0419059Z absent[documents/algorithm-implementation-boundary.md]=ok
+2026-07-15T12:14:14.0419555Z absent[documents/object-oriented-design.md]=ok
+2026-07-15T12:14:14.0420098Z absent[documents/result-log-retention-and-visualization.md]=ok
+2026-07-15T12:14:14.0420662Z absent[documents/repo-local-tool-imports.md]=ok
+2026-07-15T12:14:14.0421241Z absent[documents/agent-canon-github-remote.md]=ok
+2026-07-15T12:14:14.0421707Z absent[documents/dependency-manifest-design.md]=ok
+2026-07-15T12:14:14.0422141Z absent[documents/notes-lifecycle.md]=ok
+2026-07-15T12:14:14.0422532Z absent[documents/REVIEW_PROCESS.md]=ok
+2026-07-15T12:14:14.0423264Z absent[documents/SHARED_RUNTIME_SURFACES.md]=ok
+2026-07-15T12:14:14.0423719Z absent[documents/shared-runtime-surfaces.toml]=ok
+2026-07-15T12:14:14.0424160Z absent[documents/log-surface-inventory.json]=ok
+2026-07-15T12:14:14.0424720Z absent[documents/agent-canon-parent-repo-latest-checklist.md]=ok
+2026-07-15T12:14:14.0425273Z absent[documents/agent-canon-update-tasks.toml]=ok
+2026-07-15T12:14:14.0425760Z absent[documents/runtime-profiles-and-check-matrix.md]=ok
+2026-07-15T12:14:14.0426273Z absent[documents/template-agent-canon-audit-resolution.md]=ok
+2026-07-15T12:14:14.0426907Z absent[documents/tool-skill-routing-refactor.md]=ok
+2026-07-15T12:14:14.0427377Z absent[documents/rust-agent-tool-migration.md]=ok
+2026-07-15T12:14:14.0427928Z absent[documents/github-first-module-and-devcontainer-policy.md]=ok
+2026-07-15T12:14:14.0428500Z absent[documents/agent-canon-licensing-policy.md]=ok
+2026-07-15T12:14:14.0428979Z absent[documents/SKILL_IMPLEMENTATION_GUIDE.md]=ok
+2026-07-15T12:14:14.0429401Z absent[documents/TROUBLESHOOTING.md]=ok
+2026-07-15T12:14:14.0429803Z absent[documents/WORKTREE_SCOPE_TEMPLATE.md]=ok
+2026-07-15T12:14:14.0430223Z absent[documents/agent-canon-subtree-migration.md]=ok
+2026-07-15T12:14:14.0430635Z absent[documents/coding-conventions-cpp.md]=ok
+2026-07-15T12:14:14.0431253Z absent[documents/coding-conventions-experiments.md]=ok
+2026-07-15T12:14:14.0431754Z absent[documents/coding-conventions-house-style.md]=ok
+2026-07-15T12:14:14.0432218Z absent[documents/coding-conventions-logging.md]=ok
+2026-07-15T12:14:14.0432660Z absent[documents/coding-conventions-project.md]=ok
+2026-07-15T12:14:14.0433110Z absent[documents/coding-conventions-python.md]=ok
+2026-07-15T12:14:14.0433550Z absent[documents/coding-conventions-reviews.md]=ok
+2026-07-15T12:14:14.0434112Z absent[documents/coding-conventions-testing.md]=ok
+2026-07-15T12:14:14.0434779Z absent[documents/experiment-critical-review.md]=ok
+2026-07-15T12:14:14.0435404Z absent[documents/experiment-registry.md]=ok
+2026-07-15T12:14:14.0435941Z absent[documents/experiment-report-style.md]=ok
+2026-07-15T12:14:14.0436429Z absent[documents/experiment_runner.md]=ok
+2026-07-15T12:14:14.0436843Z absent[documents/cpp-build-layout.md]=ok
+2026-07-15T12:14:14.0437294Z absent[documents/worktree-lifecycle.md]=ok
+2026-07-15T12:14:14.0437698Z absent[documents/conventions/README.md]=ok
+2026-07-15T12:14:14.0438193Z absent[documents/conventions/common/01_principles.md]=ok
+2026-07-15T12:14:14.0438725Z absent[documents/conventions/common/02_naming.md]=ok
+2026-07-15T12:14:14.0439255Z absent[documents/conventions/common/03_comments.md]=ok
+2026-07-15T12:14:14.0439784Z absent[documents/conventions/common/04_operators.md]=ok
+2026-07-15T12:14:14.0440300Z absent[documents/conventions/common/05_docs.md]=ok
+2026-07-15T12:14:14.0440810Z absent[documents/conventions/python/01_scope.md]=ok
+2026-07-15T12:14:14.0441430Z absent[documents/conventions/python/04_type_annotations.md]=ok
+2026-07-15T12:14:14.0441946Z absent[documents/conventions/python/06_comments.md]=ok
+2026-07-15T12:14:14.0442422Z absent[documents/conventions/python/07_type_checker.md]=ok
+2026-07-15T12:14:14.0442899Z absent[documents/conventions/python/09_file_roles.md]=ok
+2026-07-15T12:14:14.0443381Z absent[documents/conventions/python/11_naming.md]=ok
+2026-07-15T12:14:14.0443830Z absent[documents/conventions/python/15_jax_rules.md]=ok
+2026-07-15T12:14:14.0444338Z absent[documents/conventions/python/20_benchmark_policy.md]=ok
+2026-07-15T12:14:14.0444970Z absent[documents/conventions/python/30_experiment_directory_structure.md]=ok
+2026-07-15T12:14:14.0445511Z absent[documents/design/README.md]=ok
+2026-07-15T12:14:14.0445869Z absent[documents/design/protocols.md]=ok
+2026-07-15T12:14:14.0446231Z absent[documents/templates/README.md]=ok
+2026-07-15T12:14:14.0446653Z absent[documents/templates/remote_execution_repo.template.toml]=ok
+2026-07-15T12:14:14.0447248Z absent[documents/templates/remote_execution_target.template.toml]=ok
+2026-07-15T12:14:14.0447846Z absent[documents/templates/server_host_inventory.template.md]=ok
+2026-07-15T12:14:14.0448572Z absent[documents/templates/server_runtime_layout.template.toml]=ok
+2026-07-15T12:14:14.0449077Z absent[documents/tools/README.md]=ok
+2026-07-15T12:14:14.0449448Z absent[documents/tools/tool-docs.toml]=ok
+2026-07-15T12:14:14.0449827Z absent[documents/tools/route.md]=ok
+2026-07-15T12:14:14.0450388Z absent[documents/tools/oop/python/readability.md]=ok
+2026-07-15T12:14:14.0451122Z absent[documents/tools/oop/python/rule_inventory.md]=ok
+2026-07-15T12:14:14.0451599Z absent[documents/tools/oop/cpp/readability.md]=ok
+2026-07-15T12:14:14.0452034Z absent[documents/tools/oop/cpp/rule_inventory.md]=ok
+2026-07-15T12:14:14.0452568Z absent[mcp]=ok
+2026-07-15T12:14:14.0452849Z absent[documents/WORKFLOW_GUIDE.md]=ok
+2026-07-15T12:14:14.0453247Z absent[documents/academic-writing-workflow.md]=ok
+2026-07-15T12:14:14.0453714Z absent[documents/adaptive-improvement-workflow.md]=ok
+2026-07-15T12:14:14.0454162Z absent[documents/agent-canon-pr-workflow.md]=ok
+2026-07-15T12:14:14.0454585Z absent[documents/agent-learning-workflow.md]=ok
+2026-07-15T12:14:14.0455010Z absent[documents/experiment-workflow.md]=ok
+2026-07-15T12:14:14.0455469Z absent[documents/implementation-waterfall-workflow.md]=ok
+2026-07-15T12:14:14.0455964Z absent[documents/long-form-writing-workflow.md]=ok
+2026-07-15T12:14:14.0456410Z absent[documents/main-integration-workflow.md]=ok
+2026-07-15T12:14:14.0456859Z absent[documents/paper-writing-workflow.md]=ok
+2026-07-15T12:14:14.0457265Z absent[documents/research-workflow.md]=ok
+2026-07-15T12:14:14.0457651Z absent[documents/workflow-references.md]=ok
+2026-07-15T12:14:14.0458039Z absent[notes/themes/AGENT_PHILOSOPHY.md]=ok
+2026-07-15T12:14:14.0458425Z absent[notes/themes/USER_PREFERENCES.md]=ok
+2026-07-15T12:14:14.0458847Z absent[memory/global]=ok
+2026-07-15T12:14:14.0459141Z absent[memory/methods]=ok
+2026-07-15T12:14:14.0459438Z absent[memory/candidates]=ok
+2026-07-15T12:14:14.0459767Z absent[memory/subagent_loadouts.yaml]=ok
+2026-07-15T12:14:14.0460347Z absent[.github/workflows/agent-runtime-dashboard.yml]=ok
+2026-07-15T12:14:14.0461008Z absent[.github/workflows/issue-mirror.yml]=ok
+2026-07-15T12:14:14.0461441Z absent[.github/PULL_REQUEST_TEMPLATE.md]=ok
+2026-07-15T12:14:14.0473689Z 
+2026-07-15T12:14:14.0474056Z 2️⃣  shared surface drift check
+2026-07-15T12:14:14.2524159Z copy[.github/workflows/agent-coordination.yml]=drift
+2026-07-15T12:14:14.2535832Z copy[.github/workflows/agent-improvement-guide.yml]=drift
+2026-07-15T12:14:14.5202364Z sync_agent_canon.sh: shared surface drift detected; run 'bash tools/sync_agent_canon.sh link-root'
+2026-07-15T12:14:14.5216564Z make: *** [Makefile:199: agent-canon-pr-check] Error 1
+2026-07-15T12:14:14.5231970Z ##[error]Process completed with exit code 2.
+2026-07-15T12:14:14.5339448Z Post job cleanup.
+2026-07-15T12:14:14.6016877Z [command]/usr/bin/git version
+2026-07-15T12:14:14.6093111Z git version 2.54.0
+2026-07-15T12:14:14.6117586Z Copying '/home/runner/.gitconfig' to '/home/runner/work/_temp/6445f1e8-31d6-4d7c-a5c8-b5039cbf407f/.gitconfig'
+2026-07-15T12:14:14.6125544Z Temporarily overriding HOME='/home/runner/work/_temp/6445f1e8-31d6-4d7c-a5c8-b5039cbf407f' before making global git config changes
+2026-07-15T12:14:14.6126433Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-15T12:14:14.6129435Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ptymark/ptymark
+2026-07-15T12:14:14.6155266Z Removing SSH command configuration
+2026-07-15T12:14:14.6160430Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-15T12:14:14.6188569Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-15T12:14:14.6380586Z Entering 'vendor/agent-canon'
+2026-07-15T12:14:14.6427914Z Removing HTTP extra header
+2026-07-15T12:14:14.6432875Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:14:14.6463020Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:14:14.6665888Z Entering 'vendor/agent-canon'
+2026-07-15T12:14:14.6711674Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:14:14.6724844Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:14:14.6755828Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:14:14.6947187Z Entering 'vendor/agent-canon'
+2026-07-15T12:14:14.6963555Z file:/home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config	remote.origin.url
+2026-07-15T12:14:14.6991493Z [command]/usr/bin/git config --file /home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:14:14.7147822Z Cleaning up orphan processes
