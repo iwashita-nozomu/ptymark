@@ -42,11 +42,13 @@ jobs:
           cache: pip
           cache-dependency-path: docker/requirements.txt
 
-      - name: Install dependencies
+      - name: Install dependencies quietly
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y graphviz ripgrep
-          PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+          set -euo pipefail
+          sudo apt-get update -qq >/dev/null
+          sudo apt-get install -y -qq graphviz ripgrep >/dev/null
+          PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD" >/dev/null
 
       - name: Run gate and print final diagnostics
         shell: bash
