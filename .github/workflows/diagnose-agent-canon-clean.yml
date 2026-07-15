@@ -46,6 +46,6 @@ jobs:
           set +e
           make agent-canon-pr-check >agent-canon-pr.log 2>&1
           status=$?
-          tail -n 65 agent-canon-pr.log
+          tail -n 20 agent-canon-pr.log
           printf 'AGENT_CANON_GATE_STATUS=%s\n' "$status"
           exit "$status"
