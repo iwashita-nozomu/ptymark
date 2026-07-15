@@ -1,0 +1,92 @@
+# @dependency-start
+# contract workflow
+# responsibility Performs the final post-merge purge of all active Actions artifacts, verifies zero remain, records the result on issue 94, and removes its branch without uploading an artifact.
+# upstream design ../../documents/release.md source-only release contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/94 source-only migration closeout
+# @dependency-end
+
+name: final source-only Actions artifact purge
+
+on:
+  push:
+    branches:
+      - maintenance/source-only-artifact-final
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+
+concurrency:
+  group: final-source-only-actions-artifact-purge
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source-only main snapshot
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: maintenance/source-only-artifact-final
+          submodules: false
+          persist-credentials: false
+
+      - name: Confirm source-only policy
+        run: |
+          set -euo pipefail
+          grep -Eqi 'source[- ]only|source only' README.md
+          grep -Eqi 'source[- ]only' documents/release.md
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'dist/*.tar.gz' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.zip' .github/workflows/ptymark-ci.yml
+
+      - name: Delete all active Actions artifacts and verify zero
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deleted=0
+          : > /tmp/deleted-artifacts.tsv
+          for pass in 1 2 3 4 5 6; do
+            gh api --paginate "repos/${REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | select(.expired == false) | [.id, .name, .size_in_bytes] | @tsv' \
+              > /tmp/current-artifacts.tsv
+            if [[ ! -s /tmp/current-artifacts.tsv ]]; then
+              break
+            fi
+            while IFS=$'\t' read -r id name size; do
+              [[ -n "$id" ]] || continue
+              printf '%s\t%s\t%s\n' "$id" "$name" "$size" >> /tmp/deleted-artifacts.tsv
+              gh api --method DELETE "repos/${REPOSITORY}/actions/artifacts/${id}"
+              deleted=$((deleted + 1))
+            done < /tmp/current-artifacts.tsv
+            sleep 5
+          done
+          remaining=$(gh api --paginate "repos/${REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false)] | length' | awk '{sum += $1} END {print sum + 0}')
+          test "$remaining" = '0'
+          unique=$(sort -u /tmp/deleted-artifacts.tsv | sed '/^$/d' | wc -l | tr -d ' ')
+          cat > /tmp/final-artifact-purge-comment.md <<EOF
+          ## Final post-merge Actions artifact purge
+
+          - Active artifacts deleted in this final pass: **${unique}**
+          - Active artifacts remaining immediately after the final purge: **0**
+
+          This pass ran after the source-only policy merge and its cross-platform CI. It leaves no historical executable package, release archive, verification bundle, or other Actions artifact downloadable. Future workflows may create bounded non-executable diagnostics, but product binaries and native package outputs must be discarded before job completion.
+          EOF
+          sed -i 's/^          //' /tmp/final-artifact-purge-comment.md
+          gh issue comment 94 --repo "$REPOSITORY" --body-file /tmp/final-artifact-purge-comment.md
+
+      - name: Remove final purge branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/maintenance%2Fsource-only-artifact-final"
