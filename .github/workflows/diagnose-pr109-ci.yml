@@ -1,0 +1,42 @@
+name: Diagnose PR 109 repository CI failure
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/diagnose-pr109-ci.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  export:
+    name: Export focused failure log
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download failed repository CI job log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: "87394207664"
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" > full.log
+          {
+            echo "=== matched failure lines ==="
+            grep -nE 'dependency_layer_error|##\[error\]|❌|FAILED|FAILURES|Error:|error:|failed' full.log | tail -n 250 || true
+            echo
+            echo "=== final 350 log lines ==="
+            tail -n 350 full.log
+          } > failure.txt
+
+      - name: Upload focused failure log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr109-repository-ci-failure
+          path: failure.txt
+          if-no-files-found: error
+          retention-days: 1
