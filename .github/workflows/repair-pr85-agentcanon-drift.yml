@@ -1,0 +1,50 @@
+name: repair PR 85 AgentCanon drift
+
+on:
+  push:
+    branches:
+      - agent/integration/source-only-policy-final-20260715
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out diagnostics branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/integration/source-only-policy-final-20260715
+          persist-credentials: false
+
+      - name: Publish repaired PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPAIRED_SHA: 58fffeb0b7dba8acdb66aa488ac173d3e14a2627
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_ref=$(gh pr view 85 --repo "$GITHUB_REPOSITORY" --json headRefName --jq .headRefName)
+          current_sha=$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/${head_ref//\//%2F}" --jq .object.sha)
+          test "$current_sha" = 'e8c14a8d432c42013e37cafce3fd3e114da9032e'
+          gh api --method PATCH \
+            "/repos/${GITHUB_REPOSITORY}/git/refs/heads/${head_ref//\//%2F}" \
+            -f sha="$REPAIRED_SHA" \
+            -F force=false
+          rm .github/workflows/repair-pr85-agentcanon-drift.yml
+
+      - name: Remove one-time workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/integration/source-only-policy-final-20260715
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'ci: remove PR 85 repair workflow'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
