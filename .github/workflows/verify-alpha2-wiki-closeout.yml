@@ -1,0 +1,172 @@
+name: Verify alpha.2 bilingual Wiki closeout
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-alpha2-wiki-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event.pull_request.head.ref == 'agent/verify-alpha2-wiki-closeout'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fresh-clone and inspect Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p wiki-evidence
+          git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git" wiki
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('wiki')
+          evidence = Path('wiki-evidence')
+          expected = {
+              'Home.md', 'Home-ja.md',
+              'Roadmap.md', 'Roadmap-ja.md',
+              'Next-Release.md', 'Next-Release-ja.md',
+              'Adoptability.md', 'Adoptability-ja.md',
+              'Release-Status.md', 'Release-Status-ja.md',
+              'Troubleshooting.md', 'Troubleshooting-ja.md',
+              '_Sidebar.md', '_Footer.md',
+          }
+          actual = {path.name for path in root.glob('*.md')}
+          errors = []
+          checks = {}
+
+          missing = sorted(expected - actual)
+          checks['pages_present'] = not missing
+          if missing:
+              errors.append({'check': 'pages_present', 'missing': missing})
+
+          pairs = {
+              'Home.md': 'Home-ja.md',
+              'Roadmap.md': 'Roadmap-ja.md',
+              'Next-Release.md': 'Next-Release-ja.md',
+              'Adoptability.md': 'Adoptability-ja.md',
+              'Release-Status.md': 'Release-Status-ja.md',
+              'Troubleshooting.md': 'Troubleshooting-ja.md',
+          }
+          for english, japanese in pairs.items():
+              if english not in actual or japanese not in actual:
+                  continue
+              en = (root / english).read_text(encoding='utf-8')
+              ja = (root / japanese).read_text(encoding='utf-8')
+              en_link = japanese.removesuffix('.md') in en
+              ja_link = english.removesuffix('.md') in ja
+              checks[f'{english}:language_switch'] = en_link and ja_link
+              if not en_link or not ja_link:
+                  errors.append({
+                      'check': 'language_switch',
+                      'english': english,
+                      'japanese': japanese,
+                      'english_links_japanese': en_link,
+                      'japanese_links_english': ja_link,
+                  })
+
+          diagram_pages = [
+              'Home.md', 'Home-ja.md',
+              'Roadmap.md', 'Roadmap-ja.md',
+              'Next-Release.md', 'Next-Release-ja.md',
+              'Adoptability.md', 'Adoptability-ja.md',
+              'Release-Status.md', 'Release-Status-ja.md',
+              'Troubleshooting.md', 'Troubleshooting-ja.md',
+          ]
+          for filename in diagram_pages:
+              if filename not in actual:
+                  continue
+              ok = '```mermaid' in (root / filename).read_text(encoding='utf-8')
+              checks[f'{filename}:mermaid'] = ok
+              if not ok:
+                  errors.append({'check': 'mermaid', 'file': filename})
+
+          content_checks = {
+              'Home.md': ['v0.1.0-alpha.2', 'v0.1.0-alpha.3', 'Issue #90'],
+              'Home-ja.md': ['v0.1.0-alpha.2', 'v0.1.0-alpha.3', 'Issue #90'],
+              'Roadmap.md': ['c4f23c924c855094d09077c293d06b2a6157250d', 'v0.1.0-alpha.3', 'Issue #90'],
+              'Roadmap-ja.md': ['c4f23c924c855094d09077c293d06b2a6157250d', 'v0.1.0-alpha.3', 'Issue #90'],
+              'Next-Release.md': ['v0.1.0-alpha.3', 'ptymark setup', 'Issue #90'],
+              'Next-Release-ja.md': ['v0.1.0-alpha.3', 'ptymark setup', 'Issue #90'],
+              'Adoptability.md': ['v0.1.0-alpha.2', 'v0.1.0-alpha.3', 'ptymark doctor'],
+              'Adoptability-ja.md': ['v0.1.0-alpha.2', 'v0.1.0-alpha.3', 'ptymark doctor'],
+              'Release-Status.md': ['v0.1.0-alpha.2', 'c4f23c924c855094d09077c293d06b2a6157250d'],
+              'Release-Status-ja.md': ['v0.1.0-alpha.2', 'c4f23c924c855094d09077c293d06b2a6157250d'],
+              'Troubleshooting.md': ['ptymark.doctor.v1', 'render.timeout', '--safe'],
+              'Troubleshooting-ja.md': ['ptymark.doctor.v1', 'render.timeout', '--safe'],
+          }
+          for filename, needles in content_checks.items():
+              if filename not in actual:
+                  continue
+              text = (root / filename).read_text(encoding='utf-8')
+              absent = [needle for needle in needles if needle not in text]
+              checks[f'{filename}:content'] = not absent
+              if absent:
+                  errors.append({'check': 'content', 'file': filename, 'missing': absent})
+
+          digests = [
+              'e0d8aba8a84161cdd652cb2227d55d6262eb6c754edb70d3f387fb50e813971b',
+              '74baad0647c51257834382f126149a76e0052fb4cff331886196ef7ea37c0354',
+              '2b1c561b2eb934fb5ef0861737ddf8dcb9c6d01eb934e24263d970d23f8b07d8',
+          ]
+          for filename in ('Release-Status.md', 'Release-Status-ja.md'):
+              if filename not in actual:
+                  continue
+              text = (root / filename).read_text(encoding='utf-8')
+              absent = [digest for digest in digests if digest not in text]
+              checks[f'{filename}:hashes'] = not absent
+              if absent:
+                  errors.append({'check': 'hashes', 'file': filename, 'missing': absent})
+
+          import subprocess
+          commit = subprocess.check_output(
+              ['git', 'rev-parse', 'HEAD'], cwd=root, text=True
+          ).strip()
+          result = {
+              'wiki_commit': commit,
+              'page_count': len(actual),
+              'expected_page_count': len(expected),
+              'files': sorted(actual),
+              'checks': checks,
+              'errors': errors,
+              'success': not errors,
+          }
+          evidence.joinpath('summary.json').write_text(
+              json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          evidence.joinpath('wiki-commit.txt').write_text(commit + '\n', encoding='utf-8')
+          evidence.joinpath('files.txt').write_text('\n'.join(sorted(actual)) + '\n', encoding='utf-8')
+          print(json.dumps(result, indent=2, sort_keys=True))
+          if errors:
+              raise SystemExit(1)
+          PY
+
+      - name: Upload Wiki verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: alpha2-bilingual-wiki-verification
+          path: wiki-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove verifier branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent/verify-alpha2-wiki-closeout"
