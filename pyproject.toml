@@ -4,6 +4,8 @@
 # upstream design LICENSE repository license text
 # upstream design documents/licensing-policy.md repository license ownership
 # upstream design vendor/agent-canon/documents/coding-conventions-python.md Python convention contract
+# upstream environment docker/requirements-runtime.txt canonical workspace runtime dependencies
+# upstream environment docker/requirements-dev.txt canonical verification dependencies
 # downstream implementation tests/tools/test_python_env_policy.py validates Python environment policy
 # downstream implementation tests/tools/test_update_latest_result.py imports shared tools in pyright
 # @dependency-end
@@ -24,6 +26,16 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
+# Canonical package-local verification tools. Container-only audit and visualization
+# tools remain in docker/requirements-dev.txt.
+verification = [
+  "pytest>=9.1.1",
+  "ruff>=0.15.21",
+  "scipy-stubs",
+  "pydocstyle>=6.3",
+  "pyyaml>=6.0.3",
+]
+# Backward-compatible alias for existing `pip install .[dev]` callers.
 dev = [
   "pytest>=9.1.1",
   "ruff>=0.15.21",
