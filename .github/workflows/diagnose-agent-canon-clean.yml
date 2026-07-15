@@ -1,0 +1,51 @@
+# @dependency-start
+# contract workflow
+# responsibility Captures a bounded AgentCanon PR gate tail for one clean reproduction.
+# upstream implementation ../../tools/ci/check_agent_canon_pr.sh shared canon PR gate
+# @dependency-end
+
+name: Diagnose AgentCanon Gate Clean
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-agent-canon-clean-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Reproduce gate with bounded output
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "https://github.com/${REPOSITORY}.git"
+          git fetch -q --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/merge"
+          git checkout -q --detach FETCH_HEAD
+          bash .github/scripts/checkout_agent_canon_submodule.sh >/dev/null 2>&1
+
+          sudo apt-get update -qq >/dev/null 2>&1
+          sudo apt-get install -y -qq graphviz ripgrep >/dev/null 2>&1
+          PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps \
+            bash docker/install_python_dependencies.sh "$PWD" >/dev/null 2>&1
+
+          set +e
+          make agent-canon-pr-check >agent-canon-pr.log 2>&1
+          status=$?
+          tail -n 65 agent-canon-pr.log
+          printf 'AGENT_CANON_GATE_STATUS=%s\n' "$status"
+          exit "$status"
