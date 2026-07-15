@@ -1,0 +1,170 @@
+name: Patch alpha.2 Wiki adoptability wording
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: patch-alpha2-wiki-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/patch-alpha2-wiki-adoptability'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Patch Wiki and capture diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p wiki-evidence
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git"
+          git clone --quiet "$wiki_url" wiki
+          before=$(git -C wiki rev-parse HEAD)
+          branch=$(git -C wiki branch --show-current)
+          printf '%s\n' "$before" > wiki-evidence/before.txt
+          printf '%s\n' "$branch" > wiki-evidence/branch.txt
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('wiki/Adoptability.md'): (
+                  '- diagnose ready/degraded/unusable state with doctor v1;',
+                  '- diagnose ready/degraded/unusable state with `ptymark doctor` and doctor v1;',
+              ),
+              Path('wiki/Adoptability-ja.md'): (
+                  '- doctor v1によるready/degraded/unusable診断;',
+                  '- `ptymark doctor` / doctor v1によるready/degraded/unusable診断;',
+              ),
+          }
+          for path, (old, new) in replacements.items():
+              text = path.read_text(encoding='utf-8')
+              if old not in text and new not in text:
+                  raise SystemExit(f'expected wording not found in {path}')
+              if old in text:
+                  text = text.replace(old, new, 1)
+                  path.write_text(text, encoding='utf-8')
+          PY
+
+          git -C wiki config user.name github-actions[bot]
+          git -C wiki config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C wiki add Adoptability.md Adoptability-ja.md
+          git -C wiki diff --cached --check
+          if ! git -C wiki diff --cached --quiet; then
+            git -C wiki commit -m 'docs: name ptymark doctor in adoptability pages' \
+              >wiki-evidence/commit.stdout.txt 2>wiki-evidence/commit.stderr.txt
+            set +e
+            git -C wiki push "$wiki_url" "HEAD:${branch}" \
+              >wiki-evidence/push.stdout.txt 2>wiki-evidence/push.stderr.txt
+            push_status=$?
+            set -e
+            printf '%s\n' "$push_status" > wiki-evidence/push.status
+            test "$push_status" -eq 0
+          else
+            printf 'no changes required\n' > wiki-evidence/commit.stdout.txt
+            : > wiki-evidence/commit.stderr.txt
+            : > wiki-evidence/push.stdout.txt
+            : > wiki-evidence/push.stderr.txt
+            printf '0\n' > wiki-evidence/push.status
+          fi
+
+          after=$(git -C wiki rev-parse HEAD)
+          printf '%s\n' "$after" > wiki-evidence/after.txt
+
+          git clone --quiet "$wiki_url" wiki-fresh
+          fresh=$(git -C wiki-fresh rev-parse HEAD)
+          printf '%s\n' "$fresh" > wiki-evidence/fresh.txt
+          test "$fresh" = "$after"
+          grep -F '`ptymark doctor`' wiki-fresh/Adoptability.md
+          grep -F '`ptymark doctor`' wiki-fresh/Adoptability-ja.md
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('wiki-fresh')
+          evidence = Path('wiki-evidence')
+          expected = {
+              'Home.md', 'Home-ja.md',
+              'Roadmap.md', 'Roadmap-ja.md',
+              'Next-Release.md', 'Next-Release-ja.md',
+              'Adoptability.md', 'Adoptability-ja.md',
+              'Release-Status.md', 'Release-Status-ja.md',
+              'Troubleshooting.md', 'Troubleshooting-ja.md',
+              '_Sidebar.md', '_Footer.md',
+          }
+          actual = {path.name for path in root.glob('*.md')}
+          assert expected <= actual, sorted(expected - actual)
+          pairs = {
+              'Home.md': 'Home-ja.md',
+              'Roadmap.md': 'Roadmap-ja.md',
+              'Next-Release.md': 'Next-Release-ja.md',
+              'Adoptability.md': 'Adoptability-ja.md',
+              'Release-Status.md': 'Release-Status-ja.md',
+              'Troubleshooting.md': 'Troubleshooting-ja.md',
+          }
+          for en, ja in pairs.items():
+              en_text = (root / en).read_text(encoding='utf-8')
+              ja_text = (root / ja).read_text(encoding='utf-8')
+              assert ja.removesuffix('.md') in en_text
+              assert en.removesuffix('.md') in ja_text
+              assert '```mermaid' in en_text
+              assert '```mermaid' in ja_text
+          release = (root / 'Release-Status.md').read_text(encoding='utf-8')
+          for digest in (
+              'e0d8aba8a84161cdd652cb2227d55d6262eb6c754edb70d3f387fb50e813971b',
+              '74baad0647c51257834382f126149a76e0052fb4cff331886196ef7ea37c0354',
+              '2b1c561b2eb934fb5ef0861737ddf8dcb9c6d01eb934e24263d970d23f8b07d8',
+          ):
+              assert digest in release
+          assert 'v0.1.0-alpha.3' in (root / 'Roadmap.md').read_text(encoding='utf-8')
+          assert 'Issue #90' in (root / 'Next-Release.md').read_text(encoding='utf-8')
+          assert 'ptymark.doctor.v1' in (root / 'Troubleshooting.md').read_text(encoding='utf-8')
+          summary = {
+              'success': True,
+              'wiki_commit': evidence.joinpath('fresh.txt').read_text().strip(),
+              'page_count': len(actual),
+              'expected_pages_verified': len(expected),
+              'language_pairs_verified': len(pairs),
+              'mermaid_verified': True,
+              'release_hashes_verified': True,
+              'doctor_command_verified': True,
+              'next_release': 'v0.1.0-alpha.3',
+              'next_release_issue': 90,
+          }
+          evidence.joinpath('summary.json').write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          evidence.joinpath('files.txt').write_text(
+              '\n'.join(sorted(actual)) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload Wiki patch evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: alpha2-bilingual-wiki-closeout-final
+          path: wiki-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove patch branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent/patch-alpha2-wiki-adoptability"
