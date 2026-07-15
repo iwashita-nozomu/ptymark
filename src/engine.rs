@@ -1,7 +1,9 @@
 use crate::config::{EnginesConfig, MathEngine, MermaidEngine};
+use crate::diagnostics::code;
 use crate::model::{BlockKind, SemanticBlock};
 use crate::render::{
-    PreviewRenderer, RenderArtifact, RenderContext, RenderError, Renderer, SourceRenderer,
+    PreviewRenderer, RenderArtifact, RenderCancellation, RenderContext, RenderError, Renderer,
+    SourceRenderer,
 };
 use std::env;
 use std::ffi::OsString;
@@ -9,11 +11,12 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const ENGINE_TIMEOUT: Duration = Duration::from_secs(30);
+pub const ENGINE_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DISPLAY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES: usize = 64 * 1024;
@@ -56,11 +59,17 @@ pub struct ConfiguredRenderer {
     mermaid: EngineChoice,
     math: EngineChoice,
     presenter: PathBuf,
+    timeout: Duration,
+    cancellation: RenderCancellation,
     id: String,
 }
 
 impl ConfiguredRenderer {
     pub fn new(config: &EnginesConfig) -> Self {
+        Self::with_cancellation(config, RenderCancellation::default())
+    }
+
+    pub fn with_cancellation(config: &EnginesConfig, cancellation: RenderCancellation) -> Self {
         let mermaid = match config.mermaid.backend {
             MermaidEngine::Preview => EngineChoice::Preview,
             MermaidEngine::Source => EngineChoice::Source,
@@ -83,6 +92,8 @@ impl ConfiguredRenderer {
             mermaid,
             math,
             presenter: config.presenter.path.clone(),
+            timeout: ENGINE_TIMEOUT,
+            cancellation,
             id,
         }
     }
@@ -97,13 +108,17 @@ impl ConfiguredRenderer {
             EngineChoice::Preview => PreviewRenderer.render(block, context),
             EngineChoice::Source => SourceRenderer.render(block, context),
             EngineChoice::MermaidCli(path) => {
-                let svg = render_mermaid_svg(path, block.body())?;
-                let bytes = present_svg(&self.presenter, &svg, context)?;
+                let deadline = AttemptDeadline::new(self.timeout);
+                let svg = render_mermaid_svg(path, block.body(), deadline, &self.cancellation)?;
+                let bytes =
+                    present_svg(&self.presenter, &svg, context, deadline, &self.cancellation)?;
                 Ok(RenderArtifact::new(bytes))
             }
             EngineChoice::MathjaxCli(path) => {
-                let svg = render_math_svg(path, block.body())?;
-                let bytes = present_svg(&self.presenter, &svg, context)?;
+                let deadline = AttemptDeadline::new(self.timeout);
+                let svg = render_math_svg(path, block.body(), deadline, &self.cancellation)?;
+                let bytes =
+                    present_svg(&self.presenter, &svg, context, deadline, &self.cancellation)?;
                 Ok(RenderArtifact::new(bytes))
             }
         }
@@ -190,21 +205,31 @@ pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
                 return Ok(candidate);
             }
         }
-        return Err(RenderError::new(format!(
-            "configured executable `{}` does not exist or is not executable",
-            path.display()
-        )));
+        return Err(RenderError::coded(
+            code::ENGINE_MISSING,
+            format!(
+                "configured executable `{}` does not exist or is not executable",
+                path.display()
+            ),
+        ));
     }
 
     if path.components().count() != 1 {
-        return Err(RenderError::new(format!(
-            "configured executable `{}` must be absolute or a bare name",
-            path.display()
-        )));
+        return Err(RenderError::coded(
+            code::ENGINE_MISSING,
+            format!(
+                "configured executable `{}` must be absolute or a bare name",
+                path.display()
+            ),
+        ));
     }
 
-    let search_path = env::var_os("PATH")
-        .ok_or_else(|| RenderError::new("PATH is not set; use an absolute engine path"))?;
+    let search_path = env::var_os("PATH").ok_or_else(|| {
+        RenderError::coded(
+            code::ENGINE_MISSING,
+            "PATH is not set; use an absolute engine path",
+        )
+    })?;
     for directory in env::split_paths(&search_path) {
         for candidate in executable_candidates(&directory.join(path)) {
             if let Some(candidate) = executable_candidate(&candidate) {
@@ -213,10 +238,13 @@ pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
         }
     }
 
-    Err(RenderError::new(format!(
-        "executable `{}` was not found in PATH; set its absolute path in the ptymark configuration",
-        path.display()
-    )))
+    Err(RenderError::coded(
+        code::ENGINE_MISSING,
+        format!(
+            "executable `{}` was not found in PATH; set its absolute path in the ptymark configuration",
+            path.display()
+        ),
+    ))
 }
 
 fn executable_candidates(path: &Path) -> Vec<PathBuf> {
@@ -280,7 +308,12 @@ fn executable_candidate(path: &Path) -> Option<PathBuf> {
     Some(fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
 }
 
-fn render_mermaid_svg(program: &Path, body: &[u8]) -> Result<Vec<u8>, RenderError> {
+fn render_mermaid_svg(
+    program: &Path,
+    body: &[u8],
+    deadline: AttemptDeadline,
+    cancellation: &RenderCancellation,
+) -> Result<Vec<u8>, RenderError> {
     std::str::from_utf8(body)
         .map_err(|error| RenderError::new(format!("Mermaid input is not valid UTF-8: {error}")))?;
     let scratch = ScratchDir::create()?;
@@ -291,13 +324,25 @@ fn render_mermaid_svg(program: &Path, body: &[u8]) -> Result<Vec<u8>, RenderErro
         OsString::from("--output"),
         output_path.clone().into_os_string(),
     ];
-    run_process(program, &arguments, Some(body), MAX_DIAGNOSTIC_BYTES)?;
+    run_process_with_deadline(
+        program,
+        &arguments,
+        Some(body),
+        MAX_DIAGNOSTIC_BYTES,
+        deadline,
+        cancellation,
+    )?;
     let svg = read_file_capped(&output_path, MAX_ARTIFACT_BYTES)?;
     validate_svg(&svg, "Mermaid CLI")?;
     Ok(svg)
 }
 
-fn render_math_svg(program: &Path, body: &[u8]) -> Result<Vec<u8>, RenderError> {
+fn render_math_svg(
+    program: &Path,
+    body: &[u8],
+    deadline: AttemptDeadline,
+    cancellation: &RenderCancellation,
+) -> Result<Vec<u8>, RenderError> {
     let math = std::str::from_utf8(body)
         .map_err(|error| RenderError::new(format!("math input is not valid UTF-8: {error}")))?
         .trim();
@@ -315,12 +360,25 @@ fn render_math_svg(program: &Path, body: &[u8]) -> Result<Vec<u8>, RenderError> 
     }
 
     let arguments = vec![OsString::from(math)];
-    let svg = run_process(program, &arguments, None, MAX_ARTIFACT_BYTES)?;
+    let svg = run_process_with_deadline(
+        program,
+        &arguments,
+        None,
+        MAX_ARTIFACT_BYTES,
+        deadline,
+        cancellation,
+    )?;
     validate_svg(&svg, "MathJax CLI")?;
     Ok(svg)
 }
 
-fn present_svg(program: &Path, svg: &[u8], context: RenderContext) -> Result<Vec<u8>, RenderError> {
+fn present_svg(
+    program: &Path,
+    svg: &[u8],
+    context: RenderContext,
+    deadline: AttemptDeadline,
+    cancellation: &RenderCancellation,
+) -> Result<Vec<u8>, RenderError> {
     let scratch = ScratchDir::create()?;
     let input_path = scratch.path().join("artifact.svg");
     fs::write(&input_path, svg).map_err(|error| {
@@ -340,9 +398,17 @@ fn present_svg(program: &Path, svg: &[u8], context: RenderContext) -> Result<Vec
         OsString::from(format!("{}x", context.columns)),
         input_path.into_os_string(),
     ];
-    let bytes = run_process(program, &arguments, None, MAX_DISPLAY_BYTES)?;
+    let bytes = run_process_with_deadline(
+        program,
+        &arguments,
+        None,
+        MAX_DISPLAY_BYTES,
+        deadline,
+        cancellation,
+    )?;
     if bytes.is_empty() {
-        return Err(RenderError::new(
+        return Err(RenderError::coded(
+            code::PRESENTATION_FALLBACK,
             "Chafa presenter produced no display bytes",
         ));
     }
@@ -350,12 +416,17 @@ fn present_svg(program: &Path, svg: &[u8], context: RenderContext) -> Result<Vec
 }
 
 fn validate_svg(bytes: &[u8], engine: &str) -> Result<(), RenderError> {
-    let text = std::str::from_utf8(bytes)
-        .map_err(|error| RenderError::new(format!("{engine} output is not UTF-8 SVG: {error}")))?;
+    let text = std::str::from_utf8(bytes).map_err(|error| {
+        RenderError::coded(
+            code::RENDER_PROCESS_EXIT,
+            format!("{engine} output is not UTF-8 SVG: {error}"),
+        )
+    })?;
     if !text.contains("<svg") {
-        return Err(RenderError::new(format!(
-            "{engine} output does not contain an SVG element"
-        )));
+        return Err(RenderError::coded(
+            code::RENDER_PROCESS_EXIT,
+            format!("{engine} output does not contain an SVG element"),
+        ));
     }
     Ok(())
 }
@@ -436,26 +507,82 @@ fn read_file_capped(path: &Path, limit: usize) -> Result<Vec<u8>, RenderError> {
             path.display()
         ))
     })?;
-    let result = read_capped(file, limit).map_err(|error| {
-        RenderError::new(format!(
-            "cannot read renderer artifact `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    if result.overflowed {
-        return Err(RenderError::new(format!(
-            "renderer artifact exceeded {limit} bytes"
-        )));
+    let mut bytes = Vec::with_capacity(limit.min(8192));
+    file.take(limit.saturating_add(1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            RenderError::new(format!(
+                "cannot read renderer artifact `{}`: {error}",
+                path.display()
+            ))
+        })?;
+    if bytes.len() > limit {
+        return Err(RenderError::coded(
+            code::RENDER_OUTPUT_LIMIT,
+            format!("renderer artifact exceeded {limit} bytes"),
+        ));
     }
-    Ok(result.bytes)
+    Ok(bytes)
 }
 
-fn run_process(
+#[derive(Clone, Copy, Debug)]
+struct AttemptDeadline {
+    expires_at: Instant,
+}
+
+impl AttemptDeadline {
+    fn new(timeout: Duration) -> Self {
+        Self {
+            expires_at: Instant::now() + timeout,
+        }
+    }
+
+    fn remaining(self) -> Option<Duration> {
+        self.expires_at.checked_duration_since(Instant::now())
+    }
+}
+
+#[cfg(test)]
+fn run_process_with_timeout(
     program: &Path,
     arguments: &[OsString],
     input: Option<&[u8]>,
     stdout_limit: usize,
+    timeout: Duration,
 ) -> Result<Vec<u8>, RenderError> {
+    run_process_with_deadline(
+        program,
+        arguments,
+        input,
+        stdout_limit,
+        AttemptDeadline::new(timeout),
+        &RenderCancellation::default(),
+    )
+}
+
+fn run_process_with_deadline(
+    program: &Path,
+    arguments: &[OsString],
+    input: Option<&[u8]>,
+    stdout_limit: usize,
+    deadline: AttemptDeadline,
+    cancellation: &RenderCancellation,
+) -> Result<Vec<u8>, RenderError> {
+    let timeout = deadline.remaining().ok_or_else(|| {
+        RenderError::coded(
+            code::RENDER_TIMEOUT,
+            format!(
+                "renderer `{}` had no remaining attempt time",
+                program_label(program)
+            ),
+        )
+    })?;
+    if cancellation.is_cancelled() {
+        return Err(RenderError::coded(
+            code::RENDER_OUTPUT_LIMIT,
+            "the pending terminal-output limit cancelled the render attempt",
+        ));
+    }
     let mut command = Command::new(program);
     command
         .args(arguments)
@@ -474,10 +601,13 @@ fn run_process(
     }
 
     let mut child = command.spawn().map_err(|error| {
-        RenderError::new(format!(
-            "cannot start renderer `{}`: {error}",
-            program.display()
-        ))
+        RenderError::coded(
+            code::ENGINE_MISSING,
+            format!(
+                "cannot start renderer `{}`: {error}",
+                program_label(program)
+            ),
+        )
     })?;
 
     let stdin_writer = if let Some(input) = input {
@@ -503,64 +633,169 @@ fn run_process(
         .stderr
         .take()
         .ok_or_else(|| RenderError::new("renderer stderr is unavailable"))?;
-    let stdout_reader = thread::spawn(move || read_capped(stdout, stdout_limit));
+    let overflowed = Arc::new(AtomicBool::new(false));
+    let stdout_overflowed = Arc::clone(&overflowed);
+    let stdout_reader =
+        thread::spawn(move || read_capped_until_limit(stdout, stdout_limit, &stdout_overflowed));
     let stderr_reader = thread::spawn(move || read_capped(stderr, MAX_DIAGNOSTIC_BYTES));
 
-    let status = match wait_with_timeout(&mut child, ENGINE_TIMEOUT) {
-        Ok(Some(status)) => status,
-        Ok(None) => {
-            return Err(RenderError::new(format!(
-                "renderer `{}` exceeded {} ms timeout",
-                program.display(),
-                ENGINE_TIMEOUT.as_millis()
-            )));
-        }
-        Err(error) => {
-            terminate_child(&mut child);
-            return Err(RenderError::new(format!(
-                "renderer `{}` wait failed: {error}",
-                program.display()
-            )));
-        }
-    };
+    let outcome = wait_with_limits(&mut child, timeout, &overflowed, cancellation);
+    if outcome.is_err() {
+        terminate_child(&mut child);
+    }
 
-    if let Some(writer) = stdin_writer {
+    let writer_result = stdin_writer.map(|writer| {
         writer
             .join()
             .map_err(|_| RenderError::new("renderer stdin writer panicked"))?
-            .map_err(|error| RenderError::new(format!("renderer input failed: {error}")))?;
-    }
-
+            .map_err(|error| RenderError::new(format!("renderer input failed: {error}")))
+    });
     let stdout = stdout_reader
         .join()
         .map_err(|_| RenderError::new("renderer stdout reader panicked"))?
         .map_err(|error| RenderError::new(format!("renderer output read failed: {error}")))?;
-    let stderr = stderr_reader
+    let _stderr = stderr_reader
         .join()
         .map_err(|_| RenderError::new("renderer stderr reader panicked"))?
         .map_err(|error| RenderError::new(format!("renderer stderr read failed: {error}")))?;
+    let outcome = outcome.map_err(|error| {
+        RenderError::coded(
+            code::RENDER_PROCESS_EXIT,
+            format!("renderer `{}` wait failed: {error}", program_label(program)),
+        )
+    })?;
 
-    if stdout.overflowed {
-        return Err(RenderError::new(format!(
-            "renderer `{}` output exceeded {stdout_limit} bytes",
-            program.display()
-        )));
-    }
-    if !status.success() {
-        let diagnostic = String::from_utf8_lossy(&stderr.bytes);
-        let diagnostic = diagnostic.trim();
-        let suffix = if diagnostic.is_empty() {
-            String::new()
-        } else {
-            format!(": {diagnostic}")
-        };
-        return Err(RenderError::new(format!(
-            "renderer `{}` exited with {status}{suffix}",
-            program.display()
-        )));
+    match outcome {
+        ProcessOutcome::TimedOut => {
+            return Err(RenderError::coded(
+                code::RENDER_TIMEOUT,
+                format!(
+                    "renderer `{}` exceeded {} ms timeout",
+                    program_label(program),
+                    timeout.as_millis()
+                ),
+            ));
+        }
+        ProcessOutcome::OutputLimit => {
+            return Err(RenderError::coded(
+                code::RENDER_OUTPUT_LIMIT,
+                format!(
+                    "renderer `{}` output exceeded {stdout_limit} bytes",
+                    program_label(program)
+                ),
+            ));
+        }
+        ProcessOutcome::Cancelled => {
+            return Err(RenderError::coded(
+                code::RENDER_OUTPUT_LIMIT,
+                format!(
+                    "renderer `{}` was cancelled after pending terminal output reached its bound",
+                    program_label(program)
+                ),
+            ));
+        }
+        ProcessOutcome::Exited(status) => {
+            if stdout.overflowed || overflowed.load(Ordering::Acquire) {
+                return Err(RenderError::coded(
+                    code::RENDER_OUTPUT_LIMIT,
+                    format!(
+                        "renderer `{}` output exceeded {stdout_limit} bytes",
+                        program_label(program)
+                    ),
+                ));
+            }
+            if !status.success() {
+                return Err(RenderError::coded(
+                    code::RENDER_PROCESS_EXIT,
+                    format!(
+                        "renderer `{}` exited with {status}; diagnostic output was redacted",
+                        program_label(program)
+                    ),
+                ));
+            }
+            if let Some(result) = writer_result {
+                result.map_err(|_| {
+                    RenderError::coded(
+                        code::RENDER_PROCESS_EXIT,
+                        format!(
+                            "renderer `{}` did not accept its complete input",
+                            program_label(program)
+                        ),
+                    )
+                })?;
+            }
+        }
     }
 
     Ok(stdout.bytes)
+}
+
+fn read_capped_until_limit(
+    mut reader: impl Read,
+    limit: usize,
+    overflowed: &AtomicBool,
+) -> io::Result<CappedRead> {
+    let mut bytes = Vec::with_capacity(limit.min(8192));
+    let mut chunk = [0_u8; 8192];
+    loop {
+        let count = reader.read(&mut chunk)?;
+        if count == 0 {
+            break;
+        }
+        let remaining = limit.saturating_sub(bytes.len());
+        let retained = remaining.min(count);
+        bytes.extend_from_slice(&chunk[..retained]);
+        if retained < count || bytes.len() == limit {
+            let mut probe = [0_u8; 1];
+            if retained < count || reader.read(&mut probe)? != 0 {
+                overflowed.store(true, Ordering::Release);
+                return Ok(CappedRead {
+                    bytes,
+                    overflowed: true,
+                });
+            }
+            break;
+        }
+    }
+    Ok(CappedRead {
+        bytes,
+        overflowed: false,
+    })
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ProcessOutcome {
+    Exited(ExitStatus),
+    TimedOut,
+    OutputLimit,
+    Cancelled,
+}
+
+fn wait_with_limits(
+    child: &mut Child,
+    timeout: Duration,
+    overflowed: &AtomicBool,
+    cancellation: &RenderCancellation,
+) -> io::Result<ProcessOutcome> {
+    let started = Instant::now();
+    loop {
+        if cancellation.is_cancelled() {
+            terminate_child(child);
+            return Ok(ProcessOutcome::Cancelled);
+        }
+        if overflowed.load(Ordering::Acquire) {
+            terminate_child(child);
+            return Ok(ProcessOutcome::OutputLimit);
+        }
+        if let Some(status) = child.try_wait()? {
+            return Ok(ProcessOutcome::Exited(status));
+        }
+        if started.elapsed() >= timeout {
+            terminate_child(child);
+            return Ok(ProcessOutcome::TimedOut);
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn terminate_child(child: &mut Child) {
@@ -576,34 +811,39 @@ fn terminate_child(child: &mut Child) {
             .stderr(Stdio::null())
             .status();
     }
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
     let _ = child.kill();
     let _ = child.wait();
 }
 
-fn wait_with_timeout(child: &mut Child, timeout: Duration) -> io::Result<Option<ExitStatus>> {
-    let started = Instant::now();
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(Some(status));
-        }
-        if started.elapsed() >= timeout {
-            terminate_child(child);
-            return Ok(None);
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
+fn program_label(program: &Path) -> String {
+    program.file_name().map_or_else(
+        || "renderer".to_owned(),
+        |name| name.to_string_lossy().into_owned(),
+    )
 }
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::{ConfiguredRenderer, check_configured_engines, resolve_executable};
+    use super::{
+        ConfiguredRenderer, check_configured_engines, resolve_executable, run_process_with_timeout,
+    };
     use crate::config::{Config, MathEngine, MermaidEngine};
+    use crate::diagnostics::code;
     use crate::model::{BlockKind, SemanticBlock};
     use crate::render::{RenderContext, Renderer};
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     fn temp_root(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
@@ -693,5 +933,95 @@ mod tests {
             .expect("render");
         assert_eq!(artifact.bytes, b"terminal math\n");
         let _ = fs::remove_dir_all(root);
+    }
+    #[test]
+    fn renderer_timeout_has_a_stable_code_and_redacted_message() {
+        let root = temp_root("timeout");
+        let renderer = root.join("slow-renderer");
+        executable(&renderer, "#!/bin/sh\nsleep 5\n");
+        let error = run_process_with_timeout(&renderer, &[], None, 1024, Duration::from_millis(50))
+            .expect_err("renderer must time out");
+        assert_eq!(error.code(), code::RENDER_TIMEOUT);
+        assert!(!error.to_string().contains(root.to_string_lossy().as_ref()));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn renderer_output_limit_stops_the_process() {
+        let root = temp_root("output-limit");
+        let renderer = root.join("noisy-renderer");
+        executable(
+            &renderer,
+            "#!/bin/sh\nwhile :; do printf '0123456789abcdef'; done\n",
+        );
+        let error = run_process_with_timeout(&renderer, &[], None, 128, Duration::from_secs(2))
+            .expect_err("renderer output must be bounded");
+        assert_eq!(error.code(), code::RENDER_OUTPUT_LIMIT);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn renderer_stderr_is_not_copied_into_public_errors() {
+        let root = temp_root("stderr-redaction");
+        let renderer = root.join("failing-renderer");
+        executable(
+            &renderer,
+            "#!/bin/sh\nprintf 'PRIVATE SEMANTIC SOURCE token-123\\n' >&2\nexit 7\n",
+        );
+        let error = run_process_with_timeout(&renderer, &[], None, 1024, Duration::from_secs(2))
+            .expect_err("renderer must fail");
+        assert_eq!(error.code(), code::RENDER_PROCESS_EXIT);
+        assert!(!error.to_string().contains("PRIVATE SEMANTIC SOURCE"));
+        assert!(!error.to_string().contains("token-123"));
+        let _ = fs::remove_dir_all(root);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::run_process_with_timeout;
+    use crate::diagnostics::code;
+    use std::ffi::OsString;
+    use std::path::Path;
+    use std::time::Duration;
+
+    #[test]
+    fn powershell_renderer_timeout_is_bounded() {
+        let arguments = vec![
+            OsString::from("-NoLogo"),
+            OsString::from("-NoProfile"),
+            OsString::from("-NonInteractive"),
+            OsString::from("-Command"),
+            OsString::from("Start-Sleep -Seconds 5"),
+        ];
+        let error = run_process_with_timeout(
+            Path::new("powershell.exe"),
+            &arguments,
+            None,
+            1024,
+            Duration::from_millis(100),
+        )
+        .expect_err("renderer must time out");
+        assert_eq!(error.code(), code::RENDER_TIMEOUT);
+    }
+
+    #[test]
+    fn powershell_renderer_output_is_bounded() {
+        let arguments = vec![
+            OsString::from("-NoLogo"),
+            OsString::from("-NoProfile"),
+            OsString::from("-NonInteractive"),
+            OsString::from("-Command"),
+            OsString::from("while ($true) { [Console]::Out.Write('0123456789abcdef') }"),
+        ];
+        let error = run_process_with_timeout(
+            Path::new("powershell.exe"),
+            &arguments,
+            None,
+            128,
+            Duration::from_secs(3),
+        )
+        .expect_err("renderer output must be bounded");
+        assert_eq!(error.code(), code::RENDER_OUTPUT_LIMIT);
     }
 }

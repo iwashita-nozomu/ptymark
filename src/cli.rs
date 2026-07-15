@@ -1,5 +1,6 @@
 use crate::cli_args::{apply_render_option, next_path, next_value, set_once};
 use crate::config::Config;
+use crate::doctor::{DoctorReport, DoctorRequest};
 use crate::engine::check_configured_engines;
 use crate::install::{
     EnginePreference, InstallRequest, InstallState, Installer, PathProgramResolver,
@@ -23,6 +24,7 @@ USAGE:
     ptymark [--config PATH] config check
     ptymark [--config PATH] config show
     ptymark [--config PATH] engine check
+    ptymark [--config PATH] doctor [--json] [--support-report PATH]
     ptymark [--config PATH] install resolve [INSTALL OPTIONS]
     ptymark install status [--state PATH]
     ptymark [--config PATH] [RENDER OPTIONS] -- COMMAND [ARG...]
@@ -63,11 +65,13 @@ EXAMPLES:
     ptymark install resolve
     ptymark install resolve --mermaid /opt/homebrew/bin/mmdc
     ptymark install status
+    ptymark doctor --json
     printf '$$\nE = mc^2\n$$\n' | ptymark preview
     ptymark preview --source README.md
     ptymark run -- command-that-prints-markdown
     ptymark -- \"$SHELL\" -l
     ptymark -- codex
+    ptymark doctor --support-report ./ptymark-support.json
 ";
 
 pub fn main_entry() -> ! {
@@ -112,7 +116,7 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         .first()
         .and_then(|value| value.to_str())
         .ok_or_else(|| {
-            "missing command; use `preview`, `run`, `config`, `engine`, `install`, or `-- COMMAND`"
+            "missing command; use `preview`, `run`, `config`, `engine`, `install`, `doctor`, or `-- COMMAND`"
                 .to_owned()
         })?
         .to_owned();
@@ -136,6 +140,10 @@ pub fn run_from(mut arguments: Vec<OsString>) -> Result<i32, String> {
         "install" => {
             arguments.remove(0);
             run_install(arguments, config_path)
+        }
+        "doctor" => {
+            arguments.remove(0);
+            run_doctor(arguments, config_path)
         }
         "--" => crate::interactive::run(arguments, config_path),
         option if option.starts_with('-') => crate::interactive::run(arguments, config_path),
@@ -222,7 +230,7 @@ fn run_preview(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Re
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
     let mut pipeline = PipelineFactory::new(&config).build(options);
     let mut input: Box<dyn Read> = match input_path {
-        Some(path) if path != *"-" => Box::new(
+        Some(path) if path.as_os_str() != "-" => Box::new(
             File::open(&path)
                 .map_err(|error| format!("cannot open `{}`: {error}", path.display()))?,
         ),
@@ -292,6 +300,51 @@ fn run_engine(
         println!("{}", check.display_line());
     }
     Ok(0)
+}
+
+fn run_doctor(arguments: Vec<OsString>, mut config_path: Option<PathBuf>) -> Result<i32, String> {
+    let mut json = false;
+    let mut support_report = None;
+    let mut pipeline = PipelineOptions::default();
+    let mut iterator = arguments.into_iter();
+    while let Some(argument) = iterator.next() {
+        let text = argument
+            .to_str()
+            .ok_or_else(|| "doctor options must be valid UTF-8".to_owned())?;
+        if apply_render_option(text, &mut iterator, &mut pipeline, &mut config_path)? {
+            continue;
+        }
+        match text {
+            "-h" | "--help" => {
+                print!("{HELP}");
+                return Ok(0);
+            }
+            "--json" => json = true,
+            "--support-report" => set_once(
+                &mut support_report,
+                next_path(&mut iterator, "--support-report")?,
+                "--support-report",
+            )?,
+            option => return Err(format!("unknown doctor option `{option}`")),
+        }
+    }
+
+    let report = DoctorReport::collect(DoctorRequest {
+        config_path,
+        pipeline,
+    });
+    if let Some(path) = support_report {
+        report.write_support_report(&path)?;
+        if !json {
+            println!("support report\t{}", path.display());
+        }
+    }
+    if json {
+        print!("{}", report.json());
+    } else {
+        print!("{}", report.human());
+    }
+    Ok(report.status.exit_code())
 }
 
 fn run_install(mut arguments: Vec<OsString>, config_path: Option<PathBuf>) -> Result<i32, String> {

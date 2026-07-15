@@ -5,13 +5,25 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this form when terminal behavior differs by terminal, shell, multiplexer, remote layer, or presentation capability. Redact private source, paths, hostnames, usernames, and environment values.
+        Use this form when behavior differs by terminal, shell, multiplexer, remote layer, or presentation capability. Run `ptymark doctor --json` when possible. Its `ptymark.doctor.v1` output is redacted by default; do not replace it with a full environment dump or raw source-bearing renderer stderr.
 
   - type: input
     id: version
     attributes:
       label: ptymark version
-      placeholder: ptymark 0.1.0-alpha.1
+      placeholder: ptymark 0.1.0-alpha.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release-channel
+    attributes:
+      label: Installation or release channel
+      options:
+        - GitHub prerelease archive
+        - source checkout
+        - development commit or pull request
+        - other
     validations:
       required: true
 
@@ -53,6 +65,7 @@ body:
     attributes:
       label: Invocation path
       options:
+        - ptymark doctor
         - ptymark preview
         - ptymark run -- COMMAND
         - ptymark -- COMMAND
@@ -73,6 +86,7 @@ body:
         - resize or terminal dimensions incorrect
         - keyboard, paste, mouse, or signal forwarding failure
         - child exit status incorrect
+        - renderer timeout or output-limit recovery failure
         - semantic source rendered when it should be bypassed
         - semantic block not rendered when expected
         - Unicode, emoji, or CJK width problem
@@ -80,6 +94,15 @@ body:
         - other
     validations:
       required: true
+
+  - type: textarea
+    id: doctor-report
+    attributes:
+      label: Redacted ptymark.doctor.v1 report (recommended)
+      description: Paste `ptymark doctor --json`, or attach a support-report file. Omit this field when doctor cannot start. Default output excludes semantic source, secrets, child environment, and raw renderer stderr.
+      render: json
+    validations:
+      required: false
 
   - type: textarea
     id: reproduction
@@ -98,7 +121,7 @@ body:
     id: expected-bytes
     attributes:
       label: Expected and observed behavior
-      description: Describe the first visible or byte-level difference. Attach a redacted hex dump only when necessary.
+      description: Describe the first visible or byte-level difference. Attach a redacted hex dump only when necessary; do not attach private source.
     validations:
       required: true
 
@@ -107,8 +130,8 @@ body:
     attributes:
       label: Bypass comparison
       options:
-        - label: `--safe` preserves the expected terminal behavior.
-        - label: `--source` preserves the expected terminal behavior.
+        - label: "`--safe` preserves the expected terminal behavior."
+        - label: "`--source` preserves the expected terminal behavior."
         - label: The problem remains when semantic rendering is bypassed.
         - label: The problem occurs only through the WezTerm launcher.
 
@@ -117,7 +140,7 @@ body:
     attributes:
       label: Submission checks
       options:
-        - label: I removed secrets, credentials, private terminal source, hostnames, usernames, and identifying paths.
+        - label: I did not add semantic source, secrets, credentials, child environment, hostnames, or raw renderer stderr beyond the redacted doctor report.
           required: true
         - label: I included exact terminal, shell, and intermediate-layer versions where available.
           required: true

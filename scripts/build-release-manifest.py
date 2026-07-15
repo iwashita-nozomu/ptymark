@@ -173,10 +173,13 @@ def main() -> int:
         "".join(f"{digest}  {name}\n" for digest, name in sorted(aggregate)),
         encoding="utf-8",
     )
-    arguments.notes_output.write_text(
-        changelog_notes(root / "CHANGELOG.md", str(manifest["version"])),
-        encoding="utf-8",
-    )
+    release_notes_path = root / "release-notes" / f"{manifest['version']}.md"
+    release_notes = release_notes_path.read_text(encoding="utf-8")
+    if f"v{manifest['version']}" not in release_notes.splitlines()[0]:
+        raise ValueError(
+            f"release notes heading does not identify v{manifest['version']}: {release_notes_path}"
+        )
+    arguments.notes_output.write_text(release_notes.rstrip() + "\n", encoding="utf-8")
     print(f"release manifest ok: {arguments.output}")
     return 0
 

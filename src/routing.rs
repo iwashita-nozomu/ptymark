@@ -2,7 +2,8 @@ use crate::config::{EnginesConfig, MathEngine, MermaidEngine};
 use crate::engine::ConfiguredRenderer;
 use crate::model::{BlockKind, SemanticBlock};
 use crate::render::{
-    PreviewRenderer, RenderArtifact, RenderContext, RenderError, Renderer, SourceRenderer,
+    PreviewRenderer, RenderArtifact, RenderCancellation, RenderContext, RenderError, Renderer,
+    SourceRenderer,
 };
 
 /// Stable logical destinations produced by a render-decision policy.
@@ -208,7 +209,11 @@ pub struct ConfiguredHandoff {
 
 impl ConfiguredHandoff {
     pub fn new(config: &EnginesConfig) -> Self {
-        let configured = ConfiguredRenderer::new(config);
+        Self::with_cancellation(config, RenderCancellation::default())
+    }
+
+    pub fn with_cancellation(config: &EnginesConfig, cancellation: RenderCancellation) -> Self {
+        let configured = ConfiguredRenderer::with_cancellation(config, cancellation);
         let id = format!("configured-handoff-v1;{}", configured.id());
         Self {
             preview: PreviewRenderer,
@@ -266,9 +271,16 @@ impl RoutedRenderer {
     }
 
     pub fn configured(config: &EnginesConfig) -> Self {
+        Self::configured_with_cancellation(config, RenderCancellation::default())
+    }
+
+    pub fn configured_with_cancellation(
+        config: &EnginesConfig,
+        cancellation: RenderCancellation,
+    ) -> Self {
         Self::new(
             Box::new(ConfiguredDecider::new(config)),
-            Box::new(ConfiguredHandoff::new(config)),
+            Box::new(ConfiguredHandoff::with_cancellation(config, cancellation)),
         )
     }
 }

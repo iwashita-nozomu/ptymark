@@ -45,6 +45,7 @@ New-Item -ItemType Directory -Force -Path @(
   (Join-Path $PackageRoot 'plugin'),
   (Join-Path $PackageRoot 'examples'),
   (Join-Path $PackageRoot 'documents'),
+  (Join-Path $PackageRoot 'release-notes'),
   (Join-Path $PackageRoot 'compat\shell-integrations')
 ) | Out-Null
 
@@ -77,6 +78,8 @@ Copy-Required (Join-Path $RepoRoot 'documents\ptymark-design.md') (Join-Path $Pa
 Copy-Required (Join-Path $RepoRoot 'documents\interactive-session.md') (Join-Path $PackageRoot 'documents\interactive-session.md')
 Copy-Required (Join-Path $RepoRoot 'documents\filtered-command.md') (Join-Path $PackageRoot 'documents\filtered-command.md')
 Copy-Required (Join-Path $RepoRoot 'documents\release.md') (Join-Path $PackageRoot 'documents\release.md')
+Copy-Required (Join-Path $RepoRoot 'documents\troubleshooting.md') (Join-Path $PackageRoot 'documents\troubleshooting.md')
+Copy-Required (Join-Path $RepoRoot "release-notes\$Version.md") (Join-Path $PackageRoot "release-notes\$Version.md")
 Copy-Required (Join-Path $RepoRoot 'documents\ptymark-installer.md') (Join-Path $PackageRoot 'documents\ptymark-installer.md')
 Copy-Required (Join-Path $RepoRoot 'documents\shell-plugin-compatibility.md') (Join-Path $PackageRoot 'documents\shell-plugin-compatibility.md')
 foreach ($Inventory in @('bash', 'zsh', 'fish', 'powershell', 'nushell')) {

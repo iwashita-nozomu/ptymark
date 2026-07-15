@@ -31,7 +31,7 @@ class ReleaseMetadataTest(unittest.TestCase):
                 sys.executable,
                 str(ROOT / "scripts/check-release-metadata.py"),
                 "--tag",
-                "v0.1.0-alpha.1",
+                "v0.1.0-alpha.2",
             ],
             cwd=ROOT,
             check=True,
@@ -51,7 +51,7 @@ class ReleaseMetadataTest(unittest.TestCase):
             ):
                 archive = (
                     dist
-                    / f"ptymark-0.1.0-alpha.1-{platform}-x86_64.{extension}"
+                    / f"ptymark-0.1.0-alpha.2-{platform}-x86_64.{extension}"
                 )
                 archive.write_bytes(platform.encode("utf-8"))
                 digest = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -71,7 +71,7 @@ class ReleaseMetadataTest(unittest.TestCase):
                     "--dist",
                     str(dist),
                     "--tag",
-                    "v0.1.0-alpha.1",
+                    "v0.1.0-alpha.2",
                     "--commit",
                     "0" * 40,
                     "--output",
@@ -92,7 +92,7 @@ class ReleaseMetadataTest(unittest.TestCase):
             )
             source = cast(dict[str, object], manifest["source"])
             assets = cast(list[dict[str, object]], manifest["assets"])
-            self.assertEqual(manifest["version"], "0.1.0-alpha.1")
+            self.assertEqual(manifest["version"], "0.1.0-alpha.2")
             self.assertEqual(source["commit"], "0" * 40)
             self.assertEqual(
                 {asset["platform"] for asset in assets},
@@ -102,9 +102,9 @@ class ReleaseMetadataTest(unittest.TestCase):
                 len(checksums_path.read_text(encoding="utf-8").splitlines()),
                 4,
             )
-            self.assertIn(
-                "Native Unix PTY", notes_path.read_text(encoding="utf-8")
-            )
+            notes = notes_path.read_text(encoding="utf-8")
+            self.assertIn("ptymark.doctor.v1", notes)
+            self.assertIn("ten-second", notes)
 
 
 if __name__ == "__main__":
