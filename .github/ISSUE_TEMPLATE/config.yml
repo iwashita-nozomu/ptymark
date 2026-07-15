@@ -1,3 +1,12 @@
+# @dependency-start
+# contract configuration
+# responsibility Routes GitHub issue intake to public support forms and private vulnerability reporting.
+# upstream design ../../SECURITY.md private vulnerability reporting and redaction boundaries
+# upstream design ../../README.md public support and usage entrypoint
+# downstream environment ./bug-report.yml general defect intake
+# downstream environment ./terminal-compatibility.yml terminal integration intake
+# @dependency-end
+
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability

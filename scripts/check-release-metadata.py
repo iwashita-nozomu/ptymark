@@ -20,6 +20,7 @@ import tomllib
 from pathlib import Path
 
 TAG_PATTERN = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
+FULL_COMMIT_SHA_PATTERN = r"[0-9a-f]{40}"
 
 
 def package_version(root: Path) -> str:
@@ -89,12 +90,22 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         "scripts/check-release-metadata.py",
         "scripts/package-release.sh",
         "scripts/package-release.ps1",
-        "actions/download-artifact@v8",
-        "actions/attest@v4",
         "gh release create",
     ):
         if release_workflow and marker not in release_workflow:
             failures.append(f"release workflow does not contain required marker: {marker}")
+
+    for action, release_major in (
+        ("actions/download-artifact", 8),
+        ("actions/attest", 4),
+    ):
+        if release_workflow and not _has_full_sha_action_reference(
+            release_workflow, action, release_major
+        ):
+            failures.append(
+                "release workflow does not contain a full-SHA-pinned "
+                f"{action} reference annotated with # v{release_major}"
+            )
 
     for package_script in ("scripts/package-release.sh", "scripts/package-release.ps1"):
         content = _read_text(root / package_script, failures)
@@ -114,6 +125,16 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         failures.append("release-candidate placeholder is forbidden in a release tree")
 
     return version, failures
+
+
+def _has_full_sha_action_reference(workflow: str, action: str, release_major: int) -> bool:
+    """Return whether an Action is pinned to a full SHA with a major-version note."""
+    pattern = re.compile(
+        rf"^\s*uses:\s*{re.escape(action)}@{FULL_COMMIT_SHA_PATTERN}"
+        rf"\s+#\s+v{release_major}(?:\.[0-9]+(?:\.[0-9]+)?)?\s*$",
+        flags=re.MULTILINE,
+    )
+    return pattern.search(workflow) is not None
 
 
 def _read_text(path: Path, failures: list[str]) -> str:

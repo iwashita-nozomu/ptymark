@@ -1,0 +1,93 @@
+# @dependency-start
+# contract configuration
+# responsibility Schedules security-focused dependency updates for every supported package ecosystem.
+# upstream implementation ../Cargo.toml Rust dependency manifest
+# upstream implementation ../renderers/package-lock.json renderer dependency lock
+# upstream environment ../docker/requirements.txt Python tooling dependencies
+# downstream implementation ./workflows/dependency-review.yml validates dependency changes in pull requests
+# @dependency-end
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: "/renderers"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:15"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      renderer-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:30"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      python-project-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: "/docker"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:45"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      python-container-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: "/docker"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:15"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: gitsubmodule
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:30"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
