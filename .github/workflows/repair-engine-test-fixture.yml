@@ -1,5 +1,6 @@
 name: repair engine test fixture publication
 
+# One-shot branch repair; removed before merge.
 on:
   push:
     branches:
