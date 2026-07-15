@@ -68,5 +68,10 @@ jobs:
       - name: Validate installer interface
         shell: bash
         run: |
+          set -euo pipefail
           bash -n docker/install_python_dependencies.sh
           bash docker/install_python_dependencies.sh --help
+          test "$(bash docker/install_python_dependencies.sh "$PWD" --profile runtime --print-requirements)" = \
+            "python_dependency_profile=runtime requirements=docker/requirements-runtime.txt"
+          test "$(bash docker/install_python_dependencies.sh "$PWD" --profile verification --print-requirements)" = \
+            "python_dependency_profile=verification requirements=docker/requirements.txt"
