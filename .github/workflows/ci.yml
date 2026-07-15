@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Temporarily captures the AgentCanon PR gate result from the alpha.2 dependency-header fix branch.
+# responsibility Temporarily captures the latest AgentCanon PR gate result from the alpha.2 dependency-header fix branch.
 # upstream implementation ../../tools/ci/check_agent_canon_pr.sh shared AgentCanon PR gate
 # @dependency-end
 
