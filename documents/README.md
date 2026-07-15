@@ -6,6 +6,7 @@ upstream design ../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md share
 upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md parent readiness policy
 downstream design ./ptymark-design.md architecture contract
 downstream design ./ptymark-installer.md installation contract
+downstream design ./ptymark-runtime-dependencies.md product dependency ownership
 downstream design ./shell-plugin-compatibility.md coexistence evidence
 downstream design ../verification/README.md verification policy
 @dependency-end
@@ -46,6 +47,9 @@ seed this file, but derived repositories own their local index.
   installation, OS/shell frontends, installation-time engine resolution,
   absolute-path snapshots, managed renderer isolation, idempotent replacement,
   failure policy, and resolver extension boundary.
+- [ptymark Product Dependencies](./ptymark-runtime-dependencies.md): shipped Rust
+  and managed-bundle version ownership, alignment checks, and the safe upgrade
+  sequence.
 - [Shell And Rich-Plugin Compatibility](./shell-plugin-compatibility.md): behavior
   profiles, verification levels, unchanged-profile and environment contracts,
   and twenty reviewed integrations each for Bash, Zsh, Fish, PowerShell, and

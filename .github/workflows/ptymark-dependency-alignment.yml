@@ -1,0 +1,78 @@
+# @dependency-start
+# contract workflow
+# responsibility Fails fast when shipped or managed-renderer dependency pins drift.
+# upstream implementation ../../scripts/check-ptymark-runtime-dependencies.mjs alignment contract
+# upstream environment ../../renderers/managed-bundle.env managed dependency versions
+# downstream design ../../documents/ptymark-runtime-dependencies.md ownership and upgrade rules
+# @dependency-end
+
+name: ptymark dependency alignment
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+    paths:
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - "ptymark.mk"
+      - "renderers/managed-bundle.env"
+      - "renderers/package.json"
+      - "renderers/package-lock.json"
+      - "scripts/check-ptymark-runtime-dependencies.mjs"
+      - "documents/ptymark-runtime-dependencies.md"
+      - ".github/workflows/ptymark-ci.yml"
+      - ".github/workflows/ptymark-release.yml"
+      - ".github/workflows/ptymark-dependency-alignment.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - "ptymark.mk"
+      - "renderers/managed-bundle.env"
+      - "renderers/package.json"
+      - "renderers/package-lock.json"
+      - "scripts/check-ptymark-runtime-dependencies.mjs"
+      - "documents/ptymark-runtime-dependencies.md"
+      - ".github/workflows/ptymark-ci.yml"
+      - ".github/workflows/ptymark-release.yml"
+      - ".github/workflows/ptymark-dependency-alignment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptymark-dependency-alignment-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Validate product dependency alignment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install managed-bundle Node runtime
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+
+      - name: Validate product dependency sources
+        run: make ptymark-runtime-dependencies

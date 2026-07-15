@@ -10,8 +10,8 @@ PTYMARK_BASH_SCRIPTS = \
 	tests/managed_renderer_smoke.sh \
 	tests/shell_profile_coexistence.sh
 
-.PHONY: ptymark-build ptymark-check ptymark-check-local ptymark-verify-catalog
-.PHONY: ptymark-dev ptymark-clean
+.PHONY: ptymark-build ptymark-check ptymark-check-local ptymark-runtime-dependencies
+.PHONY: ptymark-verify-catalog ptymark-dev ptymark-clean
 
 ptymark-build:
 	$(PTYMARK_COMPOSE) build --pull
@@ -19,11 +19,15 @@ ptymark-build:
 ptymark-check: ptymark-build
 	$(PTYMARK_COMPOSE) run --rm --no-TTY dev make ptymark-check-local
 
+ptymark-runtime-dependencies:
+	node scripts/check-ptymark-runtime-dependencies.mjs
+
 ptymark-verify-catalog:
 	cargo test --locked --test verification_manifest_contract
 
 ptymark-check-local:
 	@test -f /.dockerenv || { echo "ptymark-check-local must run in Docker" >&2; exit 1; }
+	$(MAKE) ptymark-runtime-dependencies
 	cargo fmt --all -- --check
 	cargo clippy --locked --all-targets -- -D warnings
 	cargo test --locked --all-targets
