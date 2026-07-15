@@ -20,9 +20,6 @@ on:
 permissions:
   contents: read
 
-env:
-  AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
-
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -37,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout repository history
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
@@ -81,7 +78,7 @@ jobs:
 
           while IFS= read -r path; do
             case "$path" in
-              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools|tools/*|.github/workflows/agent-coordination.yml|.github/workflows/agent-improvement-guide.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
+              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools|tools/*|.github/workflows/ci.yml|.github/workflows/agent-coordination.yml|.github/workflows/agent-improvement-guide.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
                 agent_canon=true
                 ;;
             esac
@@ -104,17 +101,18 @@ jobs:
         python-version: ["3.11"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
       - name: Checkout AgentCanon submodule
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -139,17 +137,18 @@ jobs:
         python-version: ["3.11"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
       - name: Checkout AgentCanon submodule
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -174,17 +173,18 @@ jobs:
         python-version: ["3.11"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
       - name: Checkout AgentCanon submodule
         env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_TOKEN: ""
+          AGENT_CANON_REPO_SSH_KEY: ""
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
