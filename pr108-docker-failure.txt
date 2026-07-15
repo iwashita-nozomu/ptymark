@@ -1,0 +1,838 @@
+2026-07-15T13:10:27.0106604Z #15 10.85 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
+2026-07-15T13:10:27.0107311Z #15 10.85 npm notice To update run: npm install -g npm@12.0.1
+2026-07-15T13:10:27.0108132Z #15 10.85 npm notice
+2026-07-15T13:10:27.0255948Z #15 11.02 npm warn using --force Recommended protections disabled.
+2026-07-15T13:10:27.2480776Z #15 DONE 11.2s
+2026-07-15T13:10:27.3986030Z 
+2026-07-15T13:10:27.3991782Z #16 [7/9] RUN curl --proto '=https' --tlsv1.2 --fail --silent --show-error         https://sh.rustup.rs     | sh -s -- -y --profile minimal --default-toolchain "1.97.0"     && rustup component add clippy rustfmt --toolchain "1.97.0"
+2026-07-15T13:10:27.5115736Z #16 0.264 info: downloading installer
+2026-07-15T13:10:27.6741957Z #16 0.426 warn: It looks like you have an existing rustup settings file at:
+2026-07-15T13:10:27.6742685Z #16 0.426 warn: /home/node/.rustup/settings.toml
+2026-07-15T13:10:27.6743553Z #16 0.426 warn: Rustup will install the default toolchain as specified in the settings file,
+2026-07-15T13:10:27.8389980Z #16 0.426 warn: instead of the one inferred from the default host triple.
+2026-07-15T13:10:27.8390588Z #16 0.440 info: profile set to minimal
+2026-07-15T13:10:27.8390999Z #16 0.440 info: default host triple is x86_64-unknown-linux-gnu
+2026-07-15T13:10:27.8391427Z #16 0.441 info: syncing channel updates for 1.97.0-x86_64-unknown-linux-gnu
+2026-07-15T13:10:27.9125659Z #16 0.664 info: latest update on 2026-07-09 for version 1.97.0 (2d8144b78 2026-07-07)
+2026-07-15T13:10:50.7815245Z   Downloaded mio v1.2.2
+2026-07-15T13:10:50.7910583Z   Downloaded unicode-segmentation v1.13.3
+2026-07-15T13:10:50.7957518Z   Downloaded serde_core v1.0.228
+2026-07-15T13:10:50.8001027Z   Downloaded toml v1.1.3+spec-1.1.0
+2026-07-15T13:10:50.8082741Z   Downloaded cfg_aliases v0.1.1
+2026-07-15T13:10:50.8093225Z   Downloaded derive_more v2.1.1
+2026-07-15T13:10:50.8294833Z   Downloaded thiserror v1.0.69
+2026-07-15T13:10:50.8383163Z   Downloaded quote v1.0.46
+2026-07-15T13:10:50.8423361Z   Downloaded toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:50.8442280Z   Downloaded hashbrown v0.17.1
+2026-07-15T13:10:50.8514762Z   Downloaded serde v1.0.228
+2026-07-15T13:10:50.8564112Z   Downloaded document-features v0.2.12
+2026-07-15T13:10:50.8584032Z   Downloaded filedescriptor v0.8.3
+2026-07-15T13:10:50.8597686Z   Downloaded thiserror-impl v1.0.69
+2026-07-15T13:10:50.8617350Z   Downloaded errno v0.3.14
+2026-07-15T13:10:50.8639587Z   Downloaded shell-words v1.1.1
+2026-07-15T13:10:50.8383163Z   Downloaded quote v1.0.46
+2026-07-15T13:10:50.8423361Z   Downloaded toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:50.8442280Z   Downloaded hashbrown v0.17.1
+2026-07-15T13:10:50.8514762Z   Downloaded serde v1.0.228
+2026-07-15T13:10:50.8564112Z   Downloaded document-features v0.2.12
+2026-07-15T13:10:50.8584032Z   Downloaded filedescriptor v0.8.3
+2026-07-15T13:10:50.8597686Z   Downloaded thiserror-impl v1.0.69
+2026-07-15T13:10:50.8617350Z   Downloaded errno v0.3.14
+2026-07-15T13:10:50.8639587Z   Downloaded shell-words v1.1.1
+2026-07-15T13:10:50.8653255Z   Downloaded rustc_version v0.4.1
+2026-07-15T13:10:50.8671544Z   Downloaded signal-hook-mio v0.2.5
+2026-07-15T13:10:50.8689033Z   Downloaded portable-pty v0.9.0
+2026-07-15T13:10:50.8713893Z   Downloaded litrs v1.0.0
+2026-07-15T13:10:50.8757693Z   Downloaded parking_lot v0.12.5
+2026-07-15T13:10:50.8793289Z   Downloaded toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:50.8811723Z   Downloaded cfg-if v1.0.4
+2026-07-15T13:10:51.2394753Z    Compiling quote v1.0.46
+2026-07-15T13:10:51.2395165Z    Compiling unicode-ident v1.0.24
+2026-07-15T13:10:51.3034193Z     Checking cfg-if v1.0.4
+2026-07-15T13:10:51.3251190Z    Compiling serde_core v1.0.228
+2026-07-15T13:10:51.4211415Z    Compiling signal-hook v0.3.18
+2026-07-15T13:10:51.5118317Z    Compiling cfg_aliases v0.1.1
+2026-07-15T13:10:51.5452836Z    Compiling thiserror v1.0.69
+2026-07-15T13:10:51.7197235Z    Compiling parking_lot_core v0.9.12
+2026-07-15T13:10:51.8438611Z     Checking log v0.4.33
+2026-07-15T13:10:52.0753542Z    Compiling unicode-segmentation v1.13.3
+2026-07-15T13:10:52.1438667Z    Compiling syn v2.0.118
+2026-07-15T13:10:52.4396415Z     Checking bitflags v2.13.0
+2026-07-15T13:10:52.5418163Z    Compiling convert_case v0.10.0
+2026-07-15T13:10:52.7894664Z     Checking errno v0.3.14
+2026-07-15T13:10:52.8087056Z    Compiling nix v0.28.0
+2026-07-15T13:10:52.8460456Z     Checking signal-hook-registry v1.4.8
+2026-07-15T13:10:53.9151012Z     Checking toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:10:53.9518865Z    Compiling document-features v0.2.12
+2026-07-15T13:10:54.2131506Z     Checking signal-hook-mio v0.2.5
+2026-07-15T13:10:54.2567969Z     Checking parking_lot v0.12.5
+2026-07-15T13:10:54.3839114Z     Checking serde_spanned v1.1.1
+2026-07-15T13:10:54.4485175Z     Checking toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:54.4682172Z    Compiling thiserror-impl v1.0.69
+2026-07-15T13:10:54.5870658Z    Compiling derive_more-impl v2.1.1
+2026-07-15T13:10:54.6059157Z    Compiling serde_derive v1.0.228
+2026-07-15T13:10:55.1696410Z     Checking derive_more v2.1.1
+2026-07-15T13:10:55.3319652Z     Checking serial2 v0.2.37
+2026-07-15T13:10:55.4393733Z     Checking shell-words v1.1.1
+2026-07-15T13:10:55.4777529Z     Checking downcast-rs v1.2.1
+2026-07-15T13:10:55.4975604Z     Checking toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:55.5184106Z     Checking crossterm v0.29.0
+2026-07-15T13:10:55.5436667Z     Checking filedescriptor v0.8.3
+2026-07-15T13:10:59.2317885Z   Downloaded proc-macro2 v1.0.106
+2026-07-15T13:10:59.2360624Z   Downloaded serde_core v1.0.228
+2026-07-15T13:10:59.2400225Z   Downloaded hashbrown v0.17.1
+2026-07-15T13:10:59.2475820Z   Downloaded indexmap v2.14.0
+2026-07-15T13:10:59.2536152Z   Downloaded crossterm v0.29.0
+2026-07-15T13:10:59.2636639Z   Downloaded document-features v0.2.12
+2026-07-15T13:10:59.2655835Z   Downloaded thiserror-impl v1.0.69
+2026-07-15T13:10:59.2675237Z   Downloaded equivalent v1.0.2
+2026-07-15T13:10:59.2690109Z   Downloaded scopeguard v1.2.0
+2026-07-15T13:10:59.2708234Z   Downloaded errno v0.3.14
+2026-07-15T13:10:59.2730567Z   Downloaded shell-words v1.1.1
+2026-07-15T13:10:59.2744437Z   Downloaded lock_api v0.4.14
+2026-07-15T13:10:59.2761597Z   Downloaded serde_spanned v1.1.1
+2026-07-15T13:10:59.2776952Z   Downloaded serial2 v0.2.37
+2026-07-15T13:10:59.2821782Z   Downloaded signal-hook-registry v1.4.8
+2026-07-15T13:10:59.2839573Z   Downloaded toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:59.2761597Z   Downloaded serde_spanned v1.1.1
+2026-07-15T13:10:59.2776952Z   Downloaded serial2 v0.2.37
+2026-07-15T13:10:59.2821782Z   Downloaded signal-hook-registry v1.4.8
+2026-07-15T13:10:59.2839573Z   Downloaded toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:59.2856579Z   Downloaded mio v1.2.2
+2026-07-15T13:10:59.2947464Z   Downloaded signal-hook-mio v0.2.5
+2026-07-15T13:10:59.2965053Z   Downloaded thiserror v1.0.69
+2026-07-15T13:10:59.3054503Z   Downloaded toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:59.3073454Z   Downloaded semver v1.0.28
+2026-07-15T13:10:59.3107958Z   Downloaded smallvec v1.15.2
+2026-07-15T13:10:59.3127866Z   Downloaded toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:10:59.3160044Z   Downloaded unicode-ident v1.0.24
+2026-07-15T13:10:59.3199464Z   Downloaded log v0.4.33
+2026-07-15T13:10:59.3234131Z   Downloaded parking_lot v0.12.5
+2026-07-15T13:10:59.3271047Z   Downloaded signal-hook v0.3.18
+2026-07-15T13:10:59.3315732Z   Downloaded toml v1.1.3+spec-1.1.0
+2026-07-15T13:10:59.6399500Z    Compiling unicode-ident v1.0.24
+2026-07-15T13:10:59.6965293Z    Compiling serde_core v1.0.228
+2026-07-15T13:10:59.8166783Z    Compiling cfg-if v1.0.4
+2026-07-15T13:10:59.8441692Z    Compiling log v0.4.33
+2026-07-15T13:10:59.9687333Z    Compiling cfg_aliases v0.1.1
+2026-07-15T13:11:00.0008324Z    Compiling bitflags v2.13.0
+2026-07-15T13:11:00.1686048Z    Compiling thiserror v1.0.69
+2026-07-15T13:11:00.4631005Z    Compiling parking_lot_core v0.9.12
+2026-07-15T13:11:00.5358141Z    Compiling syn v2.0.118
+2026-07-15T13:11:00.5846963Z    Compiling unicode-segmentation v1.13.3
+2026-07-15T13:11:00.9419405Z    Compiling signal-hook v0.3.18
+2026-07-15T13:11:01.0432498Z    Compiling convert_case v0.10.0
+2026-07-15T13:11:01.2976197Z    Compiling nix v0.28.0
+2026-07-15T13:11:01.3618135Z    Compiling errno v0.3.14
+2026-07-15T13:11:01.4417459Z    Compiling signal-hook-registry v1.4.8
+2026-07-15T13:11:01.5427630Z    Compiling scopeguard v1.2.0
+2026-07-15T13:11:02.0269773Z    Compiling lock_api v0.4.14
+2026-07-15T13:11:02.1673741Z    Compiling mio v1.2.2
+2026-07-15T13:11:02.2036740Z    Compiling winnow v1.0.4
+2026-07-15T13:11:02.4288039Z    Compiling linux-raw-sys v0.12.1
+2026-07-15T13:11:02.5228509Z    Compiling litrs v1.0.0
+2026-07-15T13:11:02.6625896Z    Compiling serde v1.0.228
+2026-07-15T13:11:02.8308498Z    Compiling thiserror-impl v1.0.69
+2026-07-15T13:11:02.8427210Z    Compiling derive_more-impl v2.1.1
+2026-07-15T13:11:02.9882565Z    Compiling document-features v0.2.12
+2026-07-15T13:11:03.3900090Z    Compiling derive_more v2.1.1
+2026-07-15T13:11:03.3940964Z    Compiling serde_derive v1.0.228
+2026-07-15T13:11:03.4234391Z    Compiling toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:11:03.6361778Z    Compiling signal-hook-mio v0.2.5
+2026-07-15T13:11:03.6965551Z    Compiling parking_lot v0.12.5
+2026-07-15T13:11:03.9076684Z    Compiling filedescriptor v0.8.3
+2026-07-15T13:11:04.1480381Z    Compiling serde_spanned v1.1.1
+2026-07-15T13:11:12.1618627Z test diagnostics::tests::json_strings_escape_control_data ... ok
+2026-07-15T13:11:12.1621761Z test diagnostics::tests::redactor_removes_sensitive_text_home_paths_and_controls ... ok
+2026-07-15T13:11:12.1623449Z test diagnostics::tests::stable_codes_and_status_mapping_are_explicit ... ok
+2026-07-15T13:11:12.1624394Z test diagnostics::tests::path_redaction_is_structured ... ok
+2026-07-15T13:11:12.1632549Z test engine::tests::built_in_engine_check_requires_no_external_programs ... ok
+2026-07-15T13:11:12.1635444Z test engine::tests::executable_resolution_accepts_an_absolute_executable ... ok
+2026-07-15T13:11:12.1644730Z test engine::tests::mathjax_cli_is_presented_through_chafa ... FAILED
+2026-07-15T13:11:12.1652106Z test doctor::tests::session_modes_are_reported_without_starting_engines ... ok
+2026-07-15T13:11:12.1679668Z test doctor::tests::json_schema_and_status_are_stable ... ok
+2026-07-15T13:11:12.1696831Z test doctor::tests::support_report_is_atomic_and_refuses_overwrite ... ok
+2026-07-15T13:11:12.1773412Z test engine::tests::renderer_output_limit_stops_the_process ... ok
+2026-07-15T13:11:12.1774459Z test managed_launcher::tests::executable_names_map_to_fixed_roles ... ok
+2026-07-15T13:11:12.1775310Z test managed_launcher::tests::managed_schema_is_explicit ... ok
+2026-07-15T13:11:12.1798109Z test engine::tests::renderer_stderr_is_not_copied_into_public_errors ... ok
+2026-07-15T13:11:12.1801439Z test pipeline::tests::alternate_screen_is_lossless ... ok
+2026-07-15T13:11:12.1802329Z test pipeline::tests::crlf_semantic_block_from_a_pty_is_rendered ... ok
+2026-07-15T13:11:12.1652106Z test doctor::tests::session_modes_are_reported_without_starting_engines ... ok
+2026-07-15T13:11:12.1679668Z test doctor::tests::json_schema_and_status_are_stable ... ok
+2026-07-15T13:11:12.1696831Z test doctor::tests::support_report_is_atomic_and_refuses_overwrite ... ok
+2026-07-15T13:11:12.1773412Z test engine::tests::renderer_output_limit_stops_the_process ... ok
+2026-07-15T13:11:12.1774459Z test managed_launcher::tests::executable_names_map_to_fixed_roles ... ok
+2026-07-15T13:11:12.1775310Z test managed_launcher::tests::managed_schema_is_explicit ... ok
+2026-07-15T13:11:12.1798109Z test engine::tests::renderer_stderr_is_not_copied_into_public_errors ... ok
+2026-07-15T13:11:12.1801439Z test pipeline::tests::alternate_screen_is_lossless ... ok
+2026-07-15T13:11:12.1802329Z test pipeline::tests::crlf_semantic_block_from_a_pty_is_rendered ... ok
+2026-07-15T13:11:12.1867132Z test engine::tests::mermaid_cli_is_presented_through_chafa ... ok
+2026-07-15T13:11:12.1869626Z test pipeline::tests::render_failure_finding_never_copies_source_bearing_detail ... ok
+2026-07-15T13:11:12.1876292Z test pipeline::tests::semantic_block_is_replaced_before_display ... ok
+2026-07-15T13:11:12.1877339Z test render::tests::invalid_utf8_is_rejected_before_preview_replacement ... ok
+2026-07-15T13:11:12.1879190Z test render::tests::render_context_defaults_to_a_valid_terminal_width ... ok
+2026-07-15T13:11:12.1880877Z test render::tests::service_caches_successful_artifacts ... ok
+2026-07-15T13:11:12.1882600Z test render::tests::source_renderer_is_exact ... ok
+2026-07-15T13:11:12.1774459Z test managed_launcher::tests::executable_names_map_to_fixed_roles ... ok
+2026-07-15T13:11:12.1775310Z test managed_launcher::tests::managed_schema_is_explicit ... ok
+2026-07-15T13:11:12.1798109Z test engine::tests::renderer_stderr_is_not_copied_into_public_errors ... ok
+2026-07-15T13:11:12.1801439Z test pipeline::tests::alternate_screen_is_lossless ... ok
+2026-07-15T13:11:12.1802329Z test pipeline::tests::crlf_semantic_block_from_a_pty_is_rendered ... ok
+2026-07-15T13:11:12.1867132Z test engine::tests::mermaid_cli_is_presented_through_chafa ... ok
+2026-07-15T13:11:12.1869626Z test pipeline::tests::render_failure_finding_never_copies_source_bearing_detail ... ok
+2026-07-15T13:11:12.1876292Z test pipeline::tests::semantic_block_is_replaced_before_display ... ok
+2026-07-15T13:11:12.1877339Z test render::tests::invalid_utf8_is_rejected_before_preview_replacement ... ok
+2026-07-15T13:11:12.1879190Z test render::tests::render_context_defaults_to_a_valid_terminal_width ... ok
+2026-07-15T13:11:12.1880877Z test render::tests::service_caches_successful_artifacts ... ok
+2026-07-15T13:11:12.1882600Z test render::tests::source_renderer_is_exact ... ok
+2026-07-15T13:11:12.1883714Z test routing::tests::configured_decision_is_separate_for_each_semantic_kind ... ok
+2026-07-15T13:11:12.1884549Z test routing::tests::routed_renderer_preserves_the_typed_handoff_request ... ok
+2026-07-15T13:11:12.1889355Z test stream::tests::bounded_pump_preserves_order_for_an_in_memory_stream ... ok
+2026-07-15T13:11:12.1890792Z test stream::tests::pending_output_contract_is_one_mebibyte ... ok
+2026-07-15T13:11:12.1895633Z test terminal::tests::crlf_is_safe_text_even_when_split_across_chunks ... ok
+2026-07-15T13:11:12.1896374Z test terminal::tests::trailing_carriage_return_is_flushed_as_raw ... ok
+2026-07-15T13:11:12.2223071Z test engine::tests::renderer_timeout_has_a_stable_code_and_redacted_message ... ok
+2026-07-15T13:11:12.3311999Z test pipeline::tests::excessive_pending_output_restores_source_without_starting_renderer ... ok
+2026-07-15T13:11:13.1822207Z test native_session::tests::real_unix_pty_resize_reaches_the_child ... ok
+2026-07-15T13:11:13.1822711Z 
+2026-07-15T13:11:13.1822832Z failures:
+2026-07-15T13:11:13.1823149Z 
+2026-07-15T13:11:13.1823431Z ---- engine::tests::mathjax_cli_is_presented_through_chafa stdout ----
+2026-07-15T13:11:13.1823877Z 
+2026-07-15T13:11:13.1824310Z thread 'engine::tests::mathjax_cli_is_presented_through_chafa' (2401) panicked at src/engine.rs:933:14:
+2026-07-15T13:11:13.1825389Z render: RenderError { code: "engine.missing", message: "cannot start renderer `tex2svg`: Text file busy (os error 26)" }
+2026-07-15T13:11:13.1826300Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-07-15T13:11:13.1826721Z 
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1822207Z test native_session::tests::real_unix_pty_resize_reaches_the_child ... ok
+2026-07-15T13:11:13.1822711Z 
+2026-07-15T13:11:13.1822832Z failures:
+2026-07-15T13:11:13.1823149Z 
+2026-07-15T13:11:13.1823431Z ---- engine::tests::mathjax_cli_is_presented_through_chafa stdout ----
+2026-07-15T13:11:13.1823877Z 
+2026-07-15T13:11:13.1824310Z thread 'engine::tests::mathjax_cli_is_presented_through_chafa' (2401) panicked at src/engine.rs:933:14:
+2026-07-15T13:11:13.1825389Z render: RenderError { code: "engine.missing", message: "cannot start renderer `tex2svg`: Text file busy (os error 26)" }
+2026-07-15T13:11:13.1826300Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-07-15T13:11:13.1826721Z 
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1822711Z 
+2026-07-15T13:11:13.1822832Z failures:
+2026-07-15T13:11:13.1823149Z 
+2026-07-15T13:11:13.1823431Z ---- engine::tests::mathjax_cli_is_presented_through_chafa stdout ----
+2026-07-15T13:11:13.1823877Z 
+2026-07-15T13:11:13.1824310Z thread 'engine::tests::mathjax_cli_is_presented_through_chafa' (2401) panicked at src/engine.rs:933:14:
+2026-07-15T13:11:13.1825389Z render: RenderError { code: "engine.missing", message: "cannot start renderer `tex2svg`: Text file busy (os error 26)" }
+2026-07-15T13:11:13.1826300Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-07-15T13:11:13.1826721Z 
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1836836Z error: test failed, to rerun pass `--lib`
+2026-07-15T13:11:13.1823877Z 
+2026-07-15T13:11:13.1824310Z thread 'engine::tests::mathjax_cli_is_presented_through_chafa' (2401) panicked at src/engine.rs:933:14:
+2026-07-15T13:11:13.1825389Z render: RenderError { code: "engine.missing", message: "cannot start renderer `tex2svg`: Text file busy (os error 26)" }
+2026-07-15T13:11:13.1826300Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-07-15T13:11:13.1826721Z 
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1836836Z error: test failed, to rerun pass `--lib`
+2026-07-15T13:11:14.4197215Z 
+2026-07-15T13:11:14.4247353Z ##[error]Process completed with exit code 101.
+2026-07-15T13:11:14.4336863Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.4337160Z with:
+2026-07-15T13:11:13.1826300Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-07-15T13:11:13.1826721Z 
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1836836Z error: test failed, to rerun pass `--lib`
+2026-07-15T13:11:14.4197215Z 
+2026-07-15T13:11:14.4247353Z ##[error]Process completed with exit code 101.
+2026-07-15T13:11:14.4336863Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.4337160Z with:
+2026-07-15T13:11:14.4337379Z   name: ptymark-shellcheck-evidence
+2026-07-15T13:11:14.4337653Z   path: shellcheck.log
+2026-07-15T13:11:14.4337884Z   if-no-files-found: warn
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1836836Z error: test failed, to rerun pass `--lib`
+2026-07-15T13:11:14.4197215Z 
+2026-07-15T13:11:14.4247353Z ##[error]Process completed with exit code 101.
+2026-07-15T13:11:14.4336863Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.4337160Z with:
+2026-07-15T13:11:14.4337379Z   name: ptymark-shellcheck-evidence
+2026-07-15T13:11:14.4337653Z   path: shellcheck.log
+2026-07-15T13:11:14.4337884Z   if-no-files-found: warn
+2026-07-15T13:11:14.4338114Z   retention-days: 14
+2026-07-15T13:11:14.4338335Z   compression-level: 6
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1836836Z error: test failed, to rerun pass `--lib`
+2026-07-15T13:11:14.4197215Z 
+2026-07-15T13:11:14.4247353Z ##[error]Process completed with exit code 101.
+2026-07-15T13:11:14.4336863Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.4337160Z with:
+2026-07-15T13:11:14.4337379Z   name: ptymark-shellcheck-evidence
+2026-07-15T13:11:14.4337653Z   path: shellcheck.log
+2026-07-15T13:11:14.4337884Z   if-no-files-found: warn
+2026-07-15T13:11:14.4338114Z   retention-days: 14
+2026-07-15T13:11:14.4338335Z   compression-level: 6
+2026-07-15T13:11:14.4338547Z   overwrite: false
+2026-07-15T13:11:14.4338767Z   include-hidden-files: false
+2026-07-15T13:11:14.4339215Z ##[endgroup]
+2026-07-15T13:11:14.5859751Z ##[warning]No files were found with the provided path: shellcheck.log. No artifacts will be uploaded.
+2026-07-15T13:11:14.6013989Z ##[group]Run test 'skipped' = success
+2026-07-15T13:11:14.6014338Z [36;1mtest 'skipped' = success[0m
+2026-07-15T13:11:14.6049397Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:11:14.6049672Z ##[endgroup]
+2026-07-15T13:11:14.6119275Z ##[error]Process completed with exit code 1.
+2026-07-15T13:11:14.6232494Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.6232821Z with:
+2026-07-15T13:11:14.6233274Z   name: ptymark-selected-renderer-evidence
+2026-07-15T13:11:14.6233581Z   path: selected-renderer.log
+2026-07-15T13:11:14.6233840Z   if-no-files-found: warn
+2026-07-15T13:11:14.6234067Z   retention-days: 14
+2026-07-15T13:11:14.6234286Z   compression-level: 6
+2026-07-15T13:11:14.6234508Z   overwrite: false
+2026-07-15T13:11:14.6234723Z   include-hidden-files: false
+2026-07-15T13:11:14.6235155Z ##[endgroup]
+2026-07-15T13:11:14.7882276Z ##[warning]No files were found with the provided path: selected-renderer.log. No artifacts will be uploaded.
+2026-07-15T13:11:14.8057572Z ##[group]Run test 'skipped' = success
+2026-07-15T13:11:14.8058064Z [36;1mtest 'skipped' = success[0m
+2026-07-15T13:11:14.8101736Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:11:14.8102130Z ##[endgroup]
+2026-07-15T13:11:14.8174402Z ##[error]Process completed with exit code 1.
+2026-07-15T13:11:14.8332240Z Post job cleanup.
+2026-07-15T13:11:14.9254208Z [command]/usr/bin/git version
+2026-07-15T13:11:14.9300264Z git version 2.54.0
+2026-07-15T13:11:14.9338818Z Copying '/home/runner/.gitconfig' to '/home/runner/work/_temp/c7bf5282-4af4-4d04-adda-9bd747240565/.gitconfig'
+2026-07-15T13:11:14.9351350Z Temporarily overriding HOME='/home/runner/work/_temp/c7bf5282-4af4-4d04-adda-9bd747240565' before making global git config changes
+2026-07-15T13:11:14.9353157Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-15T13:11:14.9355627Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ptymark/ptymark
+2026-07-15T13:11:14.9393741Z Removing SSH command configuration
+2026-07-15T13:11:14.9400506Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+
+--- LAST 500 LINES ---
+2026-07-15T13:10:14.0518677Z #11 12.88 Setting up build-essential (12.9) ...
+2026-07-15T13:10:14.0519135Z #11 12.88 Setting up libatk1.0-0:amd64 (2.46.0-5) ...
+2026-07-15T13:10:14.0519463Z #11 12.88 Setting up libwayland-egl1:amd64 (1.21.0-1) ...
+2026-07-15T13:10:14.0519842Z #11 12.88 Setting up libxkbfile1:amd64 (1:1.1.0-1) ...
+2026-07-15T13:10:14.0520436Z #11 12.88 Setting up dbus-system-bus-common (1.14.10-1~deb12u1) ...
+2026-07-15T13:10:14.0520963Z #11 12.93 Setting up libdrm-common (2.4.114-1) ...
+2026-07-15T13:10:14.2328233Z #11 12.93 Setting up libxcomposite1:amd64 (1:0.4.5-1) ...
+2026-07-15T13:10:14.2328887Z #11 12.93 Setting up xdg-utils (1.1.3-4.1) ...
+2026-07-15T13:10:14.2329790Z #11 12.94 update-alternatives: using /usr/bin/xdg-open to provide /usr/bin/open (open) in auto mode
+2026-07-15T13:10:14.2330591Z #11 12.94 Setting up libxmuu1:amd64 (2:1.1.3-3) ...
+2026-07-15T13:10:14.2331218Z #11 12.94 Setting up dbus-bin (1.14.10-1~deb12u1) ...
+2026-07-15T13:10:14.2333619Z #11 12.94 Setting up libmp3lame0:amd64 (3.100-6) ...
+2026-07-15T13:10:14.2334059Z #11 12.95 Setting up libvorbisenc2:amd64 (1.3.7-1) ...
+2026-07-15T13:10:14.2334404Z #11 12.95 Setting up libxkbcommon0:amd64 (1.5.0-1) ...
+2026-07-15T13:10:14.2334878Z #11 12.95 Setting up libwayland-client0:amd64 (1.21.0-1) ...
+2026-07-15T13:10:14.2335385Z #11 12.95 Setting up libxcursor1:amd64 (1:1.2.1-1) ...
+2026-07-15T13:10:14.2335840Z #11 12.95 Setting up chafa (1.12.4-1+b1) ...
+2026-07-15T13:10:14.2336360Z #11 12.96 Setting up libavahi-common3:amd64 (0.8-10+deb12u1) ...
+2026-07-15T13:10:14.2336933Z #11 12.96 Setting up libnss3:amd64 (2:3.87.1-1+deb12u2) ...
+2026-07-15T13:10:14.2337479Z #11 12.96 Setting up dbus-daemon (1.14.10-1~deb12u1) ...
+2026-07-15T13:10:14.2338008Z #11 12.97 Setting up libatspi2.0-0:amd64 (2.46.0-5) ...
+2026-07-15T13:10:14.2338348Z #11 12.97 Setting up libatk-bridge2.0-0:amd64 (2.46.0-5) ...
+2026-07-15T13:10:14.2338664Z #11 12.98 Setting up dbus (1.14.10-1~deb12u1) ...
+2026-07-15T13:10:14.2339119Z #11 13.00 invoke-rc.d: could not determine current runlevel
+2026-07-15T13:10:14.2339632Z #11 13.00 invoke-rc.d: policy-rc.d denied execution of start.
+2026-07-15T13:10:14.2339986Z #11 13.00 Setting up libdrm2:amd64 (2.4.114-1+b1) ...
+2026-07-15T13:10:14.2340424Z #11 13.02 Setting up libwayland-cursor0:amd64 (1.21.0-1) ...
+2026-07-15T13:10:14.2340846Z #11 13.02 Setting up libpam-systemd:amd64 (252.39-1~deb12u2) ...
+2026-07-15T13:10:14.2341385Z #11 13.11 Setting up libsndfile1:amd64 (1.2.0-1+deb12u1) ...
+2026-07-15T13:10:14.3474855Z #11 13.11 Setting up libavahi-client3:amd64 (0.8-10+deb12u1) ...
+2026-07-15T13:10:14.3475939Z #11 13.11 Setting up libdrm-amdgpu1:amd64 (2.4.114-1+b1) ...
+2026-07-15T13:10:14.3476757Z #11 13.12 Setting up libdrm-nouveau2:amd64 (2.4.114-1+b1) ...
+2026-07-15T13:10:14.3477392Z #11 13.12 Setting up libgbm1:amd64 (22.3.6-1+deb12u2) ...
+2026-07-15T13:10:14.3477997Z #11 13.12 Setting up libpulse0:amd64 (16.1+dfsg1-2+b1) ...
+2026-07-15T13:10:14.3478828Z #11 13.13 Setting up libdrm-radeon1:amd64 (2.4.114-1+b1) ...
+2026-07-15T13:10:14.3479321Z #11 13.13 Setting up libdrm-intel1:amd64 (2.4.114-1+b1) ...
+2026-07-15T13:10:14.3479728Z #11 13.13 Setting up libgl1-mesa-dri:amd64 (22.3.6-1+deb12u2) ...
+2026-07-15T13:10:14.3480148Z #11 13.14 Setting up dbus-user-session (1.14.10-1~deb12u1) ...
+2026-07-15T13:10:14.3480536Z #11 13.14 Setting up libcups2:amd64 (2.4.2-3+deb12u9) ...
+2026-07-15T13:10:14.3480916Z #11 13.15 Setting up libglx-mesa0:amd64 (22.3.6-1+deb12u2) ...
+2026-07-15T13:10:14.3481282Z #11 13.15 Setting up libglx0:amd64 (1.6.0-1) ...
+2026-07-15T13:10:14.3481641Z #11 13.15 Setting up dconf-service (0.40.0-4) ...
+2026-07-15T13:10:14.3481995Z #11 13.15 Setting up libgl1:amd64 (1.6.0-1) ...
+2026-07-15T13:10:14.3482329Z #11 13.15 Setting up x11-utils (7.7+5) ...
+2026-07-15T13:10:14.3482684Z #11 13.17 Setting up chromium-common (150.0.7871.114-1~deb12u1) ...
+2026-07-15T13:10:14.3483399Z #11 13.17 Setting up dconf-gsettings-backend:amd64 (0.40.0-4) ...
+2026-07-15T13:10:14.3483779Z #11 13.17 Setting up libgtk-3-common (3.24.38-2~deb12u3) ...
+2026-07-15T13:10:14.3484205Z #11 13.18 Processing triggers for hicolor-icon-theme (0.17-2) ...
+2026-07-15T13:10:14.3484701Z #11 13.19 Processing triggers for libglib2.0-0:amd64 (2.74.6-2+deb12u9) ...
+2026-07-15T13:10:14.3485167Z #11 13.21 Setting up libgtk-3-0:amd64 (3.24.38-2~deb12u3) ...
+2026-07-15T13:10:14.3485586Z #11 13.23 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+2026-07-15T13:10:14.5403421Z #11 13.26 Setting up chromium (150.0.7871.114-1~deb12u1) ...
+2026-07-15T13:10:14.5404348Z #11 13.27 update-alternatives: using /usr/bin/chromium to provide /usr/bin/x-www-browser (x-www-browser) in auto mode
+2026-07-15T13:10:14.5405607Z #11 13.27 update-alternatives: using /usr/bin/chromium to provide /usr/bin/gnome-www-browser (gnome-www-browser) in auto mode
+2026-07-15T13:10:15.8417820Z #11 DONE 14.7s
+2026-07-15T13:10:15.9691654Z 
+2026-07-15T13:10:15.9694945Z #12 [3/9] RUN mkdir -p         /workspace         /opt/ptymark-renderers         /home/node/.cargo         /home/node/.rustup         /home/node/.cache/ptymark-target     && chown -R node:node         /workspace         /opt/ptymark-renderers         /home/node/.cargo         /home/node/.rustup         /home/node/.cache
+2026-07-15T13:10:15.9696734Z #12 DONE 0.1s
+2026-07-15T13:10:16.1604810Z 
+2026-07-15T13:10:16.1605841Z #13 [4/9] COPY --chown=node:node     renderers/package.json     renderers/package-lock.json     /opt/ptymark-renderers/
+2026-07-15T13:10:16.1606722Z #13 DONE 0.0s
+2026-07-15T13:10:16.1606888Z 
+2026-07-15T13:10:16.1607145Z #14 [5/9] COPY --chown=node:node renderers/check.mjs /opt/ptymark-renderers/check.mjs
+2026-07-15T13:10:16.1607581Z #14 DONE 0.0s
+2026-07-15T13:10:16.1607713Z 
+2026-07-15T13:10:16.1608073Z #15 [6/9] RUN npm ci         --prefix /opt/ptymark-renderers         --omit=dev         --ignore-scripts     && npm cache clean --force
+2026-07-15T13:10:26.8570087Z #15 10.85 
+2026-07-15T13:10:26.8570448Z #15 10.85 added 203 packages, and audited 204 packages in 11s
+2026-07-15T13:10:26.8570794Z #15 10.85 
+2026-07-15T13:10:27.0104368Z #15 10.85 25 packages are looking for funding
+2026-07-15T13:10:27.0104746Z #15 10.85   run `npm fund` for details
+2026-07-15T13:10:27.0105130Z #15 10.85 
+2026-07-15T13:10:27.0105334Z #15 10.85 found 0 vulnerabilities
+2026-07-15T13:10:27.0105585Z #15 10.85 npm notice
+2026-07-15T13:10:27.0106049Z #15 10.85 npm notice New major version of npm available! 11.16.0 -> 12.0.1
+2026-07-15T13:10:27.0106604Z #15 10.85 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
+2026-07-15T13:10:27.0107311Z #15 10.85 npm notice To update run: npm install -g npm@12.0.1
+2026-07-15T13:10:27.0108132Z #15 10.85 npm notice
+2026-07-15T13:10:27.0255948Z #15 11.02 npm warn using --force Recommended protections disabled.
+2026-07-15T13:10:27.2480776Z #15 DONE 11.2s
+2026-07-15T13:10:27.3986030Z 
+2026-07-15T13:10:27.3991782Z #16 [7/9] RUN curl --proto '=https' --tlsv1.2 --fail --silent --show-error         https://sh.rustup.rs     | sh -s -- -y --profile minimal --default-toolchain "1.97.0"     && rustup component add clippy rustfmt --toolchain "1.97.0"
+2026-07-15T13:10:27.5115736Z #16 0.264 info: downloading installer
+2026-07-15T13:10:27.6741957Z #16 0.426 warn: It looks like you have an existing rustup settings file at:
+2026-07-15T13:10:27.6742685Z #16 0.426 warn: /home/node/.rustup/settings.toml
+2026-07-15T13:10:27.6743553Z #16 0.426 warn: Rustup will install the default toolchain as specified in the settings file,
+2026-07-15T13:10:27.8389980Z #16 0.426 warn: instead of the one inferred from the default host triple.
+2026-07-15T13:10:27.8390588Z #16 0.440 info: profile set to minimal
+2026-07-15T13:10:27.8390999Z #16 0.440 info: default host triple is x86_64-unknown-linux-gnu
+2026-07-15T13:10:27.8391427Z #16 0.441 info: syncing channel updates for 1.97.0-x86_64-unknown-linux-gnu
+2026-07-15T13:10:27.9125659Z #16 0.664 info: latest update on 2026-07-09 for version 1.97.0 (2d8144b78 2026-07-07)
+2026-07-15T13:10:27.9126455Z #16 0.664 info: downloading 3 components
+2026-07-15T13:10:36.1209196Z #16 8.873 info: default toolchain set to 1.97.0-x86_64-unknown-linux-gnu
+2026-07-15T13:10:36.1209747Z #16 8.873 
+2026-07-15T13:10:36.3476883Z #16 8.881   1.97.0-x86_64-unknown-linux-gnu installed - rustc 1.97.0 (2d8144b78 2026-07-07)
+2026-07-15T13:10:36.3477491Z #16 8.881 
+2026-07-15T13:10:36.3477674Z #16 8.881 
+2026-07-15T13:10:36.3477876Z #16 8.881 Rust is installed now. Great!
+2026-07-15T13:10:36.3478139Z #16 8.881 
+2026-07-15T13:10:36.3478398Z #16 8.881 To get started you may need to restart your current shell.
+2026-07-15T13:10:36.3478847Z #16 8.881 This would reload your PATH environment variable to include
+2026-07-15T13:10:36.3479252Z #16 8.881 Cargo's bin directory ($HOME/.cargo/bin).
+2026-07-15T13:10:36.3479533Z #16 8.881 
+2026-07-15T13:10:36.3479782Z #16 8.881 To configure your current shell, you need to source
+2026-07-15T13:10:36.3480140Z #16 8.881 the corresponding env file under $HOME/.cargo.
+2026-07-15T13:10:36.3480429Z #16 8.881 
+2026-07-15T13:10:36.3481110Z #16 8.881 This is usually done by running one of the following (note the leading DOT):
+2026-07-15T13:10:36.3481592Z #16 8.881 . "$HOME/.cargo/env"            # For sh/bash/zsh/ash/dash/pdksh
+2026-07-15T13:10:36.3481982Z #16 8.881 source "$HOME/.cargo/env.fish"  # For fish
+2026-07-15T13:10:36.3482308Z #16 8.881 source "~/.cargo/env.nu"  # For nushell
+2026-07-15T13:10:36.3482610Z #16 8.881 source "$HOME/.cargo/env.tcsh"  # For tcsh
+2026-07-15T13:10:36.3483148Z #16 8.881 . "$HOME/.cargo/env.ps1"        # For pwsh
+2026-07-15T13:10:36.3483455Z #16 8.881 source "$HOME/.cargo/env.xsh"   # For xonsh
+2026-07-15T13:10:36.3483768Z #16 8.949 info: downloading component clippy
+2026-07-15T13:10:37.0609911Z #16 9.813 info: downloading component rustfmt
+2026-07-15T13:10:38.6418846Z #16 DONE 11.4s
+2026-07-15T13:10:38.7927753Z 
+2026-07-15T13:10:38.7928867Z #17 [8/9] RUN rustc --version     && cargo --version     && node --version     && mmdc --version     && chafa --version     && lua5.4 -v     && chromium --version
+2026-07-15T13:10:38.8129214Z #17 0.171 rustc 1.97.0 (2d8144b78 2026-07-07)
+2026-07-15T13:10:38.9783947Z #17 0.181 cargo 1.97.0 (c980f4866 2026-06-30)
+2026-07-15T13:10:38.9784471Z #17 0.186 v24.18.0
+2026-07-15T13:10:39.0123171Z #17 0.370 11.16.0
+2026-07-15T13:10:39.1172793Z #17 0.389 Chafa version 1.12.4
+2026-07-15T13:10:39.1173777Z #17 0.389 
+2026-07-15T13:10:39.1174085Z #17 0.389 Loaders:  GIF ImageMagick JPEG PNG SVG TIFF WebP XWD
+2026-07-15T13:10:39.1174519Z #17 0.389 Features: mmx sse4.1 popcnt
+2026-07-15T13:10:39.1174825Z #17 0.389 Applying: mmx sse4.1 popcnt
+2026-07-15T13:10:39.1175111Z #17 0.389 
+2026-07-15T13:10:39.1175534Z #17 0.389 Copyright (C) 2018-2022 Hans Petter Jansson et al.
+2026-07-15T13:10:39.1176402Z #17 0.389 Incl. libnsgif copyright (C) 2004 Richard Wilson, copyright (C) 2008 Sean Fox
+2026-07-15T13:10:39.1176863Z #17 0.389 Incl. LodePNG copyright (C) 2005-2018 Lode Vandevenne
+2026-07-15T13:10:39.1177331Z #17 0.389 
+2026-07-15T13:10:39.1177804Z #17 0.389 This is free software; see the source for copying conditions.  There is NO
+2026-07-15T13:10:39.1178515Z #17 0.389 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+2026-07-15T13:10:39.1179088Z #17 0.389 
+2026-07-15T13:10:39.1179457Z #17 0.391 Lua 5.4.4  Copyright (C) 1994-2022 Lua.org, PUC-Rio
+2026-07-15T13:10:39.1180075Z #17 0.439 Chromium 150.0.7871.114 built on Debian GNU/Linux 12 (bookworm)
+2026-07-15T13:10:39.1180619Z #17 DONE 0.5s
+2026-07-15T13:10:39.1180791Z 
+2026-07-15T13:10:39.1180936Z #18 [9/9] WORKDIR /workspace
+2026-07-15T13:10:39.1181271Z #18 DONE 0.0s
+2026-07-15T13:10:39.2697225Z 
+2026-07-15T13:10:39.2697756Z #19 exporting to image
+2026-07-15T13:10:39.2698214Z #19 exporting layers
+2026-07-15T13:10:49.5672482Z #19 exporting layers 10.4s done
+2026-07-15T13:10:49.5935700Z #19 writing image sha256:0186214648466416ce0ec5ff46314af50eb99f0b36035dfdaaa1df0dee8e2294 done
+2026-07-15T13:10:49.5936769Z #19 naming to docker.io/library/ptymark-dev:local done
+2026-07-15T13:10:49.5937249Z #19 DONE 10.5s
+2026-07-15T13:10:49.5937582Z  dev  Built
+2026-07-15T13:10:49.5937756Z 
+2026-07-15T13:10:49.5937900Z #20 resolving provenance for metadata file
+2026-07-15T13:10:49.5938166Z #20 DONE 0.0s
+2026-07-15T13:10:49.6016783Z ##[group]Run docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev cargo fmt --all -- --check
+2026-07-15T13:10:49.6017836Z [36;1mdocker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev cargo fmt --all -- --check[0m
+2026-07-15T13:10:49.6055597Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:10:49.6055856Z ##[endgroup]
+2026-07-15T13:10:49.6877849Z  Network docker_default  Creating
+2026-07-15T13:10:49.7251420Z  Network docker_default  Created
+2026-07-15T13:10:50.1469302Z ##[group]Run docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev cargo clippy --locked --all-targets -- -D warnings
+2026-07-15T13:10:50.1470518Z [36;1mdocker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev cargo clippy --locked --all-targets -- -D warnings[0m
+2026-07-15T13:10:50.1507734Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:10:50.1507998Z ##[endgroup]
+2026-07-15T13:10:50.4637645Z     Updating crates.io index
+2026-07-15T13:10:50.6432574Z  Downloading crates ...
+2026-07-15T13:10:50.7815245Z   Downloaded mio v1.2.2
+2026-07-15T13:10:50.7910583Z   Downloaded unicode-segmentation v1.13.3
+2026-07-15T13:10:50.7957518Z   Downloaded serde_core v1.0.228
+2026-07-15T13:10:50.8001027Z   Downloaded toml v1.1.3+spec-1.1.0
+2026-07-15T13:10:50.8082741Z   Downloaded cfg_aliases v0.1.1
+2026-07-15T13:10:50.8093225Z   Downloaded derive_more v2.1.1
+2026-07-15T13:10:50.8294833Z   Downloaded thiserror v1.0.69
+2026-07-15T13:10:50.8383163Z   Downloaded quote v1.0.46
+2026-07-15T13:10:50.8423361Z   Downloaded toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:50.8442280Z   Downloaded hashbrown v0.17.1
+2026-07-15T13:10:50.8514762Z   Downloaded serde v1.0.228
+2026-07-15T13:10:50.8564112Z   Downloaded document-features v0.2.12
+2026-07-15T13:10:50.8584032Z   Downloaded filedescriptor v0.8.3
+2026-07-15T13:10:50.8597686Z   Downloaded thiserror-impl v1.0.69
+2026-07-15T13:10:50.8617350Z   Downloaded errno v0.3.14
+2026-07-15T13:10:50.8639587Z   Downloaded shell-words v1.1.1
+2026-07-15T13:10:50.8653255Z   Downloaded rustc_version v0.4.1
+2026-07-15T13:10:50.8671544Z   Downloaded signal-hook-mio v0.2.5
+2026-07-15T13:10:50.8689033Z   Downloaded portable-pty v0.9.0
+2026-07-15T13:10:50.8713893Z   Downloaded litrs v1.0.0
+2026-07-15T13:10:50.8757693Z   Downloaded parking_lot v0.12.5
+2026-07-15T13:10:50.8793289Z   Downloaded toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:50.8811723Z   Downloaded cfg-if v1.0.4
+2026-07-15T13:10:50.8830846Z   Downloaded convert_case v0.10.0
+2026-07-15T13:10:50.8854853Z   Downloaded equivalent v1.0.2
+2026-07-15T13:10:50.8869126Z   Downloaded log v0.4.33
+2026-07-15T13:10:50.8903244Z   Downloaded signal-hook v0.3.18
+2026-07-15T13:10:50.8947197Z   Downloaded toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:10:50.8979497Z   Downloaded unicode-ident v1.0.24
+2026-07-15T13:10:50.9018288Z   Downloaded scopeguard v1.2.0
+2026-07-15T13:10:50.9036282Z   Downloaded parking_lot_core v0.9.12
+2026-07-15T13:10:50.9066117Z   Downloaded smallvec v1.15.2
+2026-07-15T13:10:50.9086008Z   Downloaded bitflags v2.13.0
+2026-07-15T13:10:50.9154689Z   Downloaded lock_api v0.4.14
+2026-07-15T13:10:50.9172385Z   Downloaded serial2 v0.2.37
+2026-07-15T13:10:50.9219236Z   Downloaded indexmap v2.14.0
+2026-07-15T13:10:50.9305786Z   Downloaded downcast-rs v1.2.1
+2026-07-15T13:10:50.9333794Z   Downloaded serde_spanned v1.1.1
+2026-07-15T13:10:50.9357681Z   Downloaded signal-hook-registry v1.4.8
+2026-07-15T13:10:50.9381354Z   Downloaded winnow v1.0.4
+2026-07-15T13:10:50.9567486Z   Downloaded semver v1.0.28
+2026-07-15T13:10:50.9602629Z   Downloaded crossterm v0.29.0
+2026-07-15T13:10:50.9706052Z   Downloaded anyhow v1.0.103
+2026-07-15T13:10:50.9768291Z   Downloaded proc-macro2 v1.0.106
+2026-07-15T13:10:50.9811992Z   Downloaded derive_more-impl v2.1.1
+2026-07-15T13:10:50.9892126Z   Downloaded serde_derive v1.0.228
+2026-07-15T13:10:50.9936902Z   Downloaded nix v0.28.0
+2026-07-15T13:10:51.0095837Z   Downloaded syn v2.0.118
+2026-07-15T13:10:51.0244804Z   Downloaded rustix v1.1.4
+2026-07-15T13:10:51.0655907Z   Downloaded libc v0.2.186
+2026-07-15T13:10:51.1240855Z   Downloaded linux-raw-sys v0.12.1
+2026-07-15T13:10:51.2393797Z    Compiling libc v0.2.186
+2026-07-15T13:10:51.2394266Z    Compiling proc-macro2 v1.0.106
+2026-07-15T13:10:51.2394753Z    Compiling quote v1.0.46
+2026-07-15T13:10:51.2395165Z    Compiling unicode-ident v1.0.24
+2026-07-15T13:10:51.3034193Z     Checking cfg-if v1.0.4
+2026-07-15T13:10:51.3251190Z    Compiling serde_core v1.0.228
+2026-07-15T13:10:51.4211415Z    Compiling signal-hook v0.3.18
+2026-07-15T13:10:51.5118317Z    Compiling cfg_aliases v0.1.1
+2026-07-15T13:10:51.5452836Z    Compiling thiserror v1.0.69
+2026-07-15T13:10:51.7197235Z    Compiling parking_lot_core v0.9.12
+2026-07-15T13:10:51.8438611Z     Checking log v0.4.33
+2026-07-15T13:10:52.0753542Z    Compiling unicode-segmentation v1.13.3
+2026-07-15T13:10:52.1438667Z    Compiling syn v2.0.118
+2026-07-15T13:10:52.4396415Z     Checking bitflags v2.13.0
+2026-07-15T13:10:52.5418163Z    Compiling convert_case v0.10.0
+2026-07-15T13:10:52.7894664Z     Checking errno v0.3.14
+2026-07-15T13:10:52.8087056Z    Compiling nix v0.28.0
+2026-07-15T13:10:52.8460456Z     Checking signal-hook-registry v1.4.8
+2026-07-15T13:10:52.9592600Z    Compiling anyhow v1.0.103
+2026-07-15T13:10:53.0348443Z     Checking scopeguard v1.2.0
+2026-07-15T13:10:53.0683138Z     Checking smallvec v1.15.2
+2026-07-15T13:10:53.1369751Z    Compiling rustix v1.1.4
+2026-07-15T13:10:53.3625216Z     Checking lock_api v0.4.14
+2026-07-15T13:10:53.4257098Z     Checking mio v1.2.2
+2026-07-15T13:10:53.5084426Z    Compiling litrs v1.0.0
+2026-07-15T13:10:53.5252635Z     Checking linux-raw-sys v0.12.1
+2026-07-15T13:10:53.6736542Z     Checking winnow v1.0.4
+2026-07-15T13:10:53.8031864Z    Compiling serde v1.0.228
+2026-07-15T13:10:53.9151012Z     Checking toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:10:53.9518865Z    Compiling document-features v0.2.12
+2026-07-15T13:10:54.2131506Z     Checking signal-hook-mio v0.2.5
+2026-07-15T13:10:54.2567969Z     Checking parking_lot v0.12.5
+2026-07-15T13:10:54.3839114Z     Checking serde_spanned v1.1.1
+2026-07-15T13:10:54.4485175Z     Checking toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:54.4682172Z    Compiling thiserror-impl v1.0.69
+2026-07-15T13:10:54.5870658Z    Compiling derive_more-impl v2.1.1
+2026-07-15T13:10:54.6059157Z    Compiling serde_derive v1.0.228
+2026-07-15T13:10:55.1696410Z     Checking derive_more v2.1.1
+2026-07-15T13:10:55.3319652Z     Checking serial2 v0.2.37
+2026-07-15T13:10:55.4393733Z     Checking shell-words v1.1.1
+2026-07-15T13:10:55.4777529Z     Checking downcast-rs v1.2.1
+2026-07-15T13:10:55.4975604Z     Checking toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:55.5184106Z     Checking crossterm v0.29.0
+2026-07-15T13:10:55.5436667Z     Checking filedescriptor v0.8.3
+2026-07-15T13:10:55.6205406Z     Checking toml v1.1.3+spec-1.1.0
+2026-07-15T13:10:55.6310188Z     Checking portable-pty v0.9.0
+2026-07-15T13:10:56.8129240Z     Checking ptymark v0.1.0-alpha.2 (/workspace)
+2026-07-15T13:10:58.4348009Z     Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.00s
+2026-07-15T13:10:58.7370018Z ##[group]Run docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev cargo test --locked --all-targets
+2026-07-15T13:10:58.7371091Z [36;1mdocker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev cargo test --locked --all-targets[0m
+2026-07-15T13:10:58.7407179Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:10:58.7407434Z ##[endgroup]
+2026-07-15T13:10:59.0251527Z     Updating crates.io index
+2026-07-15T13:10:59.1649371Z  Downloading crates ...
+2026-07-15T13:10:59.1934764Z   Downloaded cfg-if v1.0.4
+2026-07-15T13:10:59.1969675Z   Downloaded cfg_aliases v0.1.1
+2026-07-15T13:10:59.1998821Z   Downloaded convert_case v0.10.0
+2026-07-15T13:10:59.2025324Z   Downloaded anyhow v1.0.103
+2026-07-15T13:10:59.2087716Z   Downloaded bitflags v2.13.0
+2026-07-15T13:10:59.2159270Z   Downloaded downcast-rs v1.2.1
+2026-07-15T13:10:59.2178775Z   Downloaded filedescriptor v0.8.3
+2026-07-15T13:10:59.2194296Z   Downloaded litrs v1.0.0
+2026-07-15T13:10:59.2239804Z   Downloaded quote v1.0.46
+2026-07-15T13:10:59.2285106Z   Downloaded parking_lot_core v0.9.12
+2026-07-15T13:10:59.2317885Z   Downloaded proc-macro2 v1.0.106
+2026-07-15T13:10:59.2360624Z   Downloaded serde_core v1.0.228
+2026-07-15T13:10:59.2400225Z   Downloaded hashbrown v0.17.1
+2026-07-15T13:10:59.2475820Z   Downloaded indexmap v2.14.0
+2026-07-15T13:10:59.2536152Z   Downloaded crossterm v0.29.0
+2026-07-15T13:10:59.2636639Z   Downloaded document-features v0.2.12
+2026-07-15T13:10:59.2655835Z   Downloaded thiserror-impl v1.0.69
+2026-07-15T13:10:59.2675237Z   Downloaded equivalent v1.0.2
+2026-07-15T13:10:59.2690109Z   Downloaded scopeguard v1.2.0
+2026-07-15T13:10:59.2708234Z   Downloaded errno v0.3.14
+2026-07-15T13:10:59.2730567Z   Downloaded shell-words v1.1.1
+2026-07-15T13:10:59.2744437Z   Downloaded lock_api v0.4.14
+2026-07-15T13:10:59.2761597Z   Downloaded serde_spanned v1.1.1
+2026-07-15T13:10:59.2776952Z   Downloaded serial2 v0.2.37
+2026-07-15T13:10:59.2821782Z   Downloaded signal-hook-registry v1.4.8
+2026-07-15T13:10:59.2839573Z   Downloaded toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:10:59.2856579Z   Downloaded mio v1.2.2
+2026-07-15T13:10:59.2947464Z   Downloaded signal-hook-mio v0.2.5
+2026-07-15T13:10:59.2965053Z   Downloaded thiserror v1.0.69
+2026-07-15T13:10:59.3054503Z   Downloaded toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:10:59.3073454Z   Downloaded semver v1.0.28
+2026-07-15T13:10:59.3107958Z   Downloaded smallvec v1.15.2
+2026-07-15T13:10:59.3127866Z   Downloaded toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:10:59.3160044Z   Downloaded unicode-ident v1.0.24
+2026-07-15T13:10:59.3199464Z   Downloaded log v0.4.33
+2026-07-15T13:10:59.3234131Z   Downloaded parking_lot v0.12.5
+2026-07-15T13:10:59.3271047Z   Downloaded signal-hook v0.3.18
+2026-07-15T13:10:59.3315732Z   Downloaded toml v1.1.3+spec-1.1.0
+2026-07-15T13:10:59.3375214Z   Downloaded nix v0.28.0
+2026-07-15T13:10:59.3528560Z   Downloaded serde v1.0.228
+2026-07-15T13:10:59.3577154Z   Downloaded serde_derive v1.0.228
+2026-07-15T13:10:59.3621259Z   Downloaded derive_more v2.1.1
+2026-07-15T13:10:59.3820262Z   Downloaded derive_more-impl v2.1.1
+2026-07-15T13:10:59.3899046Z   Downloaded unicode-segmentation v1.13.3
+2026-07-15T13:10:59.3936690Z   Downloaded winnow v1.0.4
+2026-07-15T13:10:59.4074923Z   Downloaded syn v2.0.118
+2026-07-15T13:10:59.4221679Z   Downloaded rustix v1.1.4
+2026-07-15T13:10:59.4627802Z   Downloaded libc v0.2.186
+2026-07-15T13:10:59.5209384Z   Downloaded linux-raw-sys v0.12.1
+2026-07-15T13:10:59.6036286Z   Downloaded portable-pty v0.9.0
+2026-07-15T13:10:59.6060702Z   Downloaded rustc_version v0.4.1
+2026-07-15T13:10:59.6387118Z    Compiling libc v0.2.186
+2026-07-15T13:10:59.6387483Z    Compiling proc-macro2 v1.0.106
+2026-07-15T13:10:59.6399022Z    Compiling quote v1.0.46
+2026-07-15T13:10:59.6399500Z    Compiling unicode-ident v1.0.24
+2026-07-15T13:10:59.6965293Z    Compiling serde_core v1.0.228
+2026-07-15T13:10:59.8166783Z    Compiling cfg-if v1.0.4
+2026-07-15T13:10:59.8441692Z    Compiling log v0.4.33
+2026-07-15T13:10:59.9687333Z    Compiling cfg_aliases v0.1.1
+2026-07-15T13:11:00.0008324Z    Compiling bitflags v2.13.0
+2026-07-15T13:11:00.1686048Z    Compiling thiserror v1.0.69
+2026-07-15T13:11:00.4631005Z    Compiling parking_lot_core v0.9.12
+2026-07-15T13:11:00.5358141Z    Compiling syn v2.0.118
+2026-07-15T13:11:00.5846963Z    Compiling unicode-segmentation v1.13.3
+2026-07-15T13:11:00.9419405Z    Compiling signal-hook v0.3.18
+2026-07-15T13:11:01.0432498Z    Compiling convert_case v0.10.0
+2026-07-15T13:11:01.2976197Z    Compiling nix v0.28.0
+2026-07-15T13:11:01.3618135Z    Compiling errno v0.3.14
+2026-07-15T13:11:01.4417459Z    Compiling signal-hook-registry v1.4.8
+2026-07-15T13:11:01.5427630Z    Compiling scopeguard v1.2.0
+2026-07-15T13:11:01.5833558Z    Compiling anyhow v1.0.103
+2026-07-15T13:11:01.6857081Z    Compiling rustix v1.1.4
+2026-07-15T13:11:01.7758264Z    Compiling smallvec v1.15.2
+2026-07-15T13:11:02.0269773Z    Compiling lock_api v0.4.14
+2026-07-15T13:11:02.1673741Z    Compiling mio v1.2.2
+2026-07-15T13:11:02.2036740Z    Compiling winnow v1.0.4
+2026-07-15T13:11:02.4288039Z    Compiling linux-raw-sys v0.12.1
+2026-07-15T13:11:02.5228509Z    Compiling litrs v1.0.0
+2026-07-15T13:11:02.6625896Z    Compiling serde v1.0.228
+2026-07-15T13:11:02.8308498Z    Compiling thiserror-impl v1.0.69
+2026-07-15T13:11:02.8427210Z    Compiling derive_more-impl v2.1.1
+2026-07-15T13:11:02.9882565Z    Compiling document-features v0.2.12
+2026-07-15T13:11:03.3900090Z    Compiling derive_more v2.1.1
+2026-07-15T13:11:03.3940964Z    Compiling serde_derive v1.0.228
+2026-07-15T13:11:03.4234391Z    Compiling toml_parser v1.1.2+spec-1.1.0
+2026-07-15T13:11:03.6361778Z    Compiling signal-hook-mio v0.2.5
+2026-07-15T13:11:03.6965551Z    Compiling parking_lot v0.12.5
+2026-07-15T13:11:03.9076684Z    Compiling filedescriptor v0.8.3
+2026-07-15T13:11:04.1480381Z    Compiling serde_spanned v1.1.1
+2026-07-15T13:11:04.1854067Z    Compiling toml_datetime v1.1.1+spec-1.1.0
+2026-07-15T13:11:04.4337362Z    Compiling serial2 v0.2.37
+2026-07-15T13:11:04.5989174Z    Compiling downcast-rs v1.2.1
+2026-07-15T13:11:04.6433314Z    Compiling toml_writer v1.1.2+spec-1.1.0
+2026-07-15T13:11:04.7526569Z    Compiling shell-words v1.1.1
+2026-07-15T13:11:04.8028004Z    Compiling toml v1.1.3+spec-1.1.0
+2026-07-15T13:11:04.8352500Z    Compiling crossterm v0.29.0
+2026-07-15T13:11:05.6926645Z    Compiling portable-pty v0.9.0
+2026-07-15T13:11:06.6071843Z    Compiling ptymark v0.1.0-alpha.2 (/workspace)
+2026-07-15T13:11:12.1356787Z     Finished `test` profile [unoptimized + debuginfo] target(s) in 13.14s
+2026-07-15T13:11:12.1573345Z      Running unittests src/lib.rs (/home/node/.cache/ptymark-target/debug/deps/ptymark-0274b1eba93ba8d5)
+2026-07-15T13:11:12.1589148Z 
+2026-07-15T13:11:12.1589859Z running 55 tests
+2026-07-15T13:11:12.1600708Z test cache::tests::key_material_counts_toward_the_byte_limit ... ok
+2026-07-15T13:11:12.1601382Z test cache::tests::noop_cache_never_stores ... ok
+2026-07-15T13:11:12.1601997Z test cli_args::tests::render_options_share_one_parser ... ok
+2026-07-15T13:11:12.1602671Z test cli_args::tests::session_modes_share_the_render_option_parser ... ok
+2026-07-15T13:11:12.1603521Z test cache::tests::memory_cache_is_lru_and_bounded ... ok
+2026-07-15T13:11:12.1604194Z test cli_args::tests::source_and_safe_modes_are_mutually_exclusive ... ok
+2026-07-15T13:11:12.1606142Z test cli_args::tests::single_value_options_reject_duplicates ... ok
+2026-07-15T13:11:12.1606763Z test config::tests::defaults_are_valid ... ok
+2026-07-15T13:11:12.1607232Z test config::tests::enabled_cache_requires_limits ... ok
+2026-07-15T13:11:12.1607834Z test config::tests::engine_paths_accept_absolute_paths_and_bare_names ... ok
+2026-07-15T13:11:12.1608544Z test command::tests::preserves_program_and_argument_boundaries ... ok
+2026-07-15T13:11:12.1609322Z test config::tests::relative_engine_paths_with_directories_are_rejected ... ok
+2026-07-15T13:11:12.1613169Z test command::tests::rejects_an_empty_command_line ... ok
+2026-07-15T13:11:12.1614123Z test config::tests::exact_file_loading_round_trips ... ok
+2026-07-15T13:11:12.1614696Z test config::tests::unknown_keys_are_rejected ... ok
+2026-07-15T13:11:12.1615305Z test detector::tests::detects_mermaid_across_single_byte_chunks ... ok
+2026-07-15T13:11:12.1615976Z test detector::tests::incomplete_block_returns_to_source ... ok
+2026-07-15T13:11:12.1616599Z test detector::tests::oversized_block_returns_to_source ... ok
+2026-07-15T13:11:12.1617256Z test diagnostics::tests::bounded_text_does_not_split_utf8 ... ok
+2026-07-15T13:11:12.1618627Z test diagnostics::tests::json_strings_escape_control_data ... ok
+2026-07-15T13:11:12.1621761Z test diagnostics::tests::redactor_removes_sensitive_text_home_paths_and_controls ... ok
+2026-07-15T13:11:12.1623449Z test diagnostics::tests::stable_codes_and_status_mapping_are_explicit ... ok
+2026-07-15T13:11:12.1624394Z test diagnostics::tests::path_redaction_is_structured ... ok
+2026-07-15T13:11:12.1632549Z test engine::tests::built_in_engine_check_requires_no_external_programs ... ok
+2026-07-15T13:11:12.1635444Z test engine::tests::executable_resolution_accepts_an_absolute_executable ... ok
+2026-07-15T13:11:12.1644730Z test engine::tests::mathjax_cli_is_presented_through_chafa ... FAILED
+2026-07-15T13:11:12.1652106Z test doctor::tests::session_modes_are_reported_without_starting_engines ... ok
+2026-07-15T13:11:12.1679668Z test doctor::tests::json_schema_and_status_are_stable ... ok
+2026-07-15T13:11:12.1696831Z test doctor::tests::support_report_is_atomic_and_refuses_overwrite ... ok
+2026-07-15T13:11:12.1773412Z test engine::tests::renderer_output_limit_stops_the_process ... ok
+2026-07-15T13:11:12.1774459Z test managed_launcher::tests::executable_names_map_to_fixed_roles ... ok
+2026-07-15T13:11:12.1775310Z test managed_launcher::tests::managed_schema_is_explicit ... ok
+2026-07-15T13:11:12.1798109Z test engine::tests::renderer_stderr_is_not_copied_into_public_errors ... ok
+2026-07-15T13:11:12.1801439Z test pipeline::tests::alternate_screen_is_lossless ... ok
+2026-07-15T13:11:12.1802329Z test pipeline::tests::crlf_semantic_block_from_a_pty_is_rendered ... ok
+2026-07-15T13:11:12.1867132Z test engine::tests::mermaid_cli_is_presented_through_chafa ... ok
+2026-07-15T13:11:12.1869626Z test pipeline::tests::render_failure_finding_never_copies_source_bearing_detail ... ok
+2026-07-15T13:11:12.1876292Z test pipeline::tests::semantic_block_is_replaced_before_display ... ok
+2026-07-15T13:11:12.1877339Z test render::tests::invalid_utf8_is_rejected_before_preview_replacement ... ok
+2026-07-15T13:11:12.1879190Z test render::tests::render_context_defaults_to_a_valid_terminal_width ... ok
+2026-07-15T13:11:12.1880877Z test render::tests::service_caches_successful_artifacts ... ok
+2026-07-15T13:11:12.1882600Z test render::tests::source_renderer_is_exact ... ok
+2026-07-15T13:11:12.1883714Z test routing::tests::configured_decision_is_separate_for_each_semantic_kind ... ok
+2026-07-15T13:11:12.1884549Z test routing::tests::routed_renderer_preserves_the_typed_handoff_request ... ok
+2026-07-15T13:11:12.1889355Z test stream::tests::bounded_pump_preserves_order_for_an_in_memory_stream ... ok
+2026-07-15T13:11:12.1890792Z test stream::tests::pending_output_contract_is_one_mebibyte ... ok
+2026-07-15T13:11:12.1892099Z test stream::tests::standard_pump_retries_interrupted_reads_and_finishes_the_pipeline ... ok
+2026-07-15T13:11:12.1893050Z test terminal::tests::alternate_screen_is_never_safe_text ... ok
+2026-07-15T13:11:12.1894158Z test terminal::tests::bare_carriage_return_keeps_progress_output_raw_until_newline ... ok
+2026-07-15T13:11:12.1894937Z test terminal::tests::control_sequences_are_byte_exact ... ok
+2026-07-15T13:11:12.1895633Z test terminal::tests::crlf_is_safe_text_even_when_split_across_chunks ... ok
+2026-07-15T13:11:12.1896374Z test terminal::tests::trailing_carriage_return_is_flushed_as_raw ... ok
+2026-07-15T13:11:12.2223071Z test engine::tests::renderer_timeout_has_a_stable_code_and_redacted_message ... ok
+2026-07-15T13:11:12.3311999Z test pipeline::tests::excessive_pending_output_restores_source_without_starting_renderer ... ok
+2026-07-15T13:11:13.1822207Z test native_session::tests::real_unix_pty_resize_reaches_the_child ... ok
+2026-07-15T13:11:13.1822711Z 
+2026-07-15T13:11:13.1822832Z failures:
+2026-07-15T13:11:13.1823149Z 
+2026-07-15T13:11:13.1823431Z ---- engine::tests::mathjax_cli_is_presented_through_chafa stdout ----
+2026-07-15T13:11:13.1823877Z 
+2026-07-15T13:11:13.1824310Z thread 'engine::tests::mathjax_cli_is_presented_through_chafa' (2401) panicked at src/engine.rs:933:14:
+2026-07-15T13:11:13.1825389Z render: RenderError { code: "engine.missing", message: "cannot start renderer `tex2svg`: Text file busy (os error 26)" }
+2026-07-15T13:11:13.1826300Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-07-15T13:11:13.1826721Z 
+2026-07-15T13:11:13.1826726Z 
+2026-07-15T13:11:13.1826831Z failures:
+2026-07-15T13:11:13.1827179Z     engine::tests::mathjax_cli_is_presented_through_chafa
+2026-07-15T13:11:13.1827517Z 
+2026-07-15T13:11:13.1827905Z test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-07-15T13:11:13.1828432Z 
+2026-07-15T13:11:13.1836836Z error: test failed, to rerun pass `--lib`
+2026-07-15T13:11:14.4197215Z 
+2026-07-15T13:11:14.4247353Z ##[error]Process completed with exit code 101.
+2026-07-15T13:11:14.4336863Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.4337160Z with:
+2026-07-15T13:11:14.4337379Z   name: ptymark-shellcheck-evidence
+2026-07-15T13:11:14.4337653Z   path: shellcheck.log
+2026-07-15T13:11:14.4337884Z   if-no-files-found: warn
+2026-07-15T13:11:14.4338114Z   retention-days: 14
+2026-07-15T13:11:14.4338335Z   compression-level: 6
+2026-07-15T13:11:14.4338547Z   overwrite: false
+2026-07-15T13:11:14.4338767Z   include-hidden-files: false
+2026-07-15T13:11:14.4339011Z   archive: true
+2026-07-15T13:11:14.4339215Z ##[endgroup]
+2026-07-15T13:11:14.5859751Z ##[warning]No files were found with the provided path: shellcheck.log. No artifacts will be uploaded.
+2026-07-15T13:11:14.6013989Z ##[group]Run test 'skipped' = success
+2026-07-15T13:11:14.6014338Z [36;1mtest 'skipped' = success[0m
+2026-07-15T13:11:14.6049397Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:11:14.6049672Z ##[endgroup]
+2026-07-15T13:11:14.6119275Z ##[error]Process completed with exit code 1.
+2026-07-15T13:11:14.6232494Z ##[group]Run actions/upload-artifact@v7
+2026-07-15T13:11:14.6232821Z with:
+2026-07-15T13:11:14.6233274Z   name: ptymark-selected-renderer-evidence
+2026-07-15T13:11:14.6233581Z   path: selected-renderer.log
+2026-07-15T13:11:14.6233840Z   if-no-files-found: warn
+2026-07-15T13:11:14.6234067Z   retention-days: 14
+2026-07-15T13:11:14.6234286Z   compression-level: 6
+2026-07-15T13:11:14.6234508Z   overwrite: false
+2026-07-15T13:11:14.6234723Z   include-hidden-files: false
+2026-07-15T13:11:14.6234956Z   archive: true
+2026-07-15T13:11:14.6235155Z ##[endgroup]
+2026-07-15T13:11:14.7882276Z ##[warning]No files were found with the provided path: selected-renderer.log. No artifacts will be uploaded.
+2026-07-15T13:11:14.8057572Z ##[group]Run test 'skipped' = success
+2026-07-15T13:11:14.8058064Z [36;1mtest 'skipped' = success[0m
+2026-07-15T13:11:14.8101736Z shell: /usr/bin/bash -e {0}
+2026-07-15T13:11:14.8102130Z ##[endgroup]
+2026-07-15T13:11:14.8174402Z ##[error]Process completed with exit code 1.
+2026-07-15T13:11:14.8332240Z Post job cleanup.
+2026-07-15T13:11:14.9254208Z [command]/usr/bin/git version
+2026-07-15T13:11:14.9300264Z git version 2.54.0
+2026-07-15T13:11:14.9338818Z Copying '/home/runner/.gitconfig' to '/home/runner/work/_temp/c7bf5282-4af4-4d04-adda-9bd747240565/.gitconfig'
+2026-07-15T13:11:14.9351350Z Temporarily overriding HOME='/home/runner/work/_temp/c7bf5282-4af4-4d04-adda-9bd747240565' before making global git config changes
+2026-07-15T13:11:14.9353157Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-15T13:11:14.9355627Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ptymark/ptymark
+2026-07-15T13:11:14.9393741Z Removing SSH command configuration
+2026-07-15T13:11:14.9400506Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-15T13:11:14.9438725Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-15T13:11:14.9691415Z Entering 'vendor/agent-canon'
+2026-07-15T13:11:14.9765393Z Removing HTTP extra header
+2026-07-15T13:11:14.9771917Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T13:11:14.9822124Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T13:11:15.0095121Z Entering 'vendor/agent-canon'
+2026-07-15T13:11:15.0180146Z Removing includeIf entries pointing to credentials config files
+2026-07-15T13:11:15.0195844Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T13:11:15.0255976Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T13:11:15.0543610Z Entering 'vendor/agent-canon'
+2026-07-15T13:11:15.0566902Z file:/home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config	remote.origin.url
+2026-07-15T13:11:15.0609571Z [command]/usr/bin/git config --file /home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T13:11:15.0824799Z Cleaning up orphan processes
