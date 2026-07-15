@@ -129,10 +129,26 @@ try {
     '```'
   ) -join "`n") + "`n"
   Write-Utf8NoBom $MermaidInput $Mermaid
-  $MermaidOutput = Invoke-NativeStage 'strict-mermaid-preview' $Binary @(
+  $MermaidArguments = @(
     '--config', $Config,
     'preview', '--strict', '--columns', '48', $MermaidInput
   )
+  try {
+    $MermaidOutput = Invoke-NativeStage 'strict-mermaid-preview' $Binary $MermaidArguments
+  }
+  catch {
+    $StrictMermaidStderrPath = Join-Path $LogRoot 'strict-mermaid-preview.stderr.log'
+    $StrictMermaidStderr = if (Test-Path $StrictMermaidStderrPath -PathType Leaf) {
+      Get-Content $StrictMermaidStderrPath -Raw -ErrorAction SilentlyContinue
+    }
+    else {
+      ''
+    }
+    if ($StrictMermaidStderr -notmatch 'exceeded [0-9]+ ms timeout') { throw }
+    Write-Warning 'Windows hosted-runner startup consumed the fixed render deadline; retrying the complete strict Mermaid path once.'
+    Start-Sleep -Milliseconds 500
+    $MermaidOutput = Invoke-NativeStage 'strict-mermaid-preview-retry' $Binary $MermaidArguments
+  }
   if (-not $MermaidOutput -or $MermaidOutput.Contains('```mermaid')) {
     throw 'Mermaid source was not replaced by managed output'
   }
