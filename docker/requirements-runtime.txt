@@ -1,0 +1,24 @@
+# @dependency-start
+# contract environment
+# responsibility Pins Python packages needed by the canonical repository workload runtime.
+# upstream environment README.md repository runtime guidance
+# downstream environment requirements.txt generated full development aggregate
+# downstream implementation install_python_dependencies.sh runtime installation profile
+# downstream design ../documents/dependency-layers.md dependency ownership and upgrade rules
+# @dependency-end
+
+# Numerical workload runtime
+jax
+jaxtyping
+typeguard
+equinox
+optax
+scipy
+
+# Interactive notebook runtime
+jupyterlab
+notebook
+ipykernel
+
+# Runtime data validation
+pydantic>=2.13.4
