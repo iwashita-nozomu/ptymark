@@ -4,7 +4,7 @@ contract reference
 responsibility Documents public-safe diagnosis, recovery, and support-report handling for doctor v1 and bounded renderer failures.
 upstream implementation ../src/doctor.rs implements doctor and support-report behavior
 upstream implementation ../src/render.rs enforces bounded rendering and exact-source recovery
- downstream environment ../.github/ISSUE_TEMPLATE/bug-report.yml routes redacted public support intake
+downstream environment ../.github/ISSUE_TEMPLATE/bug-report.yml routes redacted public support intake
 @dependency-end
 -->
 
