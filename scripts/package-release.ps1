@@ -1,3 +1,4 @@
+# Developer/CI verification only: ptymark does not publish the executable output of this script.
 # @dependency-start
 # contract implementation
 # responsibility Builds one versioned Windows release archive and checksum.

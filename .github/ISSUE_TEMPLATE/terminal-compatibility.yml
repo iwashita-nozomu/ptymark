@@ -30,8 +30,9 @@ body:
     attributes:
       label: Installation or release channel
       options:
-        - GitHub prerelease archive
+        - GitHub tag or GitHub-generated source archive
         - source checkout
+        - downstream or locally built package
         - development commit or pull request
         - other
     validations:
@@ -80,7 +81,7 @@ body:
         - ptymark run -- COMMAND
         - ptymark -- COMMAND
         - WezTerm plugin launcher
-        - packaged installer smoke
+        - local source-build/install smoke
         - other
     validations:
       required: true

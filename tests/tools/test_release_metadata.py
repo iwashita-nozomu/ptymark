@@ -1,31 +1,25 @@
 # @dependency-start
 # contract test
-# responsibility Verifies version consistency and machine-readable release assets.
-# upstream implementation ../../scripts/check-release-metadata.py release tree validator
-# upstream implementation ../../scripts/build-release-manifest.py release manifest generator
-# upstream design ../../documents/release.md immutable release and recovery contract
+# responsibility Verifies version consistency and the source-only release/publication policy.
+# upstream implementation ../../scripts/check-release-metadata.py source-only validator
+# upstream design ../../documents/release.md source-only release contract
+# downstream environment ../../.github/workflows/ptymark-release.yml notes-only publication
 # @dependency-end
-"""Release metadata and manifest contract tests."""
+
+"""Source-only release metadata contract tests."""
 
 from __future__ import annotations
 
-import hashlib
-import json
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
-from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseMetadataTest(unittest.TestCase):
-    """Exercise the release validators through their public command-line surface."""
-
     def test_release_tree_metadata_is_consistent(self) -> None:
-        """The checked-in tree must be ready for its declared version tag."""
         result = subprocess.run(
             [
                 sys.executable,
@@ -38,73 +32,37 @@ class ReleaseMetadataTest(unittest.TestCase):
             capture_output=True,
             text=True,
         )
-        self.assertIn("release metadata ok", result.stdout)
+        self.assertIn("source-only release metadata ok", result.stdout)
 
-    def test_manifest_records_all_platform_archives(self) -> None:
-        """Manifest generation verifies sidecars and records every supported OS."""
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            dist = Path(temporary_directory)
-            for platform, extension in (
-                ("linux", "tar.gz"),
-                ("macos", "tar.gz"),
-                ("windows", "zip"),
-            ):
-                archive = (
-                    dist
-                    / f"ptymark-0.1.0-alpha.2-{platform}-x86_64.{extension}"
-                )
-                archive.write_bytes(platform.encode("utf-8"))
-                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-                archive.with_name(f"{archive.name}.sha256").write_text(
-                    f"{digest}  {archive.name}\n", encoding="utf-8"
-                )
+    def test_release_workflow_publishes_notes_without_project_assets(self) -> None:
+        workflow = (ROOT / ".github/workflows/ptymark-release.yml").read_text()
+        self.assertIn("gh release create", workflow)
+        self.assertIn("--notes-file", workflow)
+        self.assertIn(".assets | length", workflow)
+        for forbidden in (
+            "cargo build",
+            "scripts/package-release",
+            "actions/upload-artifact",
+            "actions/download-artifact",
+            "actions/attest",
+            "release-manifest.json",
+            "SHA256SUMS",
+            "dist/*",
+        ):
+            self.assertNotIn(forbidden, workflow)
 
-            manifest_path = dist / "release-manifest.json"
-            checksums_path = dist / "SHA256SUMS"
-            notes_path = dist / "release-notes.md"
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "scripts/build-release-manifest.py"),
-                    "--root",
-                    str(ROOT),
-                    "--dist",
-                    str(dist),
-                    "--tag",
-                    "v0.1.0-alpha.2",
-                    "--commit",
-                    "0" * 40,
-                    "--output",
-                    str(manifest_path),
-                    "--checksums-output",
-                    str(checksums_path),
-                    "--notes-output",
-                    str(notes_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+    def test_product_ci_keeps_package_smoke_ephemeral(self) -> None:
+        workflow = (ROOT / ".github/workflows/ptymark-ci.yml").read_text()
+        self.assertIn("Cross-platform local package smoke", workflow)
+        self.assertIn("Discard local package output", workflow)
+        self.assertNotIn("Upload executable package", workflow)
+        self.assertNotIn("dist/*.tar.gz", workflow)
+        self.assertNotIn("dist/*.zip", workflow)
 
-            manifest = cast(
-                dict[str, object],
-                json.loads(manifest_path.read_text(encoding="utf-8")),
-            )
-            source = cast(dict[str, object], manifest["source"])
-            assets = cast(list[dict[str, object]], manifest["assets"])
-            self.assertEqual(manifest["version"], "0.1.0-alpha.2")
-            self.assertEqual(source["commit"], "0" * 40)
-            self.assertEqual(
-                {asset["platform"] for asset in assets},
-                {"linux", "macos", "windows"},
-            )
-            self.assertEqual(
-                len(checksums_path.read_text(encoding="utf-8").splitlines()),
-                4,
-            )
-            notes = notes_path.read_text(encoding="utf-8")
-            self.assertIn("ptymark.doctor.v1", notes)
-            self.assertIn("ten-second", notes)
+    def test_local_packagers_are_not_a_distribution_channel(self) -> None:
+        for relative in ("scripts/package-release.sh", "scripts/package-release.ps1"):
+            content = (ROOT / relative).read_text(encoding="utf-8").lower()
+            self.assertIn("developer/ci verification only", content)
 
 
 if __name__ == "__main__":

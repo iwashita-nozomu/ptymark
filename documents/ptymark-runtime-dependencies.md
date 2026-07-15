@@ -12,7 +12,7 @@ downstream workflow ../.github/workflows/ptymark-dependency-alignment.yml focuse
 @dependency-end
 -->
 
-This contract covers dependencies that affect the shipped ptymark executable or the
+This contract covers dependencies that affect the ptymark executable built from source or the
 optional managed renderer bundle. It deliberately does not treat the contents of a
 development or CI container as product dependencies.
 
@@ -20,7 +20,7 @@ development or CI container as product dependencies.
 
 | Class | Required for | Version or package owner |
 | --- | --- | --- |
-| Rust core | Building from source and producing native release executables | `rust-toolchain.toml`, with the compatibility floor mirrored in `Cargo.toml` |
+| Rust core | Building from source and running native product verification | `rust-toolchain.toml`, with the compatibility floor mirrored in `Cargo.toml` |
 | Managed renderer bundle | Default Mermaid and math rendering after an explicit install | `renderers/managed-bundle.env`, `renderers/package.json`, and `renderers/package-lock.json` |
 
 The native Rust core, terminal-safety gate, semantic detector, source fallback, and
@@ -50,10 +50,10 @@ presenter selection, and managed-bundle lifecycle remain owned by issue #16.
 
 ### Rust
 
-`rust-toolchain.toml` owns the exact compiler used for source development, CI, and
-release builds. `Cargo.toml` mirrors the same value as `package.rust-version`.
-Explicit Rust setup commands in the product and release workflows must match that
-toolchain version.
+`rust-toolchain.toml` owns the exact compiler used for source development and product
+CI. `Cargo.toml` mirrors the same value as `package.rust-version`. Explicit Rust setup
+commands in the product CI workflow must match that toolchain version. The source-only
+release workflow does not build executables and therefore does not install Rust.
 
 ### Managed Node.js and renderer packages
 
@@ -74,7 +74,7 @@ make ptymark-runtime-dependencies
 
 It verifies:
 
-- Rust agreement across the toolchain, Cargo metadata, and explicit CI/release pins;
+- Rust agreement across the toolchain, Cargo metadata, and explicit product CI pins;
 - Node.js agreement across the managed bundle, npm engine range, and renderer CI;
 - direct renderer dependency agreement between the managed manifest, `package.json`,
   and the lockfile root;
@@ -92,7 +92,7 @@ part of this dependency contract.
 ## Upgrade sequence
 
 1. Change one product dependency class at a time.
-2. For Rust, update `rust-toolchain.toml`, `Cargo.toml`, and explicit product/release
+2. For Rust, update `rust-toolchain.toml`, `Cargo.toml`, and explicit product CI
    workflow setup pins together.
 3. For Node.js, update `PTYMARK_MANAGED_NODE_VERSION`, the npm engine range, the
    lockfile root metadata, and renderer workflow setup pins together.

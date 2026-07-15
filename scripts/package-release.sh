@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Developer/CI verification only: ptymark does not publish the executable output of this script.
 
 # @dependency-start
 # contract implementation

@@ -29,7 +29,7 @@ This directory is the Git-owned source of truth for **what must be verified** be
 | `static` | Formatting, linting, parser, syntax, or manifest validation without executing the feature path. |
 | `contract` | Deterministic unit/integration contract with controlled fixtures. |
 | `integration` | Real installer, renderer, browser, process, or adapter execution. |
-| `package` | Native release executable is built, archived, checksummed, extracted, installed, and smoke-tested. |
+| `package` | A native executable is built and packaged in an ephemeral CI workspace, locally installed and smoke-tested, then discarded without upload or distribution. |
 | `compatibility` | Terminal behavior and shell ownership are validated without claiming every upstream release is vendored. |
 | `repository` | Inherited template, Docker-pack, and AgentCanon-owned gates. |
 
@@ -80,12 +80,12 @@ The following IDs are stable review references. Renaming or removing one require
 - `shell.profile-coexistence-windows`
 - `wezterm.plugin`
 
-### Scripts and release packages
+### Scripts and ephemeral local package smoke
 
 - `scripts.syntax`
-- `release.linux`
-- `release.macos`
-- `release.windows`
+- `package-smoke.linux`
+- `package-smoke.macos`
+- `package-smoke.windows`
 
 ### Independent repository gates
 
@@ -136,8 +136,6 @@ The product workflow uploads named evidence for failure-prone integration paths:
 - `ptymark-shellcheck-evidence`
 - `ptymark-selected-renderer-evidence`
 - `ptymark-windows-managed-renderer-evidence`
-- `ptymark-linux-release`
-- `ptymark-macos-release`
-- `ptymark-windows-release`
+Executable package outputs are intentionally not uploaded. Only bounded diagnostic logs or non-executable evidence may be retained as workflow artifacts.
 
-Artifacts support diagnosis and distribution, but the committed tests and manifest define the contract.
+Non-executable artifacts may support diagnosis, but the committed tests and manifest define the contract. Project-built executable artifacts are not a distribution channel.

@@ -396,24 +396,13 @@ config overrides.
 The plugin does not implement the future PTY interception host. Image placement
 and pane capability queries remain separate work.
 
-## 12. Release package contract
+## 12. Source distribution and local package verification
 
-GitHub Actions builds native release executables on Ubuntu, macOS, and Windows.
-Each package contains:
+GitHub Releases are source-only. The public release surface consists of an immutable tag, release notes, and GitHub-generated source snapshots. Ptymark does not upload project-built executables, installer archives, renderer bundles, binary checksums, binary manifests, or binary attestations.
 
-- the target-native `ptymark` executable;
-- package-local `install.sh`, `install.ps1`, and `install.cmd` entrypoints;
-- platform installer and managed-bundle scripts;
-- locked renderer metadata and fixed managed adapters;
-- the WezTerm plugin and example;
-- configuration examples, README, license, and design documents;
-- a package manifest and SHA-256 archive checksum.
+CI still builds native executables on Ubuntu, macOS, and Windows. Local package jobs assemble the same package layout in a temporary workspace, run package-local installation, configuration, doctor, version, and preview smoke tests, then delete the output. No executable package is uploaded as a workflow artifact.
 
-A package job must execute the package-local installer with managed rendering
-disabled, validate the generated configuration, run the packaged binary, and
-render a built-in preview before uploading the archive.
-
-Release publishing and code signing remain separate from artifact construction.
+`scripts/package-release.sh` and `scripts/package-release.ps1` remain developer/CI verification utilities. They do not define a supported distribution channel. Platform signing, notarization, package-manager trust, lifecycle, and revocation requirements must be approved before any future official binary channel is introduced.
 
 ## 13. Extension rules
 
@@ -483,11 +472,11 @@ real renderer integration
   Windows strict end-to-end preview
   canonical Docker managed renderer smoke
 
-release packages
-  Linux, macOS, and Windows release executable
+ephemeral local package smoke
+  Linux, macOS, and Windows release-mode executable
   package-local installer
-  config validation and preview smoke
-  archive and SHA-256 artifact
+  config validation, doctor, and preview smoke
+  output deletion with no executable artifact upload
 
 terminal integration
   WezTerm append-only launcher example

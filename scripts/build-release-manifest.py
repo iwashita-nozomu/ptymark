@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Developer/CI verification only: binary manifests are not published by ptymark.
+
 # @dependency-start
 # contract implementation
 # responsibility Verifies archives and generates checksums, notes, and machine-readable metadata.

@@ -9,7 +9,6 @@
 // upstream configuration ../renderers/package.json direct renderer dependency declarations
 // upstream configuration ../renderers/package-lock.json exact renderer dependency graph
 // upstream workflow ../.github/workflows/ptymark-ci.yml product acceptance matrix
-// upstream workflow ../.github/workflows/ptymark-release.yml release build matrix
 // upstream workflow ../.github/workflows/ptymark-dependency-alignment.yml focused dependency gate
 // upstream configuration ../ptymark.mk canonical product validation commands
 // downstream workflow ../.github/workflows/ptymark-dependency-alignment.yml runs this contract on dependency changes
@@ -117,7 +116,6 @@ const lockPath = "renderers/package-lock.json";
 const packageJson = parseJson(packagePath);
 const packageLock = parseJson(lockPath);
 const ci = read(".github/workflows/ptymark-ci.yml");
-const release = read(".github/workflows/ptymark-release.yml");
 const focusedWorkflow = read(".github/workflows/ptymark-dependency-alignment.yml");
 const makefile = read("ptymark.mk");
 
@@ -133,7 +131,6 @@ equal(
 );
 for (const [name, workflow] of [
   [".github/workflows/ptymark-ci.yml", ci],
-  [".github/workflows/ptymark-release.yml", release],
 ]) {
   every(
     `${name} Rust toolchain install`,

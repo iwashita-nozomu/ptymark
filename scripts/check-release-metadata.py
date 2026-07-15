@@ -2,14 +2,14 @@
 
 # @dependency-start
 # contract implementation
-# responsibility Validates version, documentation, packaging, and workflow release metadata.
+# responsibility Validates version metadata and enforces source-only GitHub Release publication.
 # upstream environment ../Cargo.toml package version
-# upstream design ../documents/release.md release contract
-# downstream implementation ../.github/workflows/ptymark-release.yml publication gate
+# upstream design ../documents/release.md source-only release contract
+# downstream implementation ../.github/workflows/ptymark-release.yml notes-only publication
 # downstream implementation ../tests/tools/test_release_metadata.py metadata tests
 # @dependency-end
 
-"""Validate ptymark release metadata without changing the repository."""
+"""Validate ptymark source-only release metadata without changing the repository."""
 
 from __future__ import annotations
 
@@ -20,11 +20,9 @@ import tomllib
 from pathlib import Path
 
 TAG_PATTERN = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
-FULL_COMMIT_SHA_PATTERN = r"[0-9a-f]{40}"
 
 
 def package_version(root: Path) -> str:
-    """Return the root Cargo package version."""
     with (root / "Cargo.toml").open("rb") as handle:
         data = tomllib.load(handle)
     value = data.get("package", {}).get("version")
@@ -33,8 +31,15 @@ def package_version(root: Path) -> str:
     return value
 
 
+def _read_text(path: Path, failures: list[str]) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        failures.append(f"cannot read {path}: {error}")
+        return ""
+
+
 def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
-    """Return the resolved version and deterministic validation failures."""
     failures: list[str] = []
     try:
         version = package_version(root)
@@ -48,18 +53,13 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         if tag != expected_tag:
             failures.append(f"release tag {tag} does not match Cargo version {version}")
 
-    lock_path = root / "Cargo.lock"
     try:
-        with lock_path.open("rb") as handle:
+        with (root / "Cargo.lock").open("rb") as handle:
             lock = tomllib.load(handle)
-        root_packages = [
-            package
-            for package in lock.get("package", [])
-            if package.get("name") == "ptymark"
-        ]
-        if len(root_packages) != 1:
+        packages = [p for p in lock.get("package", []) if p.get("name") == "ptymark"]
+        if len(packages) != 1:
             failures.append("Cargo.lock must contain exactly one ptymark package entry")
-        elif root_packages[0].get("version") != version:
+        elif packages[0].get("version") != version:
             failures.append("Cargo.lock ptymark version does not match Cargo.toml")
     except (OSError, tomllib.TOMLDecodeError) as error:
         failures.append(f"cannot read Cargo.lock: {error}")
@@ -67,10 +67,11 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
     required_files = (
         "CHANGELOG.md",
         "SECURITY.md",
+        "README.md",
         "documents/release.md",
         "documents/troubleshooting.md",
-        "scripts/build-release-manifest.py",
         ".github/workflows/ptymark-release.yml",
+        ".github/workflows/ptymark-ci.yml",
     )
     for relative in required_files:
         if not (root / relative).is_file():
@@ -88,47 +89,51 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
     notes = _read_text(notes_path, failures)
     if notes and not notes.startswith(f"# ptymark v{version}\n"):
         failures.append(f"release notes heading does not identify v{version}: {notes_path}")
-    if notes and "ptymark.doctor.v1" not in notes:
-        failures.append(f"release notes do not document ptymark.doctor.v1: {notes_path}")
+    if notes and "source-only" not in notes.lower():
+        failures.append(f"release notes do not document source-only distribution: {notes_path}")
 
-    release_workflow = _read_text(
-        root / ".github/workflows/ptymark-release.yml", failures
-    )
-    for marker in (
-        "scripts/check-release-metadata.py",
-        "scripts/package-release.sh",
-        "scripts/package-release.ps1",
+    for relative in ("README.md", "SECURITY.md", "documents/release.md"):
+        content = _read_text(root / relative, failures)
+        if content and "source-only" not in content.lower():
+            failures.append(f"{relative} does not document the source-only policy")
+
+    workflow = _read_text(root / ".github/workflows/ptymark-release.yml", failures)
+    required_markers = (
+        "release/v*",
         "gh release create",
-    ):
-        if release_workflow and marker not in release_workflow:
-            failures.append(f"release workflow does not contain required marker: {marker}")
+        "--notes-file",
+        "assets --jq '.assets | length'",
+        "source-only",
+    )
+    for marker in required_markers:
+        if workflow and marker not in workflow:
+            failures.append(f"source release workflow is missing required marker: {marker}")
 
-    for action, release_major in (
-        ("actions/download-artifact", 8),
-        ("actions/attest", 4),
-    ):
-        if release_workflow and not _has_full_sha_action_reference(
-            release_workflow, action, release_major
-        ):
-            failures.append(
-                "release workflow does not contain a full-SHA-pinned "
-                f"{action} reference annotated with # v{release_major}"
-            )
+    forbidden_markers = (
+        "cargo build",
+        "scripts/package-release",
+        "actions/upload-artifact",
+        "actions/download-artifact",
+        "actions/attest",
+        "release-manifest.json",
+        "SHA256SUMS",
+        "dist/*",
+    )
+    for marker in forbidden_markers:
+        if workflow and marker in workflow:
+            failures.append(f"source release workflow contains forbidden binary marker: {marker}")
+
+    product_ci = _read_text(root / ".github/workflows/ptymark-ci.yml", failures)
+    if product_ci and "Cross-platform local package smoke" not in product_ci:
+        failures.append("product CI does not identify local package smoke as non-distribution evidence")
+    for marker in ("dist/*.tar.gz", "dist/*.zip", "Upload executable package"):
+        if product_ci and marker in product_ci:
+            failures.append(f"product CI exposes a downloadable executable package marker: {marker}")
 
     for package_script in ("scripts/package-release.sh", "scripts/package-release.ps1"):
         content = _read_text(root / package_script, failures)
-        for packaged_document in (
-            "CHANGELOG.md",
-            "SECURITY.md",
-            "documents/release.md",
-            "documents/troubleshooting.md",
-            "release-notes",
-        ):
-            markers = (packaged_document, packaged_document.replace("/", "\\"))
-            if content and not any(marker in content for marker in markers):
-                failures.append(
-                    f"{package_script} does not package {packaged_document}"
-                )
+        if content and "developer/ci verification only" not in content.lower():
+            failures.append(f"{package_script} is not marked as developer/CI verification only")
 
     temporary_workflows = sorted((root / ".github/workflows").glob("*-once.yml"))
     for path in temporary_workflows:
@@ -141,38 +146,17 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
     return version, failures
 
 
-def _has_full_sha_action_reference(workflow: str, action: str, release_major: int) -> bool:
-    """Return whether an Action is pinned to a full SHA with a major-version note."""
-    pattern = re.compile(
-        rf"^\s*uses:\s*{re.escape(action)}@{FULL_COMMIT_SHA_PATTERN}"
-        rf"\s+#\s+v{release_major}(?:\.[0-9]+(?:\.[0-9]+)?)?\s*$",
-        flags=re.MULTILINE,
-    )
-    return pattern.search(workflow) is not None
-
-
-def _read_text(path: Path, failures: list[str]) -> str:
-    """Read UTF-8 text and record a validation failure instead of raising."""
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError as error:
-        failures.append(f"cannot read {path}: {error}")
-        return ""
-
-
 def main(argv: list[str] | None = None) -> int:
-    """Run the command-line validator."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--tag")
     arguments = parser.parse_args(argv)
-
     version, failures = validate(arguments.root.resolve(), arguments.tag)
     if failures:
         for failure in failures:
             print(f"release metadata error: {failure}", file=sys.stderr)
         return 1
-    print(f"release metadata ok: version={version} tag={arguments.tag or f'v{version}'}")
+    print(f"source-only release metadata ok: version={version} tag={arguments.tag or f'v{version}'}")
     return 0
 
 
