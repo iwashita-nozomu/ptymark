@@ -51,5 +51,5 @@ jobs:
           make agent-canon-pr-check >"$RUNNER_TEMP/agent-canon-pr.log" 2>&1
           status=$?
           echo "AGENT_CANON_PR_GATE_STATUS=$status"
-          tail -n 120 "$RUNNER_TEMP/agent-canon-pr.log"
+          tail -n 40 "$RUNNER_TEMP/agent-canon-pr.log"
           exit "$status"
