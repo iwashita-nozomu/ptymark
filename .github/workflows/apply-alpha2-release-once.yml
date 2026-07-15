@@ -1,3 +1,11 @@
+# @dependency-start
+# contract workflow
+# responsibility Materializes and validates the reviewed alpha.2 release payload on the final release branch.
+# upstream design ../../documents/release.md release source and validation contract
+# upstream implementation ../../scripts/check-release-metadata.py release metadata validator
+# downstream implementation ./ptymark-release.yml immutable prerelease publication
+# @dependency-end
+
 name: apply integrated alpha.2 release candidate
 
 on:
@@ -10,6 +18,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: alpha2-integration-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   apply:
     if: github.event.pull_request.head.ref == 'agent/release-alpha2-final'
@@ -20,7 +32,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: agent/release-alpha2-final
+          submodules: false
           persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install pinned Rust toolchain
         run: |
@@ -78,25 +96,27 @@ jobs:
           doctor_test = Path('tests/doctor_contract.rs')
           text = doctor_test.read_text()
           old = '''    assert_eq!(
-        output.status.code(),
-        Some(10),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(!marker.exists(), "doctor started an external process");
-    let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
-    assert!(json.contains("\\"status\\": \\"degraded\\""));'''
+              output.status.code(),
+              Some(10),
+              "stdout={} stderr={}",
+              String::from_utf8_lossy(&output.stdout),
+              String::from_utf8_lossy(&output.stderr)
+          );
+          assert!(!marker.exists(), "doctor started an external process");
+          let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
+          assert!(json.contains("\\\"status\\\": \\\"degraded\\\""));'''
+          old = '\n'.join(line.removeprefix('          ') for line in old.splitlines())
           new = '''    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(!marker.exists(), "doctor started an external process");
-    let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
-    assert!(json.contains("\\"status\\": \\"ready\\""));'''
+              output.status.code(),
+              Some(0),
+              "stdout={} stderr={}",
+              String::from_utf8_lossy(&output.stdout),
+              String::from_utf8_lossy(&output.stderr)
+          );
+          assert!(!marker.exists(), "doctor started an external process");
+          let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
+          assert!(json.contains("\\\"status\\\": \\\"ready\\\""));'''
+          new = '\n'.join(line.removeprefix('          ') for line in new.splitlines())
           if text.count(old) != 1:
               raise SystemExit('expected side-effect-free doctor expectation exactly once')
           doctor_test.write_text(text.replace(old, new))
