@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
           submodules: false
 
-      - name: Refine page-role verification
+      - name: Refine page-role verification and adoptability wording
         shell: bash
         run: |
           set -euo pipefail
@@ -59,7 +59,19 @@ jobs:
           new = '\n'.join(line.removeprefix('          ') for line in new.splitlines()) + '\n'
           if text.count(old) != 1:
               raise SystemExit('page-role assertion block was not found exactly once')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          text = text.replace(old, new)
+
+          replacements = {
+              '- diagnose ready/degraded/unusable state with doctor v1;':
+                  '- diagnose ready/degraded/unusable state with `ptymark doctor` and doctor v1;',
+              '- doctor v1によるready/degraded/unusable診断;':
+                  '- `ptymark doctor` / doctor v1によるready/degraded/unusable診断;',
+          }
+          for old_text, new_text in replacements.items():
+              if text.count(old_text) != 1:
+                  raise SystemExit(f'adoptability wording was not found exactly once: {old_text!r}')
+              text = text.replace(old_text, new_text)
+          path.write_text(text, encoding='utf-8')
           PY
 
       - name: Publish and fresh-clone verify bilingual Wiki
