@@ -1,0 +1,902 @@
+2026-07-15T12:10:22.5106876Z with:
+2026-07-15T12:10:22.5107688Z   python-version: 3.11
+2026-07-15T12:10:22.5108607Z   cache: pip
+2026-07-15T12:10:22.5109588Z   cache-dependency-path: docker/requirements.txt
+2026-07-15T12:10:22.5110999Z   check-latest: false
+2026-07-15T12:10:22.5119336Z   token: ***
+2026-07-15T12:10:22.5120318Z   update-environment: true
+2026-07-15T12:10:31.0665409Z Fetched 8704 kB in 1s (6641 kB/s)
+2026-07-15T12:10:31.7559632Z Reading package lists...
+2026-07-15T12:10:31.7892683Z Reading package lists...
+2026-07-15T12:10:31.9543140Z Building dependency tree...
+2026-07-15T12:10:31.9550669Z Reading state information...
+2026-07-15T12:10:32.1081988Z The following additional packages will be installed:
+2026-07-15T12:10:32.1083121Z   fonts-liberation2 libann0 libcdt5 libcgraph6 libgts-0.7-5t64 libgts-bin
+2026-07-15T12:10:38.4973519Z No user sessions are running outdated binaries.
+2026-07-15T12:10:38.4973871Z 
+2026-07-15T12:10:38.4974170Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-07-15T12:10:39.3689334Z ##[group]Run PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+2026-07-15T12:10:39.3690381Z [36;1mPYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"[0m
+2026-07-15T12:10:39.3756627Z shell: /usr/bin/bash -e {0}
+2026-07-15T12:10:39.3756939Z env:
+2026-07-15T12:10:38.4973871Z 
+2026-07-15T12:10:38.4974170Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-07-15T12:10:39.3689334Z ##[group]Run PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
+2026-07-15T12:10:39.3690381Z [36;1mPYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"[0m
+2026-07-15T12:10:39.3756627Z shell: /usr/bin/bash -e {0}
+2026-07-15T12:10:39.3756939Z env:
+2026-07-15T12:10:39.3757157Z   AGENT_CANON_REPO_TOKEN: 
+2026-07-15T12:10:41.6294230Z   Downloading scipy-1.17.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+2026-07-15T12:10:41.6595291Z Collecting scipy-stubs (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 14))
+2026-07-15T12:10:41.6671292Z   Downloading scipy_stubs-1.17.1.5-py3-none-any.whl.metadata (31 kB)
+2026-07-15T12:10:41.6910805Z Collecting pytest>=8 (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:41.6991201Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+2026-07-15T12:10:41.7298913Z Collecting pyright (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 20))
+2026-07-15T12:10:41.7385268Z   Downloading pyright-1.1.411-py3-none-any.whl.metadata (6.9 kB)
+2026-07-15T12:10:41.6595291Z Collecting scipy-stubs (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 14))
+2026-07-15T12:10:41.6671292Z   Downloading scipy_stubs-1.17.1.5-py3-none-any.whl.metadata (31 kB)
+2026-07-15T12:10:41.6910805Z Collecting pytest>=8 (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:41.6991201Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+2026-07-15T12:10:41.7298913Z Collecting pyright (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 20))
+2026-07-15T12:10:41.7385268Z   Downloading pyright-1.1.411-py3-none-any.whl.metadata (6.9 kB)
+2026-07-15T12:10:41.7606750Z Collecting pydeps (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 21))
+2026-07-15T12:10:41.6671292Z   Downloading scipy_stubs-1.17.1.5-py3-none-any.whl.metadata (31 kB)
+2026-07-15T12:10:41.6910805Z Collecting pytest>=8 (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:41.6991201Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+2026-07-15T12:10:41.7298913Z Collecting pyright (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 20))
+2026-07-15T12:10:41.7385268Z   Downloading pyright-1.1.411-py3-none-any.whl.metadata (6.9 kB)
+2026-07-15T12:10:41.7606750Z Collecting pydeps (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 21))
+2026-07-15T12:10:41.7706763Z   Downloading pydeps-3.0.6-py3-none-any.whl.metadata (23 kB)
+2026-07-15T12:10:41.6910805Z Collecting pytest>=8 (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:41.6991201Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+2026-07-15T12:10:41.7298913Z Collecting pyright (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 20))
+2026-07-15T12:10:41.7385268Z   Downloading pyright-1.1.411-py3-none-any.whl.metadata (6.9 kB)
+2026-07-15T12:10:41.7606750Z Collecting pydeps (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 21))
+2026-07-15T12:10:41.7706763Z   Downloading pydeps-3.0.6-py3-none-any.whl.metadata (23 kB)
+2026-07-15T12:10:41.7896348Z Collecting pipdeptree (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 22))
+2026-07-15T12:10:41.9220390Z   Downloading psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl.metadata (22 kB)
+2026-07-15T12:10:41.9363377Z Collecting pydocstyle (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 26))
+2026-07-15T12:10:41.9444034Z   Downloading pydocstyle-6.3.0-py3-none-any.whl.metadata (3.7 kB)
+2026-07-15T12:10:42.2766956Z Collecting ruff (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 27))
+2026-07-15T12:10:42.2840047Z   Downloading ruff-0.15.21-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (26 kB)
+2026-07-15T12:10:42.3501491Z Collecting jupyterlab (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 30))
+2026-07-15T12:10:42.3608903Z   Downloading jupyterlab-4.6.1-py3-none-any.whl.metadata (16 kB)
+2026-07-15T12:10:41.9363377Z Collecting pydocstyle (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 26))
+2026-07-15T12:10:41.9444034Z   Downloading pydocstyle-6.3.0-py3-none-any.whl.metadata (3.7 kB)
+2026-07-15T12:10:42.2766956Z Collecting ruff (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 27))
+2026-07-15T12:10:42.2840047Z   Downloading ruff-0.15.21-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (26 kB)
+2026-07-15T12:10:42.3501491Z Collecting jupyterlab (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 30))
+2026-07-15T12:10:42.3608903Z   Downloading jupyterlab-4.6.1-py3-none-any.whl.metadata (16 kB)
+2026-07-15T12:10:42.3928152Z Collecting notebook (from -r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 31))
+2026-07-15T12:10:43.2630115Z   Downloading optype-0.17.1-py3-none-any.whl.metadata (5.0 kB)
+2026-07-15T12:10:43.2811942Z Collecting numpy-typing-compat<20251207,>=20250818.1.25 (from optype[numpy]<0.18,>=0.14.0->scipy-stubs->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 14))
+2026-07-15T12:10:43.2888078Z   Downloading numpy_typing_compat-20251206.2.4-py3-none-any.whl.metadata (8.0 kB)
+2026-07-15T12:10:43.3016530Z Collecting iniconfig>=1.0.1 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3085803Z   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-15T12:10:43.3212689Z Collecting packaging>=22 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3281398Z   Downloading packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+2026-07-15T12:10:43.2888078Z   Downloading numpy_typing_compat-20251206.2.4-py3-none-any.whl.metadata (8.0 kB)
+2026-07-15T12:10:43.3016530Z Collecting iniconfig>=1.0.1 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3085803Z   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-15T12:10:43.3212689Z Collecting packaging>=22 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3281398Z   Downloading packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+2026-07-15T12:10:43.3423991Z Collecting pluggy<2,>=1.5 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3492148Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2026-07-15T12:10:43.3085803Z   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-15T12:10:43.3212689Z Collecting packaging>=22 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3281398Z   Downloading packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+2026-07-15T12:10:43.3423991Z Collecting pluggy<2,>=1.5 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3492148Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2026-07-15T12:10:43.3646684Z Collecting pygments>=2.7.2 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3714675Z   Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-15T12:10:43.3281398Z   Downloading packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+2026-07-15T12:10:43.3423991Z Collecting pluggy<2,>=1.5 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3492148Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2026-07-15T12:10:43.3646684Z Collecting pygments>=2.7.2 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3714675Z   Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-15T12:10:43.3853625Z Collecting nodeenv>=1.6.0 (from pyright->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 20))
+2026-07-15T12:10:43.3928297Z   Downloading nodeenv-1.10.0-py2.py3-none-any.whl.metadata (24 kB)
+2026-07-15T12:10:43.3492148Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2026-07-15T12:10:43.3646684Z Collecting pygments>=2.7.2 (from pytest>=8->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 17))
+2026-07-15T12:10:43.3714675Z   Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-15T12:10:43.3853625Z Collecting nodeenv>=1.6.0 (from pyright->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 20))
+2026-07-15T12:10:43.3928297Z   Downloading nodeenv-1.10.0-py2.py3-none-any.whl.metadata (24 kB)
+2026-07-15T12:10:43.4057648Z Collecting stdlib_list (from pydeps->-r /home/runner/work/ptymark/ptymark/docker/requirements.txt (line 21))
+2026-07-15T12:10:43.4141852Z   Downloading stdlib_list-0.12.0-py3-none-any.whl.metadata (3.3 kB)
+2026-07-15T12:10:47.4837965Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 607.4/607.4 kB 754.3 MB/s  0:00:00
+2026-07-15T12:10:47.4907406Z Downloading optype-0.17.1-py3-none-any.whl (65 kB)
+2026-07-15T12:10:47.4985298Z Downloading numpy_typing_compat-20251206.2.4-py3-none-any.whl (6.3 kB)
+2026-07-15T12:10:47.5054857Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+2026-07-15T12:10:47.5137776Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+2026-07-15T12:10:47.5237976Z Downloading pyright-1.1.411-py3-none-any.whl (6.2 MB)
+2026-07-15T12:10:47.5484450Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 269.1 MB/s  0:00:00
+2026-07-15T12:10:47.4985298Z Downloading numpy_typing_compat-20251206.2.4-py3-none-any.whl (6.3 kB)
+2026-07-15T12:10:47.5054857Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+2026-07-15T12:10:47.5137776Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+2026-07-15T12:10:47.5237976Z Downloading pyright-1.1.411-py3-none-any.whl (6.2 MB)
+2026-07-15T12:10:47.5484450Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 269.1 MB/s  0:00:00
+2026-07-15T12:10:47.5564337Z Downloading pydeps-3.0.6-py3-none-any.whl (48 kB)
+2026-07-15T12:10:47.5637908Z Downloading pipdeptree-3.1.1-py3-none-any.whl (73 kB)
+2026-07-15T12:10:47.5999348Z Downloading snakeviz-2.2.2-py3-none-any.whl (183 kB)
+2026-07-15T12:10:47.6074724Z Downloading psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl (155 kB)
+2026-07-15T12:10:47.6144848Z Downloading pydocstyle-6.3.0-py3-none-any.whl (38 kB)
+2026-07-15T12:10:47.6215935Z Downloading ruff-0.15.21-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (11.5 MB)
+2026-07-15T12:10:47.6490830Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.5/11.5 MB 447.0 MB/s  0:00:00
+2026-07-15T12:10:47.6561411Z Downloading jupyterlab-4.6.1-py3-none-any.whl (17.2 MB)
+2026-07-15T12:10:47.7007696Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 17.2/17.2 MB 398.1 MB/s  0:00:00
+2026-07-15T12:10:48.6741716Z Downloading stdlib_list-0.12.0-py3-none-any.whl (87 kB)
+2026-07-15T12:10:48.6814678Z Downloading tzdata-2026.3-py2.py3-none-any.whl (348 kB)
+2026-07-15T12:10:48.6892484Z Downloading uri_template-1.3.0-py3-none-any.whl (11 kB)
+2026-07-15T12:10:49.3297951Z Installing collected packages: webencodings, pure-eval, ptyprocess, fastjsonschema, websocket-client, webcolors, wcwidth, wadler-lindig, urllib3, uri-template, tzdata, typing_extensions, traitlets, tornado, tomli, toml, tinycss2, stdlib_list, soupsieve, snowballstemmer, six, send2trash, ruff, ruamel.yaml, rpds-py, rfc3986-validator, pyzmq, pyyaml, python-json-logger, pygments, pycparser, psutil, prometheus-client, pluggy, platformdirs, pexpect, parso, pandocfilters, packaging, overrides, opt_einsum, numpy, nodeenv, nest-asyncio2, mistune, mdurl, MarkupSafe, lark, jupyterlab-pygments, jsonpointer, json5, iniconfig, idna, h11, fqdn, executing, defusedxml, decorator, debugpy, comm, click, charset_normalizer, certifi, bleach, babel, attrs, async-lru, asttokens, annotated-types, absl-py, typing-inspection, typeguard, terminado, stack_data, snakeviz, scipy, rfc3987-syntax, rfc3339-validator, requirements-parser, requests, referencing, python-dateutil, pytest, pyright, pydocstyle, pydeps, pydantic-core, prompt_toolkit, pipdeptree, optype, numpy-typing-compat, ml_dtypes, matplotlib-inline, markdown-it-py, jupyter-core, jinja2, jedi, jaxtyping, ipython-pygments-lexers, httpcore, cffi, beautifulsoup4, anyio, pydantic, mdit-py-plugins, mdformat, jupyter-server-terminals, jupyter-client, jupyter-builder, jsonschema-specifications, jaxlib, ipython, httpx, deptry, cryptography, arrow, argon2-cffi-bindings, scipy-stubs, mdformat-gfm, mdformat-front-matters, mdformat-footnote, jsonschema, jax, isoduration, ipykernel, argon2-cffi, optax, nbformat, mdformat-myst, equinox, nbclient, jupyter-events, nbconvert, jupyter-server, notebook-shim, jupyterlab-server, jupyter-lsp, jupyterlab, notebook
+2026-07-15T12:11:08.4200931Z 
+2026-07-15T12:11:08.4257198Z Successfully installed MarkupSafe-3.0.3 absl-py-2.5.0 annotated-types-0.7.0 anyio-4.14.2 argon2-cffi-25.1.0 argon2-cffi-bindings-25.1.0 arrow-1.4.0 asttokens-3.0.2 async-lru-2.3.0 attrs-26.1.0 babel-2.18.0 beautifulsoup4-4.15.0 bleach-6.4.0 certifi-2026.6.17 cffi-2.1.0 charset_normalizer-3.4.9 click-8.4.2 comm-0.2.3 cryptography-49.0.0 debugpy-1.8.21 decorator-5.3.1 defusedxml-0.7.1 deptry-0.25.1 equinox-0.13.8 executing-2.2.1 fastjsonschema-2.21.2 fqdn-1.5.1 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.18 iniconfig-2.3.0 ipykernel-7.3.0 ipython-9.15.0 ipython-pygments-lexers-1.1.1 isoduration-20.11.0 jax-0.10.2 jaxlib-0.10.2 jaxtyping-0.3.11 jedi-0.20.0 jinja2-3.1.6 json5-0.15.0 jsonpointer-3.1.1 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 jupyter-builder-1.1.0 jupyter-client-8.9.1 jupyter-core-5.9.1 jupyter-events-0.12.1 jupyter-lsp-2.3.1 jupyter-server-2.20.0 jupyter-server-terminals-0.5.4 jupyterlab-4.6.1 jupyterlab-pygments-0.3.0 jupyterlab-server-2.28.0 lark-1.3.1 markdown-it-py-4.2.0 matplotlib-inline-0.2.2 mdformat-1.0.0 mdformat-footnote-0.1.3 mdformat-front-matters-2.0.0 mdformat-gfm-1.0.0 mdformat-myst-0.3.0 mdit-py-plugins-0.6.1 mdurl-0.1.2 mistune-3.3.3 ml_dtypes-0.5.4 nbclient-0.11.0 nbconvert-7.17.1 nbformat-5.10.4 nest-asyncio2-1.7.2 nodeenv-1.10.0 notebook-7.6.0 notebook-shim-0.2.4 numpy-2.4.6 numpy-typing-compat-20251206.2.4 opt_einsum-3.4.0 optax-0.2.8 optype-0.17.1 overrides-7.7.0 packaging-26.2 pandocfilters-1.5.1 parso-0.8.7 pexpect-4.9.0 pipdeptree-3.1.1 platformdirs-4.10.0 pluggy-1.6.0 prometheus-client-0.25.0 prompt_toolkit-3.0.52 psutil-7.2.2 ptyprocess-0.7.0 pure-eval-0.2.3 pycparser-3.0 pydantic-2.13.4 pydantic-core-2.46.4 pydeps-3.0.6 pydocstyle-6.3.0 pygments-2.20.0 pyright-1.1.411 pytest-9.1.1 python-dateutil-2.9.0.post0 python-json-logger-4.1.0 pyyaml-6.0.3 pyzmq-27.1.0 referencing-0.37.0 requests-2.34.2 requirements-parser-0.13.1 rfc3339-validator-0.1.4 rfc3986-validator-0.1.1 rfc3987-syntax-1.1.0 rpds-py-2026.6.3 ruamel.yaml-0.19.1 ruff-0.15.21 scipy-1.17.1 scipy-stubs-1.17.1.5 send2trash-2.1.0 six-1.17.0 snakeviz-2.2.2 snowballstemmer-3.1.1 soupsieve-2.8.4 stack_data-0.6.3 stdlib_list-0.12.0 terminado-0.18.1 tinycss2-1.5.1 toml-0.10.2 tomli-2.4.1 tornado-6.5.7 traitlets-5.15.1 typeguard-4.5.2 typing-inspection-0.4.2 typing_extensions-4.16.0 tzdata-2026.3 uri-template-1.3.0 urllib3-2.7.0 wadler-lindig-0.1.7 wcwidth-0.8.2 webcolors-25.10.0 webencodings-0.5.1 websocket-client-1.9.0
+2026-07-15T12:11:09.1672945Z No broken requirements found.
+2026-07-15T12:10:48.6892484Z Downloading uri_template-1.3.0-py3-none-any.whl (11 kB)
+2026-07-15T12:10:49.3297951Z Installing collected packages: webencodings, pure-eval, ptyprocess, fastjsonschema, websocket-client, webcolors, wcwidth, wadler-lindig, urllib3, uri-template, tzdata, typing_extensions, traitlets, tornado, tomli, toml, tinycss2, stdlib_list, soupsieve, snowballstemmer, six, send2trash, ruff, ruamel.yaml, rpds-py, rfc3986-validator, pyzmq, pyyaml, python-json-logger, pygments, pycparser, psutil, prometheus-client, pluggy, platformdirs, pexpect, parso, pandocfilters, packaging, overrides, opt_einsum, numpy, nodeenv, nest-asyncio2, mistune, mdurl, MarkupSafe, lark, jupyterlab-pygments, jsonpointer, json5, iniconfig, idna, h11, fqdn, executing, defusedxml, decorator, debugpy, comm, click, charset_normalizer, certifi, bleach, babel, attrs, async-lru, asttokens, annotated-types, absl-py, typing-inspection, typeguard, terminado, stack_data, snakeviz, scipy, rfc3987-syntax, rfc3339-validator, requirements-parser, requests, referencing, python-dateutil, pytest, pyright, pydocstyle, pydeps, pydantic-core, prompt_toolkit, pipdeptree, optype, numpy-typing-compat, ml_dtypes, matplotlib-inline, markdown-it-py, jupyter-core, jinja2, jedi, jaxtyping, ipython-pygments-lexers, httpcore, cffi, beautifulsoup4, anyio, pydantic, mdit-py-plugins, mdformat, jupyter-server-terminals, jupyter-client, jupyter-builder, jsonschema-specifications, jaxlib, ipython, httpx, deptry, cryptography, arrow, argon2-cffi-bindings, scipy-stubs, mdformat-gfm, mdformat-front-matters, mdformat-footnote, jsonschema, jax, isoduration, ipykernel, argon2-cffi, optax, nbformat, mdformat-myst, equinox, nbclient, jupyter-events, nbconvert, jupyter-server, notebook-shim, jupyterlab-server, jupyter-lsp, jupyterlab, notebook
+2026-07-15T12:11:08.4200931Z 
+2026-07-15T12:11:08.4257198Z Successfully installed MarkupSafe-3.0.3 absl-py-2.5.0 annotated-types-0.7.0 anyio-4.14.2 argon2-cffi-25.1.0 argon2-cffi-bindings-25.1.0 arrow-1.4.0 asttokens-3.0.2 async-lru-2.3.0 attrs-26.1.0 babel-2.18.0 beautifulsoup4-4.15.0 bleach-6.4.0 certifi-2026.6.17 cffi-2.1.0 charset_normalizer-3.4.9 click-8.4.2 comm-0.2.3 cryptography-49.0.0 debugpy-1.8.21 decorator-5.3.1 defusedxml-0.7.1 deptry-0.25.1 equinox-0.13.8 executing-2.2.1 fastjsonschema-2.21.2 fqdn-1.5.1 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.18 iniconfig-2.3.0 ipykernel-7.3.0 ipython-9.15.0 ipython-pygments-lexers-1.1.1 isoduration-20.11.0 jax-0.10.2 jaxlib-0.10.2 jaxtyping-0.3.11 jedi-0.20.0 jinja2-3.1.6 json5-0.15.0 jsonpointer-3.1.1 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 jupyter-builder-1.1.0 jupyter-client-8.9.1 jupyter-core-5.9.1 jupyter-events-0.12.1 jupyter-lsp-2.3.1 jupyter-server-2.20.0 jupyter-server-terminals-0.5.4 jupyterlab-4.6.1 jupyterlab-pygments-0.3.0 jupyterlab-server-2.28.0 lark-1.3.1 markdown-it-py-4.2.0 matplotlib-inline-0.2.2 mdformat-1.0.0 mdformat-footnote-0.1.3 mdformat-front-matters-2.0.0 mdformat-gfm-1.0.0 mdformat-myst-0.3.0 mdit-py-plugins-0.6.1 mdurl-0.1.2 mistune-3.3.3 ml_dtypes-0.5.4 nbclient-0.11.0 nbconvert-7.17.1 nbformat-5.10.4 nest-asyncio2-1.7.2 nodeenv-1.10.0 notebook-7.6.0 notebook-shim-0.2.4 numpy-2.4.6 numpy-typing-compat-20251206.2.4 opt_einsum-3.4.0 optax-0.2.8 optype-0.17.1 overrides-7.7.0 packaging-26.2 pandocfilters-1.5.1 parso-0.8.7 pexpect-4.9.0 pipdeptree-3.1.1 platformdirs-4.10.0 pluggy-1.6.0 prometheus-client-0.25.0 prompt_toolkit-3.0.52 psutil-7.2.2 ptyprocess-0.7.0 pure-eval-0.2.3 pycparser-3.0 pydantic-2.13.4 pydantic-core-2.46.4 pydeps-3.0.6 pydocstyle-6.3.0 pygments-2.20.0 pyright-1.1.411 pytest-9.1.1 python-dateutil-2.9.0.post0 python-json-logger-4.1.0 pyyaml-6.0.3 pyzmq-27.1.0 referencing-0.37.0 requests-2.34.2 requirements-parser-0.13.1 rfc3339-validator-0.1.4 rfc3986-validator-0.1.1 rfc3987-syntax-1.1.0 rpds-py-2026.6.3 ruamel.yaml-0.19.1 ruff-0.15.21 scipy-1.17.1 scipy-stubs-1.17.1.5 send2trash-2.1.0 six-1.17.0 snakeviz-2.2.2 snowballstemmer-3.1.1 soupsieve-2.8.4 stack_data-0.6.3 stdlib_list-0.12.0 terminado-0.18.1 tinycss2-1.5.1 toml-0.10.2 tomli-2.4.1 tornado-6.5.7 traitlets-5.15.1 typeguard-4.5.2 typing-inspection-0.4.2 typing_extensions-4.16.0 tzdata-2026.3 uri-template-1.3.0 urllib3-2.7.0 wadler-lindig-0.1.7 wcwidth-0.8.2 webcolors-25.10.0 webencodings-0.5.1 websocket-client-1.9.0
+2026-07-15T12:11:09.1672945Z No broken requirements found.
+2026-07-15T12:11:09.2043680Z python_dependencies=installed hash=bd9005a3b9169b5ce571fd580da8a12d02d0789a43be79ef1a96f5506ca85874
+2026-07-15T12:11:09.2079374Z ##[group]Run make ci
+2026-07-15T12:11:09.9689360Z ACTIVE_ROLES=manager,manager_reviewer,designer,design_reviewer,document_flow_reviewer,test_designer,implementer,change_reviewer,final_reviewer,verifier,auditor,researcher,research_reviewer,experimenter,experiment_reviewer,reproducibility_reviewer,scientific_computing_reviewer,benchmark_reviewer,artifact_reviewer,fair_data_reviewer,ml_science_reviewer
+2026-07-15T12:11:09.9691074Z SMOKE_TEST=pass
+2026-07-15T12:11:09.9804888Z ✅ research perspective pack smoke test 成功
+2026-07-15T12:11:10.0778024Z DEPENDENCY_HEADERS=pass
+2026-07-15T12:11:10.0841796Z ✅ dependency header checks 成功
+2026-07-15T12:11:10.1064478Z DEPENDENCY_HEADER_SCAN_CHECKED=0
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:09.9691074Z SMOKE_TEST=pass
+2026-07-15T12:11:09.9804888Z ✅ research perspective pack smoke test 成功
+2026-07-15T12:11:10.0778024Z DEPENDENCY_HEADERS=pass
+2026-07-15T12:11:10.0841796Z ✅ dependency header checks 成功
+2026-07-15T12:11:10.1064478Z DEPENDENCY_HEADER_SCAN_CHECKED=0
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:09.9804888Z ✅ research perspective pack smoke test 成功
+2026-07-15T12:11:10.0778024Z DEPENDENCY_HEADERS=pass
+2026-07-15T12:11:10.0841796Z ✅ dependency header checks 成功
+2026-07-15T12:11:10.1064478Z DEPENDENCY_HEADER_SCAN_CHECKED=0
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.0778024Z DEPENDENCY_HEADERS=pass
+2026-07-15T12:11:10.0841796Z ✅ dependency header checks 成功
+2026-07-15T12:11:10.1064478Z DEPENDENCY_HEADER_SCAN_CHECKED=0
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.0841796Z ✅ dependency header checks 成功
+2026-07-15T12:11:10.1064478Z DEPENDENCY_HEADER_SCAN_CHECKED=0
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.1067578Z ✅ dependency manifest scan 成功
+2026-07-15T12:11:10.1064478Z DEPENDENCY_HEADER_SCAN_CHECKED=0
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.1067578Z ✅ dependency manifest scan 成功
+2026-07-15T12:11:10.1311476Z DEPENDENCY_HEADER_FORMAT=pass
+2026-07-15T12:11:10.1065042Z DEPENDENCY_HEADER_SCAN_SKIPPED=1
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.1067578Z ✅ dependency manifest scan 成功
+2026-07-15T12:11:10.1311476Z DEPENDENCY_HEADER_FORMAT=pass
+2026-07-15T12:11:10.1313770Z ✅ dependency manifest format checks 成功
+2026-07-15T12:11:10.1065541Z DEPENDENCY_HEADER_SCAN_MISSING=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.1067578Z ✅ dependency manifest scan 成功
+2026-07-15T12:11:10.1311476Z DEPENDENCY_HEADER_FORMAT=pass
+2026-07-15T12:11:10.1313770Z ✅ dependency manifest format checks 成功
+2026-07-15T12:11:10.1957834Z HARDCODED_NUMBERS_FILES=0
+2026-07-15T12:11:10.1066304Z DEPENDENCY_HEADER_SCAN_MISSING_BY_OWNER product_file=0 root_view=0 symlink=0 submodule_source=0 other=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.1067578Z ✅ dependency manifest scan 成功
+2026-07-15T12:11:10.1311476Z DEPENDENCY_HEADER_FORMAT=pass
+2026-07-15T12:11:10.1313770Z ✅ dependency manifest format checks 成功
+2026-07-15T12:11:10.1957834Z HARDCODED_NUMBERS_FILES=0
+2026-07-15T12:11:10.1958471Z HARDCODED_NUMBERS_FINDINGS=0
+2026-07-15T12:11:10.1066948Z DEPENDENCY_HEADER_SCAN=pass
+2026-07-15T12:11:10.1067578Z ✅ dependency manifest scan 成功
+2026-07-15T12:11:10.1311476Z DEPENDENCY_HEADER_FORMAT=pass
+2026-07-15T12:11:10.1313770Z ✅ dependency manifest format checks 成功
+2026-07-15T12:11:10.1957834Z HARDCODED_NUMBERS_FILES=0
+2026-07-15T12:11:10.1958471Z HARDCODED_NUMBERS_FINDINGS=0
+2026-07-15T12:11:10.1958872Z HARDCODED_NUMBERS=pass
+2026-07-15T12:11:12.6384540Z ✅ responsibility scope checks 成功
+2026-07-15T12:11:12.6923849Z ISSUE_SYNC_PLAN=AC-20260625-experiment-registry-oop-readability:gh issue create --repo <owner/name> --title "<!--" --body-file issues/open/AC-20260625-experiment-registry-oop-readability.md
+2026-07-15T12:11:12.6925472Z ISSUE_SYNC_PLAN=AC-20260621-oop-changed-design-paths-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: changed_design_paths Effect Boundary" --body-file issues/closed/AC-20260621-oop-changed-design-paths-effect-boundary.md
+2026-07-15T12:11:12.6927598Z ISSUE_SYNC_PLAN=AC-20260621-oop-dependency-closure-complexity:gh issue create --repo <owner/name> --title "OOP Readability: dependency_closure Complexity" --body-file issues/closed/AC-20260621-oop-dependency-closure-complexity.md
+2026-07-15T12:11:12.6929176Z ISSUE_SYNC_PLAN=AC-20260621-oop-dependency-indexes-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: dependency_indexes Effect Boundary" --body-file issues/closed/AC-20260621-oop-dependency-indexes-effect-boundary.md
+2026-07-15T12:11:12.6930940Z ISSUE_SYNC_PLAN=AC-20260621-oop-token-polarities-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: token_polarities Effect Boundary" --body-file issues/closed/AC-20260621-oop-token-polarities-effect-boundary.md
+2026-07-15T12:11:12.6931859Z ISSUE_SYNC_LOCAL_ISSUES=26
+2026-07-15T12:11:12.6923849Z ISSUE_SYNC_PLAN=AC-20260625-experiment-registry-oop-readability:gh issue create --repo <owner/name> --title "<!--" --body-file issues/open/AC-20260625-experiment-registry-oop-readability.md
+2026-07-15T12:11:12.6925472Z ISSUE_SYNC_PLAN=AC-20260621-oop-changed-design-paths-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: changed_design_paths Effect Boundary" --body-file issues/closed/AC-20260621-oop-changed-design-paths-effect-boundary.md
+2026-07-15T12:11:12.6927598Z ISSUE_SYNC_PLAN=AC-20260621-oop-dependency-closure-complexity:gh issue create --repo <owner/name> --title "OOP Readability: dependency_closure Complexity" --body-file issues/closed/AC-20260621-oop-dependency-closure-complexity.md
+2026-07-15T12:11:12.6929176Z ISSUE_SYNC_PLAN=AC-20260621-oop-dependency-indexes-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: dependency_indexes Effect Boundary" --body-file issues/closed/AC-20260621-oop-dependency-indexes-effect-boundary.md
+2026-07-15T12:11:12.6930940Z ISSUE_SYNC_PLAN=AC-20260621-oop-token-polarities-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: token_polarities Effect Boundary" --body-file issues/closed/AC-20260621-oop-token-polarities-effect-boundary.md
+2026-07-15T12:11:12.6931859Z ISSUE_SYNC_LOCAL_ISSUES=26
+2026-07-15T12:11:12.6932130Z ISSUE_SYNC_GITHUB_MISSING_LINKS=5
+2026-07-15T12:11:12.6929176Z ISSUE_SYNC_PLAN=AC-20260621-oop-dependency-indexes-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: dependency_indexes Effect Boundary" --body-file issues/closed/AC-20260621-oop-dependency-indexes-effect-boundary.md
+2026-07-15T12:11:12.6930940Z ISSUE_SYNC_PLAN=AC-20260621-oop-token-polarities-effect-boundary:gh issue create --repo <owner/name> --title "OOP Readability: token_polarities Effect Boundary" --body-file issues/closed/AC-20260621-oop-token-polarities-effect-boundary.md
+2026-07-15T12:11:12.6931859Z ISSUE_SYNC_LOCAL_ISSUES=26
+2026-07-15T12:11:12.6932130Z ISSUE_SYNC_GITHUB_MISSING_LINKS=5
+2026-07-15T12:11:12.6932410Z ISSUE_SYNC_GITHUB_CHECKED=0
+2026-07-15T12:11:12.6933016Z ISSUE_SYNC_GITHUB_DRIFT=0
+2026-07-15T12:11:12.6933429Z ISSUE_SYNC_GITHUB_UNAVAILABLE=0
+2026-07-15T12:12:33.2233976Z ACCUMULATED_AGENT_EVAL_PRODUCER=workflow-selection:pass:stdout=.state/agent-eval-runs/run-all-checks/04-workflow-selection.stdout.txt:stderr=.state/agent-eval-runs/run-all-checks/04-workflow-selection.stderr.txt
+2026-07-15T12:12:33.2236087Z ACCUMULATED_AGENT_EVAL_PRODUCER=report-quality:pass:stdout=.state/agent-eval-runs/run-all-checks/05-report-quality.stdout.txt:stderr=.state/agent-eval-runs/run-all-checks/05-report-quality.stderr.txt
+2026-07-15T12:12:33.2237299Z ACCUMULATED_AGENT_EVAL_PRODUCERS=5
+2026-07-15T12:12:33.2237728Z ACCUMULATED_AGENT_EVAL_FAILED=-
+2026-07-15T12:12:33.2238094Z ACCUMULATED_AGENT_EVAL=pass
+2026-07-15T12:12:33.2303814Z ✅ accumulated agent eval producers 成功
+2026-07-15T12:12:33.2885405Z EVAL_ACCUMULATION_HOOK_FILES=0
+2026-07-15T12:12:33.2303814Z ✅ accumulated agent eval producers 成功
+2026-07-15T12:12:33.2885405Z EVAL_ACCUMULATION_HOOK_FILES=0
+2026-07-15T12:12:33.2885906Z EVAL_ACCUMULATION_HOOK_ENTRIES=0
+2026-07-15T12:12:33.2886384Z EVAL_ACCUMULATION_HOOK_LEGACY_MISSING_NAMESPACE=0
+2026-07-15T12:12:33.2886736Z EVAL_ACCUMULATION_HOOK_NAMESPACE_DEBT=0
+2026-07-15T12:12:33.2887038Z EVAL_ACCUMULATION_SKILL_REPORTS=1
+2026-07-15T12:12:33.2887358Z EVAL_ACCUMULATION_LOCAL_LLM_REPORTS=1
+2026-07-15T12:12:49.8599461Z test docs::tests::parses_formatter_command_arguments ... ok
+2026-07-15T12:12:49.8600451Z test docs::tests::formats_mermeid_fence_and_reserved_graph_node ... ok
+2026-07-15T12:12:49.8601361Z test docs::tests::flags_workspace_absolute_markdown_links_even_when_target_exists ... ok
+2026-07-15T12:12:49.8602293Z test docs::tests::renders_validation_failure_response_from_inventory ... ok
+2026-07-15T12:12:49.8603174Z test docs::tests::structured_report_tells_agents_to_use_reported_location ... ok
+2026-07-15T12:12:49.8604068Z test jit_ir_to_lean::tests::render_lean_rejects_missing_public_interface ... ok
+2026-07-15T12:12:49.8606247Z test jit_ir_to_lean::tests::render_lean_rejects_non_answer_state_info_public_return ... ok
+2026-07-15T12:12:49.8601361Z test docs::tests::flags_workspace_absolute_markdown_links_even_when_target_exists ... ok
+2026-07-15T12:12:49.8602293Z test docs::tests::renders_validation_failure_response_from_inventory ... ok
+2026-07-15T12:12:49.8603174Z test docs::tests::structured_report_tells_agents_to_use_reported_location ... ok
+2026-07-15T12:12:49.8604068Z test jit_ir_to_lean::tests::render_lean_rejects_missing_public_interface ... ok
+2026-07-15T12:12:49.8606247Z test jit_ir_to_lean::tests::render_lean_rejects_non_answer_state_info_public_return ... ok
+2026-07-15T12:12:49.8613899Z test local_llm::tests::build_index_adds_python_build_subcommand ... ok
+2026-07-15T12:12:49.8617152Z test local_llm::tests::classify_prompt_is_native_rust_and_single_file ... ok
+2026-07-15T12:12:49.8679189Z test local_llm::tests::prose_ir_marks_assigned_experiment_fields_as_present ... ok
+2026-07-15T12:12:49.8680637Z test local_llm::tests::prose_ir_marks_experiment_vocabulary_as_vocabulary_only ... ok
+2026-07-15T12:12:49.8702575Z test local_llm::tests::parent_repo_root_uses_vendored_agent_canon_source ... ok
+2026-07-15T12:12:49.8731062Z test local_llm::tests::prose_ir_part_llm_results_skip_when_llama_cli_is_missing ... ok
+2026-07-15T12:12:49.8744201Z test local_llm::tests::prose_ir_prompt_names_tool_document_extraction_contracts ... ok
+2026-07-15T12:12:49.8757299Z test local_llm::tests::prose_ir_payload_returns_intermediate_representation ... ok
+2026-07-15T12:12:49.8758100Z test local_llm::tests::prose_ir_part_llm_results_run_fake_llama_per_part_in_input_order ... ok
+2026-07-15T12:12:49.8758818Z test migration_audit::tests::audit_passes_for_complete_fixture ... ok
+2026-07-15T12:12:49.8759395Z test migration_audit::tests::parse_root_argument ... ok
+2026-07-15T12:12:49.8760108Z test python_algorithm_contract::tests::amp_algorithm_module_requires_standard_surface_and_callable_algorithm ... ok
+2026-07-15T12:12:49.8761467Z test migration_audit::tests::audit_reports_missing_wrapper ... ok
+2026-07-15T12:12:49.8762310Z test python_algorithm_contract::tests::compliant_nested_and_stopping_contract_passes ... ok
+2026-07-15T12:12:49.8763003Z test python_algorithm_contract::tests::direct_base_stopping_policy_is_reported ... ok
+2026-07-15T12:12:49.8763536Z test python_algorithm_contract::tests::missing_child_info_is_reported ... ok
+2026-07-15T12:12:49.8761467Z test migration_audit::tests::audit_reports_missing_wrapper ... ok
+2026-07-15T12:12:49.8762310Z test python_algorithm_contract::tests::compliant_nested_and_stopping_contract_passes ... ok
+2026-07-15T12:12:49.8763003Z test python_algorithm_contract::tests::direct_base_stopping_policy_is_reported ... ok
+2026-07-15T12:12:49.8763536Z test python_algorithm_contract::tests::missing_child_info_is_reported ... ok
+2026-07-15T12:12:49.8764171Z test python_algorithm_contract::tests::stopping_primitive_definition_module_is_not_legacy_usage ... ok
+2026-07-15T12:12:49.8764770Z test python_module_groups::tests::maps_path_to_longest_matching_group ... ok
+2026-07-15T12:12:49.8765258Z test migration_audit::tests::audit_rejects_dockerfile_cargo_test ... ok
+2026-07-15T12:12:49.8831634Z test python_structure_hash_scope_plan::tests::builds_blocks_from_mechanical_clusters ... ok
+2026-07-15T12:12:49.8832774Z test python_structure_hash_scope_plan::tests::keeps_edit_scope_paths_out_of_block_allowed_files ... ok
+2026-07-15T12:12:49.8833856Z test python_structure_hash_scope_plan::tests::selects_larger_disjoint_actionable_candidate ... ok
+2026-07-15T12:12:49.8835081Z test python_structure_hash_scope_plan::tests::parses_dependency_edit_scope_paths ... ok
+2026-07-15T12:12:49.8847914Z test rust_migration_plan::tests::parse_defaults ... ok
+2026-07-15T12:12:49.8848698Z test rust_migration_plan::tests::foundation_reports_missing_post_create ... ok
+2026-07-15T12:12:49.8853405Z test rust_migration_plan::tests::plan_includes_policy_first_target ... ok
+2026-07-15T12:12:49.8833856Z test python_structure_hash_scope_plan::tests::selects_larger_disjoint_actionable_candidate ... ok
+2026-07-15T12:12:49.8835081Z test python_structure_hash_scope_plan::tests::parses_dependency_edit_scope_paths ... ok
+2026-07-15T12:12:49.8847914Z test rust_migration_plan::tests::parse_defaults ... ok
+2026-07-15T12:12:49.8848698Z test rust_migration_plan::tests::foundation_reports_missing_post_create ... ok
+2026-07-15T12:12:49.8853405Z test rust_migration_plan::tests::plan_includes_policy_first_target ... ok
+2026-07-15T12:12:49.8857706Z test rust_migration_plan::tests::plan_keeps_orchestration_python ... ok
+2026-07-15T12:12:49.8858542Z test rust_migration_plan::tests::plan_marks_document_inventory_completed ... ok
+2026-07-15T12:12:49.8866462Z test semantic_index::tests::directed_kind_of_score_classifies_equivalent_and_containment ... ok
+2026-07-15T12:12:49.9096983Z test semantic_index::tests::absolute_include_outside_root_is_rejected ... ok
+2026-07-15T12:12:49.9172668Z test semantic_index::tests::context_pack_returns_bounded_evidence_cells ... ok
+2026-07-15T12:12:49.9177852Z test semantic_index::tests::embedding_ignores_dependency_manifest_comment ... ok
+2026-07-15T12:12:49.9180135Z test semantic_index::tests::embedding_is_normalized_and_zero_safe ... ok
+2026-07-15T12:12:49.9202100Z test semantic_index::tests::candidate_commands_auto_resolve_provider_dimension ... ok
+2026-07-15T12:12:49.9312936Z test semantic_index::tests::discourse_relations_pair_therefore_and_because_variants ... ok
+2026-07-15T12:12:49.9319389Z test semantic_index::tests::eval_output_accepts_valid_review_artifacts ... ok
+2026-07-15T12:12:49.9323108Z test semantic_index::tests::eval_output_rejects_cross_responsibility_and_query_echo ... ok
+2026-07-15T12:12:49.9462802Z test semantic_index::tests::eval_missing_must_not_path_fails ... ok
+2026-07-15T12:12:49.9464461Z test semantic_index::tests::markdown_segmentation_emits_document_sections_and_blocks ... ok
+2026-07-15T12:12:49.9488770Z test semantic_index::tests::embed_provider_adds_vectors_without_rebuilding_nodes ... ok
+2026-07-15T12:12:49.9504807Z test semantic_index::tests::eval_fixture_reports_pass ... ok
+2026-07-15T12:12:49.9464461Z test semantic_index::tests::markdown_segmentation_emits_document_sections_and_blocks ... ok
+2026-07-15T12:12:49.9488770Z test semantic_index::tests::embed_provider_adds_vectors_without_rebuilding_nodes ... ok
+2026-07-15T12:12:49.9504807Z test semantic_index::tests::eval_fixture_reports_pass ... ok
+2026-07-15T12:12:49.9597409Z test semantic_index::tests::eval_run_returns_nonzero_when_quality_fails ... ok
+2026-07-15T12:12:49.9779898Z test semantic_index::tests::merge_candidates_exclude_same_file_pairs_by_default ... ok
+2026-07-15T12:12:49.9810055Z test semantic_index::tests::merge_candidates_skip_tiny_heading_only_sections ... ok
+2026-07-15T12:12:49.9890734Z test semantic_index::tests::merge_candidates_skip_alignment_mirrors_and_eval_logs ... ok
+2026-07-15T12:12:49.9904363Z test semantic_index::tests::remote_embedding_text_is_bounded_without_splitting_chars ... ok
+2026-07-15T12:12:49.9908957Z test semantic_index::tests::responsibility_scope_bucket_tracks_manifest_surfaces ... ok
+2026-07-15T12:12:50.0057828Z test semantic_index::tests::mismatched_search_dimension_returns_no_hits ... ok
+2026-07-15T12:12:50.0193470Z test semantic_index::tests::responsibility_tree_detects_missing_directory_coverage ... ok
+2026-07-15T12:12:50.0235067Z test semantic_index::tests::natural_relations_persist_directed_kind_of_analysis ... ok
+2026-07-15T12:12:50.0259087Z test semantic_index::tests::provider_compare_reuses_existing_responsibility_buckets ... ok
+2026-07-15T12:12:50.0341181Z test semantic_index::tests::responsibility_tree_reports_vectors_and_coverage ... ok
+2026-07-15T12:12:50.1044513Z test structured_analysis::tests::duplicate_titles_are_reported ... ok
+2026-07-15T12:12:50.1046065Z test structured_analysis::tests::generated_reports_are_excluded_from_default_document_inventory ... ok
+2026-07-15T12:12:50.1048892Z test structured_analysis::tests::graph_contract_cli_rejects_invalid_format_argument ... ok
+2026-07-15T12:12:50.1212259Z test structured_analysis::tests::graph_contract_cli_returns_failure_on_blocker ... ok
+2026-07-15T12:12:50.1215943Z test structured_analysis::tests::graph_contract_json_output_is_parseable ... ok
+2026-07-15T12:12:50.1376659Z test structured_analysis::tests::graph_contract_reports_broken_edge_endpoint ... ok
+2026-07-15T12:12:50.1390138Z test structured_analysis::tests::build_cache_materializes_artifact_layer ... ok
+2026-07-15T12:12:50.1215943Z test structured_analysis::tests::graph_contract_json_output_is_parseable ... ok
+2026-07-15T12:12:50.1376659Z test structured_analysis::tests::graph_contract_reports_broken_edge_endpoint ... ok
+2026-07-15T12:12:50.1390138Z test structured_analysis::tests::build_cache_materializes_artifact_layer ... ok
+2026-07-15T12:12:50.1482766Z test structured_analysis::tests::graph_contract_reports_missing_required_column ... ok
+2026-07-15T12:12:50.1492259Z test structured_analysis::tests::graph_contract_reports_missing_required_table ... ok
+2026-07-15T12:12:50.1522698Z test structured_analysis::tests::graph_contract_reports_invalid_payload_json ... ok
+2026-07-15T12:12:50.1525232Z test structured_analysis::tests::graph_contract_text_exposes_core_contract ... ok
+2026-07-15T12:12:50.1376659Z test structured_analysis::tests::graph_contract_reports_broken_edge_endpoint ... ok
+2026-07-15T12:12:50.1390138Z test structured_analysis::tests::build_cache_materializes_artifact_layer ... ok
+2026-07-15T12:12:50.1482766Z test structured_analysis::tests::graph_contract_reports_missing_required_column ... ok
+2026-07-15T12:12:50.1492259Z test structured_analysis::tests::graph_contract_reports_missing_required_table ... ok
+2026-07-15T12:12:50.1522698Z test structured_analysis::tests::graph_contract_reports_invalid_payload_json ... ok
+2026-07-15T12:12:50.1525232Z test structured_analysis::tests::graph_contract_text_exposes_core_contract ... ok
+2026-07-15T12:12:50.1669151Z test structured_analysis::tests::graph_contract_reports_non_blocker_rules ... ok
+2026-07-15T12:12:50.1686561Z test structured_analysis::tests::directory_responsibility_gap_is_reported_from_child_artifacts ... ok
+2026-07-15T12:12:50.1718063Z test structured_analysis::tests::tool_document_path_alone_does_not_create_design_gap ... ok
+2026-07-15T12:12:50.1725611Z test structured_analysis::tests::graph_contract_accepts_build_cache_schema ... ok
+2026-07-15T12:12:50.1731136Z test test_design::tests::accepts_multiline_python_test_function_header_with_unittest_assertion ... ok
+2026-07-15T12:12:50.1738768Z test test_design::tests::allows_static_checker_behavior_contract_tests ... ok
+2026-07-15T12:12:50.1739627Z test test_design::tests::detects_missing_oracle_in_python_test_function ... ok
+2026-07-15T12:12:50.1740645Z test test_design::tests::detects_overspecified_mock_and_private_access ... ok
+2026-07-15T12:12:50.1725611Z test structured_analysis::tests::graph_contract_accepts_build_cache_schema ... ok
+2026-07-15T12:12:50.1731136Z test test_design::tests::accepts_multiline_python_test_function_header_with_unittest_assertion ... ok
+2026-07-15T12:12:50.1738768Z test test_design::tests::allows_static_checker_behavior_contract_tests ... ok
+2026-07-15T12:12:50.1739627Z test test_design::tests::detects_missing_oracle_in_python_test_function ... ok
+2026-07-15T12:12:50.1740645Z test test_design::tests::detects_overspecified_mock_and_private_access ... ok
+2026-07-15T12:12:50.1741414Z test test_design::tests::emits_property_design_hint_for_parser_examples ... ok
+2026-07-15T12:12:50.1742414Z test test_design::tests::flags_generated_execution_only_placeholder ... ok
+2026-07-15T12:12:50.1756702Z test test_design::tests::scans_test_like_files_under_tests_directory ... ok
+2026-07-15T12:12:50.1823962Z test structured_analysis::tests::responsibility_gap_diagnostic_includes_recursive_verification_route ... ok
+2026-07-15T12:12:50.1824681Z 
+2026-07-15T12:12:50.1825089Z test result: ok. 152 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+2026-07-15T12:12:50.1825606Z 
+2026-07-15T12:12:50.1856149Z ✅ Rust tests 成功
+2026-07-15T12:12:50.4269376Z GITHUB_WORKFLOWS_CHECKED=16
+2026-07-15T12:12:50.1825606Z 
+2026-07-15T12:12:50.1856149Z ✅ Rust tests 成功
+2026-07-15T12:12:50.4269376Z GITHUB_WORKFLOWS_CHECKED=16
+2026-07-15T12:12:50.4269890Z GITHUB_WORKFLOW_ERRORS=0
+2026-07-15T12:12:50.4270456Z GITHUB_WORKFLOW_WARNINGS=0
+2026-07-15T12:12:50.4270832Z GITHUB_WORKFLOWS=pass
+2026-07-15T12:12:50.4365923Z ✅ GitHub workflow / PR template checks 成功
+2026-07-15T12:12:50.7806439Z OK: experiment registry is valid
+2026-07-15T12:12:50.7878793Z ✅ experiment registry checks 成功
+2026-07-15T12:12:50.7879078Z 
+2026-07-15T12:12:50.7917028Z 3️⃣  pytest を実行中...
+2026-07-15T12:13:09.3333651Z ........................................................................ [  7%]
+2026-07-15T12:13:13.4855142Z ................................................................. [ 14%]
+2026-07-15T12:13:17.5253578Z .................................................................... [ 21%]
+2026-07-15T12:18:47.5310448Z ............................................sssss....................... [ 98%]
+2026-07-15T12:18:55.7051536Z ..................                                       [100%]
+2026-07-15T12:18:55.7052454Z 943 passed, 5 skipped, 238 subtests passed in 363.65s (0:06:03)
+2026-07-15T12:18:55.7844299Z ✅ pytest 成功
+2026-07-15T12:18:55.7847574Z 
+2026-07-15T12:18:55.7848080Z 4️⃣  pyright を実行中...
+2026-07-15T12:19:02.4168398Z 0 errors, 0 warnings, 0 informations
+2026-07-15T12:18:55.7052454Z 943 passed, 5 skipped, 238 subtests passed in 363.65s (0:06:03)
+2026-07-15T12:18:55.7844299Z ✅ pytest 成功
+2026-07-15T12:18:55.7847574Z 
+2026-07-15T12:18:55.7848080Z 4️⃣  pyright を実行中...
+2026-07-15T12:19:02.4168398Z 0 errors, 0 warnings, 0 informations
+2026-07-15T12:19:02.4696451Z ✅ pyright 成功
+2026-07-15T12:19:02.4696755Z 
+2026-07-15T12:18:55.7844299Z ✅ pytest 成功
+2026-07-15T12:18:55.7847574Z 
+2026-07-15T12:18:55.7848080Z 4️⃣  pyright を実行中...
+2026-07-15T12:19:02.4168398Z 0 errors, 0 warnings, 0 informations
+2026-07-15T12:19:02.4696451Z ✅ pyright 成功
+2026-07-15T12:19:02.4696755Z 
+2026-07-15T12:19:02.4697098Z 5️⃣  pydocstyle を実行中... (Docstring チェック)
+2026-07-15T12:18:55.7847574Z 
+2026-07-15T12:18:55.7848080Z 4️⃣  pyright を実行中...
+2026-07-15T12:19:02.4168398Z 0 errors, 0 warnings, 0 informations
+2026-07-15T12:19:02.4696451Z ✅ pyright 成功
+2026-07-15T12:19:02.4696755Z 
+2026-07-15T12:19:02.4697098Z 5️⃣  pydocstyle を実行中... (Docstring チェック)
+2026-07-15T12:19:06.6641762Z tests/tools/test_release_metadata.py:21 in public class `ReleaseMetadataTest`:
+2026-07-15T12:19:02.4696755Z 
+2026-07-15T12:19:02.4697098Z 5️⃣  pydocstyle を実行中... (Docstring チェック)
+2026-07-15T12:19:06.6641762Z tests/tools/test_release_metadata.py:21 in public class `ReleaseMetadataTest`:
+2026-07-15T12:19:06.6642559Z         D101: Missing docstring in public class
+2026-07-15T12:19:06.6643135Z tests/tools/test_release_metadata.py:22 in public method `test_release_tree_metadata_is_consistent`:
+2026-07-15T12:19:06.6643635Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6644248Z tests/tools/test_release_metadata.py:37 in public method `test_release_workflow_publishes_notes_without_project_assets`:
+2026-07-15T12:19:06.6641762Z tests/tools/test_release_metadata.py:21 in public class `ReleaseMetadataTest`:
+2026-07-15T12:19:06.6642559Z         D101: Missing docstring in public class
+2026-07-15T12:19:06.6643135Z tests/tools/test_release_metadata.py:22 in public method `test_release_tree_metadata_is_consistent`:
+2026-07-15T12:19:06.6643635Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6644248Z tests/tools/test_release_metadata.py:37 in public method `test_release_workflow_publishes_notes_without_project_assets`:
+2026-07-15T12:19:06.6644803Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6645307Z tests/tools/test_release_metadata.py:54 in public method `test_product_ci_keeps_package_smoke_ephemeral`:
+2026-07-15T12:19:06.6643135Z tests/tools/test_release_metadata.py:22 in public method `test_release_tree_metadata_is_consistent`:
+2026-07-15T12:19:06.6643635Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6644248Z tests/tools/test_release_metadata.py:37 in public method `test_release_workflow_publishes_notes_without_project_assets`:
+2026-07-15T12:19:06.6644803Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6645307Z tests/tools/test_release_metadata.py:54 in public method `test_product_ci_keeps_package_smoke_ephemeral`:
+2026-07-15T12:19:06.6645844Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6646367Z tests/tools/test_release_metadata.py:62 in public method `test_local_packagers_are_not_a_distribution_channel`:
+2026-07-15T12:19:06.6644248Z tests/tools/test_release_metadata.py:37 in public method `test_release_workflow_publishes_notes_without_project_assets`:
+2026-07-15T12:19:06.6644803Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6645307Z tests/tools/test_release_metadata.py:54 in public method `test_product_ci_keeps_package_smoke_ephemeral`:
+2026-07-15T12:19:06.6645844Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6646367Z tests/tools/test_release_metadata.py:62 in public method `test_local_packagers_are_not_a_distribution_channel`:
+2026-07-15T12:19:06.6646880Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6839860Z ❌ pydocstyle 失敗（詳細: documents/DOCSTRING_GUIDE.md を参照）
+2026-07-15T12:19:06.6645307Z tests/tools/test_release_metadata.py:54 in public method `test_product_ci_keeps_package_smoke_ephemeral`:
+2026-07-15T12:19:06.6645844Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6646367Z tests/tools/test_release_metadata.py:62 in public method `test_local_packagers_are_not_a_distribution_channel`:
+2026-07-15T12:19:06.6646880Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6839860Z ❌ pydocstyle 失敗（詳細: documents/DOCSTRING_GUIDE.md を参照）
+2026-07-15T12:19:06.6840526Z 
+2026-07-15T12:19:06.6840738Z 6️⃣  ruff を実行中...
+2026-07-15T12:19:06.6646880Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6839860Z ❌ pydocstyle 失敗（詳細: documents/DOCSTRING_GUIDE.md を参照）
+2026-07-15T12:19:06.6840526Z 
+2026-07-15T12:19:06.6840738Z 6️⃣  ruff を実行中...
+2026-07-15T12:19:06.6841172Z    - E,F: コード品質（エラー・警告）
+2026-07-15T12:19:06.6841608Z    - I: Import 順序チェック
+2026-07-15T12:19:06.6842015Z    - D: Docstring 検証
+2026-07-15T12:19:06.6842404Z    - UP: Python 最新構文チェック
+2026-07-15T12:19:06.6842637Z 
+2026-07-15T12:19:06.7356154Z D101 Missing docstring in public class
+2026-07-15T12:19:06.7356938Z   --> tests/tools/test_release_metadata.py:21:7
+2026-07-15T12:19:06.7357268Z    |
+2026-07-15T12:19:06.7357527Z 21 | class ReleaseMetadataTest(unittest.TestCase):
+2026-07-15T12:19:06.7359237Z 23 |         result = subprocess.run(
+2026-07-15T12:19:06.7359729Z    |
+2026-07-15T12:19:06.7359961Z 
+2026-07-15T12:19:06.7360834Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7361364Z   --> tests/tools/test_release_metadata.py:22:9
+2026-07-15T12:19:06.7361858Z    |
+2026-07-15T12:19:06.7362229Z 21 | class ReleaseMetadataTest(unittest.TestCase):
+2026-07-15T12:19:06.7364301Z 24 |             [
+2026-07-15T12:19:06.7364614Z    |
+2026-07-15T12:19:06.7364770Z 
+2026-07-15T12:19:06.7364941Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7365426Z   --> tests/tools/test_release_metadata.py:37:9
+2026-07-15T12:19:06.7365866Z    |
+2026-07-15T12:19:06.7366309Z 35 |         self.assertIn("source-only release metadata ok", result.stdout)
+2026-07-15T12:19:06.7364941Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7365426Z   --> tests/tools/test_release_metadata.py:37:9
+2026-07-15T12:19:06.7365866Z    |
+2026-07-15T12:19:06.7366309Z 35 |         self.assertIn("source-only release metadata ok", result.stdout)
+2026-07-15T12:19:06.7366907Z 36 |
+2026-07-15T12:19:06.7367421Z 37 |     def test_release_workflow_publishes_notes_without_project_assets(self) -> None:
+2026-07-15T12:19:06.7368131Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7367421Z 37 |     def test_release_workflow_publishes_notes_without_project_assets(self) -> None:
+2026-07-15T12:19:06.7368131Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7368784Z 38 |         workflow = (ROOT / ".github/workflows/ptymark-release.yml").read_text()
+2026-07-15T12:19:06.7369525Z 39 |         self.assertIn("gh release create", workflow)
+2026-07-15T12:19:06.7370013Z    |
+2026-07-15T12:19:06.7370320Z 
+2026-07-15T12:19:06.7370490Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7369525Z 39 |         self.assertIn("gh release create", workflow)
+2026-07-15T12:19:06.7370013Z    |
+2026-07-15T12:19:06.7370320Z 
+2026-07-15T12:19:06.7370490Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7370973Z   --> tests/tools/test_release_metadata.py:54:9
+2026-07-15T12:19:06.7371421Z    |
+2026-07-15T12:19:06.7371761Z 52 |             self.assertNotIn(forbidden, workflow)
+2026-07-15T12:19:06.7370490Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7370973Z   --> tests/tools/test_release_metadata.py:54:9
+2026-07-15T12:19:06.7371421Z    |
+2026-07-15T12:19:06.7371761Z 52 |             self.assertNotIn(forbidden, workflow)
+2026-07-15T12:19:06.7372199Z 53 |
+2026-07-15T12:19:06.7372635Z 54 |     def test_product_ci_keeps_package_smoke_ephemeral(self) -> None:
+2026-07-15T12:19:06.7373249Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7372635Z 54 |     def test_product_ci_keeps_package_smoke_ephemeral(self) -> None:
+2026-07-15T12:19:06.7373249Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7373849Z 55 |         workflow = (ROOT / ".github/workflows/ptymark-ci.yml").read_text()
+2026-07-15T12:19:06.7374579Z 56 |         self.assertIn("Cross-platform local package smoke", workflow)
+2026-07-15T12:19:06.7375129Z    |
+2026-07-15T12:19:06.7375283Z 
+2026-07-15T12:19:06.7375444Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7374579Z 56 |         self.assertIn("Cross-platform local package smoke", workflow)
+2026-07-15T12:19:06.7375129Z    |
+2026-07-15T12:19:06.7375283Z 
+2026-07-15T12:19:06.7375444Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7375914Z   --> tests/tools/test_release_metadata.py:62:9
+2026-07-15T12:19:06.7376355Z    |
+2026-07-15T12:19:06.7376616Z 60 |         self.assertNotIn("dist/*.zip", workflow)
+2026-07-15T12:19:06.7375444Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7375914Z   --> tests/tools/test_release_metadata.py:62:9
+2026-07-15T12:19:06.7376355Z    |
+2026-07-15T12:19:06.7376616Z 60 |         self.assertNotIn("dist/*.zip", workflow)
+2026-07-15T12:19:06.7376906Z 61 |
+2026-07-15T12:19:06.7377201Z 62 |     def test_local_packagers_are_not_a_distribution_channel(self) -> None:
+2026-07-15T12:19:06.7377616Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7378593Z 64 |             content = (ROOT / relative).read_text(encoding="utf-8").lower()
+2026-07-15T12:19:06.7378949Z    |
+2026-07-15T12:19:06.7379055Z 
+2026-07-15T12:19:06.7379202Z Found 5 errors.
+2026-07-15T12:19:06.7379730Z ❌ ruff 失敗
+2026-07-15T12:19:06.7379852Z 
+2026-07-15T12:19:06.7379961Z PYTHON_QUALITY_CHECKS=fail
+2026-07-15T12:19:06.7378949Z    |
+2026-07-15T12:19:06.7379055Z 
+2026-07-15T12:19:06.7379202Z Found 5 errors.
+2026-07-15T12:19:06.7379730Z ❌ ruff 失敗
+2026-07-15T12:19:06.7379852Z 
+2026-07-15T12:19:06.7379961Z PYTHON_QUALITY_CHECKS=fail
+2026-07-15T12:19:06.7380458Z make: *** [Makefile:41: ci] Error 1
+2026-07-15T12:19:06.7379202Z Found 5 errors.
+2026-07-15T12:19:06.7379730Z ❌ ruff 失敗
+2026-07-15T12:19:06.7379852Z 
+2026-07-15T12:19:06.7379961Z PYTHON_QUALITY_CHECKS=fail
+2026-07-15T12:19:06.7380458Z make: *** [Makefile:41: ci] Error 1
+2026-07-15T12:19:06.7380938Z ❌ Python quality checks 失敗
+2026-07-15T12:19:06.7381175Z 
+2026-07-15T12:19:06.7379730Z ❌ ruff 失敗
+2026-07-15T12:19:06.7379852Z 
+2026-07-15T12:19:06.7379961Z PYTHON_QUALITY_CHECKS=fail
+2026-07-15T12:19:06.7380458Z make: *** [Makefile:41: ci] Error 1
+2026-07-15T12:19:06.7380938Z ❌ Python quality checks 失敗
+2026-07-15T12:19:06.7381175Z 
+2026-07-15T12:19:06.7381532Z ════════════════════════════════════════════════════════════════
+2026-07-15T12:19:06.7382027Z ❌ CI チェック完了: 失敗あり
+2026-07-15T12:19:06.7382377Z ════════════════════════════════════════════════════════════════
+2026-07-15T12:19:06.7394911Z ##[error]Process completed with exit code 2.
+2026-07-15T12:19:06.7533484Z Post job cleanup.
+2026-07-15T12:19:06.8516277Z [command]/usr/bin/git version
+2026-07-15T12:19:06.8568083Z git version 2.54.0
+
+--- LAST 350 LINES ---
+2026-07-15T12:12:33.2890885Z EVAL_ACCUMULATION_FINDINGS=0
+2026-07-15T12:12:33.2891158Z EVAL_ACCUMULATION_BLOCKING_FINDINGS=0
+2026-07-15T12:12:33.2891439Z EVAL_ACCUMULATION_WARNINGS=0
+2026-07-15T12:12:33.2891689Z EVAL_ACCUMULATION=pass
+2026-07-15T12:12:33.2962174Z ✅ eval accumulation checks 成功
+2026-07-15T12:12:33.6602218Z ✅ Rust format checks 成功
+2026-07-15T12:12:33.7647243Z     Checking cfg-if v1.0.4
+2026-07-15T12:12:33.7648278Z     Checking typenum v1.20.0
+2026-07-15T12:12:33.7648901Z     Checking zerocopy v0.8.48
+2026-07-15T12:12:33.7661928Z     Checking once_cell v1.21.4
+2026-07-15T12:12:33.7982211Z     Checking foldhash v0.2.0
+2026-07-15T12:12:33.8401393Z     Checking libsqlite3-sys v0.30.1
+2026-07-15T12:12:33.8627347Z     Checking hashbrown v0.16.1
+2026-07-15T12:12:33.9671931Z     Checking serde_core v1.0.228
+2026-07-15T12:12:34.3071177Z     Checking hashlink v0.11.1
+2026-07-15T12:12:34.4043265Z     Checking generic-array v0.14.7
+2026-07-15T12:12:34.5091509Z     Checking zmij v1.0.21
+2026-07-15T12:12:34.7041304Z     Checking encoding_rs v0.8.35
+2026-07-15T12:12:34.8471423Z     Checking crypto-common v0.1.7
+2026-07-15T12:12:34.8901340Z     Checking block-buffer v0.10.4
+2026-07-15T12:12:34.9461340Z     Checking digest v0.10.7
+2026-07-15T12:12:35.0551373Z     Checking bitflags v2.11.1
+2026-07-15T12:12:35.1381784Z     Checking itoa v1.0.18
+2026-07-15T12:12:35.2141419Z     Checking fallible-streaming-iterator v0.1.9
+2026-07-15T12:12:35.2790856Z     Checking smallvec v1.15.1
+2026-07-15T12:12:35.4051647Z     Checking arraydeque v0.5.1
+2026-07-15T12:12:35.5252570Z     Checking fallible-iterator v0.3.0
+2026-07-15T12:12:35.6096500Z     Checking memchr v2.8.0
+2026-07-15T12:12:35.6922609Z     Checking cpufeatures v0.2.17
+2026-07-15T12:12:35.7136914Z     Checking sha2 v0.10.9
+2026-07-15T12:12:35.7701364Z     Checking yaml-rust2 v0.11.0
+2026-07-15T12:12:35.9378353Z     Checking serde_json v1.0.149
+2026-07-15T12:12:36.7393361Z     Checking ahash v0.8.12
+2026-07-15T12:12:36.7933646Z     Checking hashbrown v0.14.5
+2026-07-15T12:12:37.0633071Z     Checking hashlink v0.9.1
+2026-07-15T12:12:37.1883727Z     Checking rusqlite v0.32.1
+2026-07-15T12:12:37.5646497Z     Checking agent-canon v0.1.0 (/home/runner/work/ptymark/ptymark/vendor/agent-canon/rust/agent-canon)
+2026-07-15T12:12:42.0721003Z     Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.36s
+2026-07-15T12:12:42.0780395Z ✅ Rust clippy checks 成功
+2026-07-15T12:12:42.1597705Z    Compiling agent-canon v0.1.0 (/home/runner/work/ptymark/ptymark/vendor/agent-canon/rust/agent-canon)
+2026-07-15T12:12:49.8546199Z     Finished `test` profile [unoptimized + debuginfo] target(s) in 7.75s
+2026-07-15T12:12:49.8573233Z      Running unittests src/main.rs (vendor/agent-canon/rust/agent-canon/target/debug/deps/agent_canon-4f5765341fff2be6)
+2026-07-15T12:12:49.8589393Z 
+2026-07-15T12:12:49.8589599Z running 152 tests
+2026-07-15T12:12:49.8594009Z test docs::tests::fixes_legacy_math_notation ... ok
+2026-07-15T12:12:49.8594835Z test docs::tests::help_text_exposes_options_and_examples ... ok
+2026-07-15T12:12:49.8599461Z test docs::tests::parses_formatter_command_arguments ... ok
+2026-07-15T12:12:49.8600451Z test docs::tests::formats_mermeid_fence_and_reserved_graph_node ... ok
+2026-07-15T12:12:49.8601361Z test docs::tests::flags_workspace_absolute_markdown_links_even_when_target_exists ... ok
+2026-07-15T12:12:49.8602293Z test docs::tests::renders_validation_failure_response_from_inventory ... ok
+2026-07-15T12:12:49.8603174Z test docs::tests::structured_report_tells_agents_to_use_reported_location ... ok
+2026-07-15T12:12:49.8604068Z test jit_ir_to_lean::tests::render_lean_rejects_missing_public_interface ... ok
+2026-07-15T12:12:49.8606247Z test jit_ir_to_lean::tests::render_lean_rejects_non_answer_state_info_public_return ... ok
+2026-07-15T12:12:49.8613899Z test local_llm::tests::build_index_adds_python_build_subcommand ... ok
+2026-07-15T12:12:49.8617152Z test local_llm::tests::classify_prompt_is_native_rust_and_single_file ... ok
+2026-07-15T12:12:49.8641563Z test local_llm::tests::implementation_surface_route_detects_contract_only_test_policy ... ok
+2026-07-15T12:12:49.8642575Z test jit_ir_to_lean::tests::render_lean_rejects_malformed_public_interface_schema ... ok
+2026-07-15T12:12:49.8648004Z test local_llm::tests::implementation_surface_route_detects_document_claim_grounding ... ok
+2026-07-15T12:12:49.8649182Z test local_llm::tests::implementation_surface_route_detects_iterative_algorithm_contract ... ok
+2026-07-15T12:12:49.8654359Z test local_llm::tests::implementation_surface_route_detects_personal_codex_runtime ... ok
+2026-07-15T12:12:49.8655482Z test local_llm::tests::implementation_surface_route_detects_program_contract ... ok
+2026-07-15T12:12:49.8661617Z test local_llm::tests::implementation_surface_route_fallback_is_structured_without_llm ... ok
+2026-07-15T12:12:49.8662645Z test jit_ir_to_lean::tests::render_lean_omits_source_and_backend_routes_for_hlo_only_root ... ok
+2026-07-15T12:12:49.8667379Z test local_llm::tests::implementation_surface_route_payload_is_structured ... ok
+2026-07-15T12:12:49.8670054Z test local_llm::tests::implementation_surface_route_prioritizes_local_llm_tool ... ok
+2026-07-15T12:12:49.8671350Z test local_llm::tests::local_llm_command_envelope_hides_accelerator_devices ... ok
+2026-07-15T12:12:49.8672317Z test local_llm::tests::parses_batch_prose_ir_inputs ... ok
+2026-07-15T12:12:49.8673384Z test local_llm::tests::parses_classify_alias_and_root ... ok
+2026-07-15T12:12:49.8674284Z test local_llm::tests::parses_implementation_surface_route_request_file ... ok
+2026-07-15T12:12:49.8675499Z test local_llm::tests::prose_ir_does_not_mark_activity_word_only_as_experiment_plan ... ok
+2026-07-15T12:12:49.8676634Z test local_llm::tests::prose_ir_does_not_mark_experimental_identifier_as_experiment_plan ... ok
+2026-07-15T12:12:49.8679189Z test local_llm::tests::prose_ir_marks_assigned_experiment_fields_as_present ... ok
+2026-07-15T12:12:49.8680637Z test local_llm::tests::prose_ir_marks_experiment_vocabulary_as_vocabulary_only ... ok
+2026-07-15T12:12:49.8702575Z test local_llm::tests::parent_repo_root_uses_vendored_agent_canon_source ... ok
+2026-07-15T12:12:49.8731062Z test local_llm::tests::prose_ir_part_llm_results_skip_when_llama_cli_is_missing ... ok
+2026-07-15T12:12:49.8744201Z test local_llm::tests::prose_ir_prompt_names_tool_document_extraction_contracts ... ok
+2026-07-15T12:12:49.8757299Z test local_llm::tests::prose_ir_payload_returns_intermediate_representation ... ok
+2026-07-15T12:12:49.8758100Z test local_llm::tests::prose_ir_part_llm_results_run_fake_llama_per_part_in_input_order ... ok
+2026-07-15T12:12:49.8758818Z test migration_audit::tests::audit_passes_for_complete_fixture ... ok
+2026-07-15T12:12:49.8759395Z test migration_audit::tests::parse_root_argument ... ok
+2026-07-15T12:12:49.8760108Z test python_algorithm_contract::tests::amp_algorithm_module_requires_standard_surface_and_callable_algorithm ... ok
+2026-07-15T12:12:49.8761467Z test migration_audit::tests::audit_reports_missing_wrapper ... ok
+2026-07-15T12:12:49.8762310Z test python_algorithm_contract::tests::compliant_nested_and_stopping_contract_passes ... ok
+2026-07-15T12:12:49.8763003Z test python_algorithm_contract::tests::direct_base_stopping_policy_is_reported ... ok
+2026-07-15T12:12:49.8763536Z test python_algorithm_contract::tests::missing_child_info_is_reported ... ok
+2026-07-15T12:12:49.8764171Z test python_algorithm_contract::tests::stopping_primitive_definition_module_is_not_legacy_usage ... ok
+2026-07-15T12:12:49.8764770Z test python_module_groups::tests::maps_path_to_longest_matching_group ... ok
+2026-07-15T12:12:49.8765258Z test migration_audit::tests::audit_rejects_dockerfile_cargo_test ... ok
+2026-07-15T12:12:49.8765718Z test python_module_groups::tests::parses_module_group_contract ... ok
+2026-07-15T12:12:49.8766219Z test python_structure_hash::tests::import_hash_tracks_import_surface_separately ... ok
+2026-07-15T12:12:49.8766796Z test python_structure_hash::tests::module_scope_detects_cross_module_groups ... ok
+2026-07-15T12:12:49.8767408Z test python_structure_hash::tests::one_shared_module_level_call_does_not_create_similar_caller ... ok
+2026-07-15T12:12:49.8768020Z test python_module_groups::tests::discovers_python_submodules_without_tests ... ok
+2026-07-15T12:12:49.8768584Z test python_structure_hash::tests::single_callee_ignores_annotation_only_references ... ok
+2026-07-15T12:12:49.8769311Z test python_structure_hash::tests::single_callee_reports_only_non_public_wrappers ... ok
+2026-07-15T12:12:49.8780740Z test python_structure_hash::tests::single_caller_class_target_detects_annotation_owner ... ok
+2026-07-15T12:12:49.8782020Z test python_structure_hash::tests::single_caller_groups_multiple_call_sites_by_enclosing_block ... ok
+2026-07-15T12:12:49.8783080Z test python_structure_hash::tests::source_files_expand_repo_import_neighborhood ... ok
+2026-07-15T12:12:49.8784055Z test python_structure_hash_impact::tests::compares_removed_and_added_hashes ... ok
+2026-07-15T12:12:49.8784866Z test python_structure_hash::tests::stable_hash_ignores_names_when_canonical_payload_is_equal ... ok
+2026-07-15T12:12:49.8785498Z test jit_ir_to_lean::tests::render_lean_expands_llvm_modules_and_functions ... ok
+2026-07-15T12:12:49.8786141Z test python_structure_hash_report::tests::class_single_owner_struct_gets_inline_candidate_when_usage_is_local ... ok
+2026-07-15T12:12:49.8787093Z test python_structure_hash_report::tests::class_single_owner_struct_allows_single_callee_attribute_scope ... ok
+2026-07-15T12:12:49.8789703Z test python_structure_hash_report::tests::class_single_owner_struct_preserves_protocol_contracts ... ok
+2026-07-15T12:12:49.8799304Z test python_structure_hash_report::tests::class_single_owner_struct_preserves_pytree_contracts ... ok
+2026-07-15T12:12:49.8800759Z test python_structure_hash_report::tests::cross_owner_small_methods_are_review_blocked ... ok
+2026-07-15T12:12:49.8801929Z test python_structure_hash_report::tests::parses_finding_without_losing_raw_text ... ok
+2026-07-15T12:12:49.8803110Z test python_structure_hash_report::tests::parses_legacy_single_caller_without_similar_callers ... ok
+2026-07-15T12:12:49.8804369Z test python_structure_hash_report::tests::class_single_owner_struct_review_blocks_returned_private_instance ... ok
+2026-07-15T12:12:49.8818580Z test python_structure_hash_report::tests::parses_single_callee_wrapper_with_callee_evidence ... ok
+2026-07-15T12:12:49.8820109Z test python_structure_hash_report::tests::resolves_relative_import_modules ... ok
+2026-07-15T12:12:49.8821511Z test python_structure_hash_report::tests::same_owner_cond_body_pair_is_review_blocked ... ok
+2026-07-15T12:12:49.8822841Z test python_structure_hash_report::tests::same_owner_parameterless_methods_are_review_blocked ... ok
+2026-07-15T12:12:49.8823988Z test python_structure_hash_report::tests::repo_import_targets_are_part_of_analysis ... ok
+2026-07-15T12:12:49.8825465Z test python_structure_hash_report::tests::parses_single_caller_finding_with_call_site_evidence ... ok
+2026-07-15T12:12:49.8826425Z test python_structure_hash_report::tests::structures_summary_lines ... ok
+2026-07-15T12:12:49.8827192Z test python_structure_hash_report::tests::module_group_graph_aggregates_file_dependencies ... ok
+2026-07-15T12:12:49.8827897Z test python_structure_hash_report::tests::structures_mechanical_problem_cluster_for_shared_callee_wrappers ... ok
+2026-07-15T12:12:49.8831634Z test python_structure_hash_scope_plan::tests::builds_blocks_from_mechanical_clusters ... ok
+2026-07-15T12:12:49.8832774Z test python_structure_hash_scope_plan::tests::keeps_edit_scope_paths_out_of_block_allowed_files ... ok
+2026-07-15T12:12:49.8833856Z test python_structure_hash_scope_plan::tests::selects_larger_disjoint_actionable_candidate ... ok
+2026-07-15T12:12:49.8835081Z test python_structure_hash_scope_plan::tests::parses_dependency_edit_scope_paths ... ok
+2026-07-15T12:12:49.8847914Z test rust_migration_plan::tests::parse_defaults ... ok
+2026-07-15T12:12:49.8848698Z test rust_migration_plan::tests::foundation_reports_missing_post_create ... ok
+2026-07-15T12:12:49.8853405Z test rust_migration_plan::tests::plan_includes_policy_first_target ... ok
+2026-07-15T12:12:49.8857706Z test rust_migration_plan::tests::plan_keeps_orchestration_python ... ok
+2026-07-15T12:12:49.8858542Z test rust_migration_plan::tests::plan_marks_document_inventory_completed ... ok
+2026-07-15T12:12:49.8859373Z test rust_migration_plan::tests::plan_counts_hook_candidate_tools ... ok
+2026-07-15T12:12:49.8864183Z test semantic_index::tests::default_db_path_lives_under_home_cache_and_outside_repo ... ok
+2026-07-15T12:12:49.8866462Z test semantic_index::tests::directed_kind_of_score_classifies_equivalent_and_containment ... ok
+2026-07-15T12:12:49.9096983Z test semantic_index::tests::absolute_include_outside_root_is_rejected ... ok
+2026-07-15T12:12:49.9172668Z test semantic_index::tests::context_pack_returns_bounded_evidence_cells ... ok
+2026-07-15T12:12:49.9177852Z test semantic_index::tests::embedding_ignores_dependency_manifest_comment ... ok
+2026-07-15T12:12:49.9180135Z test semantic_index::tests::embedding_is_normalized_and_zero_safe ... ok
+2026-07-15T12:12:49.9202100Z test semantic_index::tests::candidate_commands_auto_resolve_provider_dimension ... ok
+2026-07-15T12:12:49.9312936Z test semantic_index::tests::discourse_relations_pair_therefore_and_because_variants ... ok
+2026-07-15T12:12:49.9319389Z test semantic_index::tests::eval_output_accepts_valid_review_artifacts ... ok
+2026-07-15T12:12:49.9323108Z test semantic_index::tests::eval_output_rejects_cross_responsibility_and_query_echo ... ok
+2026-07-15T12:12:49.9462802Z test semantic_index::tests::eval_missing_must_not_path_fails ... ok
+2026-07-15T12:12:49.9464461Z test semantic_index::tests::markdown_segmentation_emits_document_sections_and_blocks ... ok
+2026-07-15T12:12:49.9488770Z test semantic_index::tests::embed_provider_adds_vectors_without_rebuilding_nodes ... ok
+2026-07-15T12:12:49.9504807Z test semantic_index::tests::eval_fixture_reports_pass ... ok
+2026-07-15T12:12:49.9597409Z test semantic_index::tests::eval_run_returns_nonzero_when_quality_fails ... ok
+2026-07-15T12:12:49.9779898Z test semantic_index::tests::merge_candidates_exclude_same_file_pairs_by_default ... ok
+2026-07-15T12:12:49.9810055Z test semantic_index::tests::merge_candidates_skip_tiny_heading_only_sections ... ok
+2026-07-15T12:12:49.9890734Z test semantic_index::tests::merge_candidates_skip_alignment_mirrors_and_eval_logs ... ok
+2026-07-15T12:12:49.9892226Z test semantic_index::tests::openai_embedding_response_parses_indexed_batch ... ok
+2026-07-15T12:12:49.9894015Z test semantic_index::tests::openai_embedding_response_rejects_bad_shapes ... ok
+2026-07-15T12:12:49.9898531Z test semantic_index::tests::parse_search_accepts_query_file_and_jsonl_for_long_text ... ok
+2026-07-15T12:12:49.9900457Z test semantic_index::tests::parse_search_requires_query ... ok
+2026-07-15T12:12:49.9902365Z test semantic_index::tests::merge_candidates_stay_within_responsibility_bucket_on_full_repo_input ... ok
+2026-07-15T12:12:49.9903413Z test semantic_index::tests::parse_similar_rejects_non_positive_min_score ... ok
+2026-07-15T12:12:49.9904363Z test semantic_index::tests::remote_embedding_text_is_bounded_without_splitting_chars ... ok
+2026-07-15T12:12:49.9908957Z test semantic_index::tests::responsibility_scope_bucket_tracks_manifest_surfaces ... ok
+2026-07-15T12:12:50.0057828Z test semantic_index::tests::mismatched_search_dimension_returns_no_hits ... ok
+2026-07-15T12:12:50.0193470Z test semantic_index::tests::responsibility_tree_detects_missing_directory_coverage ... ok
+2026-07-15T12:12:50.0235067Z test semantic_index::tests::natural_relations_persist_directed_kind_of_analysis ... ok
+2026-07-15T12:12:50.0259087Z test semantic_index::tests::provider_compare_reuses_existing_responsibility_buckets ... ok
+2026-07-15T12:12:50.0341181Z test semantic_index::tests::responsibility_tree_reports_vectors_and_coverage ... ok
+2026-07-15T12:12:50.0551473Z test semantic_index::tests::search_skips_cached_nodes_for_deleted_paths ... ok
+2026-07-15T12:12:50.0563216Z test semantic_index::tests::similar_pairs_can_cross_responsibility_bucket_for_alignment_search ... ok
+2026-07-15T12:12:50.0629726Z test semantic_index::tests::sqlite_build_and_search_roundtrip ... ok
+2026-07-15T12:12:50.0719435Z test semantic_index::tests::thin_docs_marks_readme_wrappers_as_protected_entrypoints ... ok
+2026-07-15T12:12:50.0751172Z test structured_analysis::tests::closed_issue_records_are_historical_not_active_findings ... ok
+2026-07-15T12:12:50.0945708Z test semantic_index::tests::thin_docs_reports_short_wrapper_from_vector_db ... ok
+2026-07-15T12:12:50.0977138Z test structured_analysis::tests::dsl_trace_can_be_satisfied_by_responsibility_coverage ... ok
+2026-07-15T12:12:50.1009461Z test structured_analysis::tests::dsl_upstream_without_design_trace_is_responsibility_gap ... ok
+2026-07-15T12:12:50.1017113Z test structured_analysis::tests::analyze_writes_separate_warning_database ... ok
+2026-07-15T12:12:50.1044513Z test structured_analysis::tests::duplicate_titles_are_reported ... ok
+2026-07-15T12:12:50.1046065Z test structured_analysis::tests::generated_reports_are_excluded_from_default_document_inventory ... ok
+2026-07-15T12:12:50.1048892Z test structured_analysis::tests::graph_contract_cli_rejects_invalid_format_argument ... ok
+2026-07-15T12:12:50.1212259Z test structured_analysis::tests::graph_contract_cli_returns_failure_on_blocker ... ok
+2026-07-15T12:12:50.1215943Z test structured_analysis::tests::graph_contract_json_output_is_parseable ... ok
+2026-07-15T12:12:50.1376659Z test structured_analysis::tests::graph_contract_reports_broken_edge_endpoint ... ok
+2026-07-15T12:12:50.1390138Z test structured_analysis::tests::build_cache_materializes_artifact_layer ... ok
+2026-07-15T12:12:50.1482766Z test structured_analysis::tests::graph_contract_reports_missing_required_column ... ok
+2026-07-15T12:12:50.1492259Z test structured_analysis::tests::graph_contract_reports_missing_required_table ... ok
+2026-07-15T12:12:50.1522698Z test structured_analysis::tests::graph_contract_reports_invalid_payload_json ... ok
+2026-07-15T12:12:50.1525232Z test structured_analysis::tests::graph_contract_text_exposes_core_contract ... ok
+2026-07-15T12:12:50.1669151Z test structured_analysis::tests::graph_contract_reports_non_blocker_rules ... ok
+2026-07-15T12:12:50.1686561Z test structured_analysis::tests::directory_responsibility_gap_is_reported_from_child_artifacts ... ok
+2026-07-15T12:12:50.1718063Z test structured_analysis::tests::tool_document_path_alone_does_not_create_design_gap ... ok
+2026-07-15T12:12:50.1725611Z test structured_analysis::tests::graph_contract_accepts_build_cache_schema ... ok
+2026-07-15T12:12:50.1731136Z test test_design::tests::accepts_multiline_python_test_function_header_with_unittest_assertion ... ok
+2026-07-15T12:12:50.1738768Z test test_design::tests::allows_static_checker_behavior_contract_tests ... ok
+2026-07-15T12:12:50.1739627Z test test_design::tests::detects_missing_oracle_in_python_test_function ... ok
+2026-07-15T12:12:50.1740645Z test test_design::tests::detects_overspecified_mock_and_private_access ... ok
+2026-07-15T12:12:50.1741414Z test test_design::tests::emits_property_design_hint_for_parser_examples ... ok
+2026-07-15T12:12:50.1742414Z test test_design::tests::flags_generated_execution_only_placeholder ... ok
+2026-07-15T12:12:50.1743204Z test test_design::tests::flags_static_analysis_duplicate_success_test ... ok
+2026-07-15T12:12:50.1744509Z test test_design::tests::help_text_exposes_options_and_examples ... ok
+2026-07-15T12:12:50.1751430Z test test_design::tests::parse_check_args ... ok
+2026-07-15T12:12:50.1755398Z test structured_analysis::tests::upstream_coverage_rule_reports_graph_format_gap ... ok
+2026-07-15T12:12:50.1756109Z test structured_analysis::tests::inventory_import_materializes_document_canon_diagnostics ... ok
+2026-07-15T12:12:50.1756702Z test test_design::tests::scans_test_like_files_under_tests_directory ... ok
+2026-07-15T12:12:50.1823962Z test structured_analysis::tests::responsibility_gap_diagnostic_includes_recursive_verification_route ... ok
+2026-07-15T12:12:50.1824681Z 
+2026-07-15T12:12:50.1825089Z test result: ok. 152 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+2026-07-15T12:12:50.1825606Z 
+2026-07-15T12:12:50.1856149Z ✅ Rust tests 成功
+2026-07-15T12:12:50.4269376Z GITHUB_WORKFLOWS_CHECKED=16
+2026-07-15T12:12:50.4269890Z GITHUB_WORKFLOW_ERRORS=0
+2026-07-15T12:12:50.4270456Z GITHUB_WORKFLOW_WARNINGS=0
+2026-07-15T12:12:50.4270832Z GITHUB_WORKFLOWS=pass
+2026-07-15T12:12:50.4365923Z ✅ GitHub workflow / PR template checks 成功
+2026-07-15T12:12:50.5001725Z CONTAINER_CONFIG_PACK=default-host-docker	path=docker/packs/default-host-docker.toml	dockerfile=docker/Dockerfile	context=.	workdir=/workspace	workspace_mount=/workspace
+2026-07-15T12:12:50.5002920Z CONTAINER_CONFIG_PACK=default	path=docker/packs/default.toml	dockerfile=docker/Dockerfile	context=.	workdir=/workspace	workspace_mount=/workspace
+2026-07-15T12:12:50.5003839Z CONTAINER_CONFIG_CHECKED=.dockerignore,docker/Dockerfile,docker/requirements.txt,docker/packs,.devcontainer,.vscode
+2026-07-15T12:12:50.5004392Z CONTAINER_CONFIG_FINDINGS=0
+2026-07-15T12:12:50.5004659Z CONTAINER_CONFIG=pass
+2026-07-15T12:12:50.5077304Z ✅ container configuration checks 成功
+2026-07-15T12:12:50.5077643Z 
+2026-07-15T12:12:50.5077901Z 1️⃣  documentation checks を実行中...
+2026-07-15T12:12:50.5705713Z     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+2026-07-15T12:12:50.5718407Z      Running `vendor/agent-canon/rust/agent-canon/target/debug/agent-canon docs check`
+2026-07-15T12:12:50.7278431Z DOCS_CHECK=pass
+2026-07-15T12:12:50.7281596Z ✅ documentation checks 成功
+2026-07-15T12:12:50.7281886Z 
+2026-07-15T12:12:50.7282165Z 2️⃣  experiment registry checks を実行中...
+2026-07-15T12:12:50.7804658Z repo_root=/home/runner/work/ptymark/ptymark
+2026-07-15T12:12:50.7805414Z registry_path=/home/runner/work/ptymark/ptymark/experiments/registry.toml
+2026-07-15T12:12:50.7806035Z WARNING: _template: active_branch does not exist in the current repo: main
+2026-07-15T12:12:50.7806439Z OK: experiment registry is valid
+2026-07-15T12:12:50.7878793Z ✅ experiment registry checks 成功
+2026-07-15T12:12:50.7879078Z 
+2026-07-15T12:12:50.7917028Z 3️⃣  pytest を実行中...
+2026-07-15T12:13:09.3333651Z ........................................................................ [  7%]
+2026-07-15T12:13:13.4855142Z ................................................................. [ 14%]
+2026-07-15T12:13:17.5253578Z .................................................................... [ 21%]
+2026-07-15T12:14:02.2856487Z .................................................................................................................................. [ 35%]
+2026-07-15T12:14:11.4135374Z ..................................................................... [ 42%]
+2026-07-15T12:15:07.0850549Z .................................................................... [ 49%]
+2026-07-15T12:15:58.9393786Z ................................................................... [ 56%]
+2026-07-15T12:16:29.9652583Z .......................................................... [ 62%]
+2026-07-15T12:17:58.2239697Z ..................................................................................................................... [ 75%]
+2026-07-15T12:18:09.1414698Z ........................................................................ [ 82%]
+2026-07-15T12:18:21.3074234Z ........................................................................ [ 90%]
+2026-07-15T12:18:47.5310448Z ............................................sssss....................... [ 98%]
+2026-07-15T12:18:55.7051536Z ..................                                       [100%]
+2026-07-15T12:18:55.7052454Z 943 passed, 5 skipped, 238 subtests passed in 363.65s (0:06:03)
+2026-07-15T12:18:55.7844299Z ✅ pytest 成功
+2026-07-15T12:18:55.7847574Z 
+2026-07-15T12:18:55.7848080Z 4️⃣  pyright を実行中...
+2026-07-15T12:19:02.4168398Z 0 errors, 0 warnings, 0 informations
+2026-07-15T12:19:02.4696451Z ✅ pyright 成功
+2026-07-15T12:19:02.4696755Z 
+2026-07-15T12:19:02.4697098Z 5️⃣  pydocstyle を実行中... (Docstring チェック)
+2026-07-15T12:19:06.6641762Z tests/tools/test_release_metadata.py:21 in public class `ReleaseMetadataTest`:
+2026-07-15T12:19:06.6642559Z         D101: Missing docstring in public class
+2026-07-15T12:19:06.6643135Z tests/tools/test_release_metadata.py:22 in public method `test_release_tree_metadata_is_consistent`:
+2026-07-15T12:19:06.6643635Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6644248Z tests/tools/test_release_metadata.py:37 in public method `test_release_workflow_publishes_notes_without_project_assets`:
+2026-07-15T12:19:06.6644803Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6645307Z tests/tools/test_release_metadata.py:54 in public method `test_product_ci_keeps_package_smoke_ephemeral`:
+2026-07-15T12:19:06.6645844Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6646367Z tests/tools/test_release_metadata.py:62 in public method `test_local_packagers_are_not_a_distribution_channel`:
+2026-07-15T12:19:06.6646880Z         D102: Missing docstring in public method
+2026-07-15T12:19:06.6839860Z ❌ pydocstyle 失敗（詳細: documents/DOCSTRING_GUIDE.md を参照）
+2026-07-15T12:19:06.6840526Z 
+2026-07-15T12:19:06.6840738Z 6️⃣  ruff を実行中...
+2026-07-15T12:19:06.6841172Z    - E,F: コード品質（エラー・警告）
+2026-07-15T12:19:06.6841608Z    - I: Import 順序チェック
+2026-07-15T12:19:06.6842015Z    - D: Docstring 検証
+2026-07-15T12:19:06.6842404Z    - UP: Python 最新構文チェック
+2026-07-15T12:19:06.6842637Z 
+2026-07-15T12:19:06.7356154Z D101 Missing docstring in public class
+2026-07-15T12:19:06.7356938Z   --> tests/tools/test_release_metadata.py:21:7
+2026-07-15T12:19:06.7357268Z    |
+2026-07-15T12:19:06.7357527Z 21 | class ReleaseMetadataTest(unittest.TestCase):
+2026-07-15T12:19:06.7358244Z    |       ^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7358682Z 22 |     def test_release_tree_metadata_is_consistent(self) -> None:
+2026-07-15T12:19:06.7359237Z 23 |         result = subprocess.run(
+2026-07-15T12:19:06.7359729Z    |
+2026-07-15T12:19:06.7359961Z 
+2026-07-15T12:19:06.7360834Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7361364Z   --> tests/tools/test_release_metadata.py:22:9
+2026-07-15T12:19:06.7361858Z    |
+2026-07-15T12:19:06.7362229Z 21 | class ReleaseMetadataTest(unittest.TestCase):
+2026-07-15T12:19:06.7362848Z 22 |     def test_release_tree_metadata_is_consistent(self) -> None:
+2026-07-15T12:19:06.7363443Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7363890Z 23 |         result = subprocess.run(
+2026-07-15T12:19:06.7364301Z 24 |             [
+2026-07-15T12:19:06.7364614Z    |
+2026-07-15T12:19:06.7364770Z 
+2026-07-15T12:19:06.7364941Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7365426Z   --> tests/tools/test_release_metadata.py:37:9
+2026-07-15T12:19:06.7365866Z    |
+2026-07-15T12:19:06.7366309Z 35 |         self.assertIn("source-only release metadata ok", result.stdout)
+2026-07-15T12:19:06.7366907Z 36 |
+2026-07-15T12:19:06.7367421Z 37 |     def test_release_workflow_publishes_notes_without_project_assets(self) -> None:
+2026-07-15T12:19:06.7368131Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7368784Z 38 |         workflow = (ROOT / ".github/workflows/ptymark-release.yml").read_text()
+2026-07-15T12:19:06.7369525Z 39 |         self.assertIn("gh release create", workflow)
+2026-07-15T12:19:06.7370013Z    |
+2026-07-15T12:19:06.7370320Z 
+2026-07-15T12:19:06.7370490Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7370973Z   --> tests/tools/test_release_metadata.py:54:9
+2026-07-15T12:19:06.7371421Z    |
+2026-07-15T12:19:06.7371761Z 52 |             self.assertNotIn(forbidden, workflow)
+2026-07-15T12:19:06.7372199Z 53 |
+2026-07-15T12:19:06.7372635Z 54 |     def test_product_ci_keeps_package_smoke_ephemeral(self) -> None:
+2026-07-15T12:19:06.7373249Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7373849Z 55 |         workflow = (ROOT / ".github/workflows/ptymark-ci.yml").read_text()
+2026-07-15T12:19:06.7374579Z 56 |         self.assertIn("Cross-platform local package smoke", workflow)
+2026-07-15T12:19:06.7375129Z    |
+2026-07-15T12:19:06.7375283Z 
+2026-07-15T12:19:06.7375444Z D102 Missing docstring in public method
+2026-07-15T12:19:06.7375914Z   --> tests/tools/test_release_metadata.py:62:9
+2026-07-15T12:19:06.7376355Z    |
+2026-07-15T12:19:06.7376616Z 60 |         self.assertNotIn("dist/*.zip", workflow)
+2026-07-15T12:19:06.7376906Z 61 |
+2026-07-15T12:19:06.7377201Z 62 |     def test_local_packagers_are_not_a_distribution_channel(self) -> None:
+2026-07-15T12:19:06.7377616Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-15T12:19:06.7378066Z 63 |         for relative in ("scripts/package-release.sh", "scripts/package-release.ps1"):
+2026-07-15T12:19:06.7378593Z 64 |             content = (ROOT / relative).read_text(encoding="utf-8").lower()
+2026-07-15T12:19:06.7378949Z    |
+2026-07-15T12:19:06.7379055Z 
+2026-07-15T12:19:06.7379202Z Found 5 errors.
+2026-07-15T12:19:06.7379730Z ❌ ruff 失敗
+2026-07-15T12:19:06.7379852Z 
+2026-07-15T12:19:06.7379961Z PYTHON_QUALITY_CHECKS=fail
+2026-07-15T12:19:06.7380458Z make: *** [Makefile:41: ci] Error 1
+2026-07-15T12:19:06.7380938Z ❌ Python quality checks 失敗
+2026-07-15T12:19:06.7381175Z 
+2026-07-15T12:19:06.7381532Z ════════════════════════════════════════════════════════════════
+2026-07-15T12:19:06.7382027Z ❌ CI チェック完了: 失敗あり
+2026-07-15T12:19:06.7382377Z ════════════════════════════════════════════════════════════════
+2026-07-15T12:19:06.7394911Z ##[error]Process completed with exit code 2.
+2026-07-15T12:19:06.7533484Z Post job cleanup.
+2026-07-15T12:19:06.8516277Z [command]/usr/bin/git version
+2026-07-15T12:19:06.8568083Z git version 2.54.0
+2026-07-15T12:19:06.8603986Z Copying '/home/runner/.gitconfig' to '/home/runner/work/_temp/0ff0ef52-b50a-49c5-bb46-6a882e7ce402/.gitconfig'
+2026-07-15T12:19:06.8631507Z Temporarily overriding HOME='/home/runner/work/_temp/0ff0ef52-b50a-49c5-bb46-6a882e7ce402' before making global git config changes
+2026-07-15T12:19:06.8636187Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-15T12:19:06.8640113Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ptymark/ptymark
+2026-07-15T12:19:06.8694000Z Removing SSH command configuration
+2026-07-15T12:19:06.8694690Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-15T12:19:06.8736585Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-15T12:19:06.8995894Z Entering 'vendor/agent-canon'
+2026-07-15T12:19:06.9056977Z Removing HTTP extra header
+2026-07-15T12:19:06.9064541Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:19:06.9109696Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:19:06.9375531Z Entering 'vendor/agent-canon'
+2026-07-15T12:19:06.9462154Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:19:06.9472079Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:19:06.9516079Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:19:06.9843113Z Entering 'vendor/agent-canon'
+2026-07-15T12:19:06.9857636Z file:/home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config	remote.origin.url
+2026-07-15T12:19:06.9899398Z [command]/usr/bin/git config --file /home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:19:07.0119776Z Cleaning up orphan processes
