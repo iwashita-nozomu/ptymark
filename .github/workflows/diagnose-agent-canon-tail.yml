@@ -56,5 +56,5 @@ jobs:
           make agent-canon-pr-check >agent-canon-pr.log 2>&1
           status=$?
           printf 'AGENT_CANON_GATE_STATUS=%s\n' "$status"
-          tail -n 80 agent-canon-pr.log
+          tail -n 30 agent-canon-pr.log
           exit "$status"
