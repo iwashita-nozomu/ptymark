@@ -1,0 +1,37 @@
+name: finalize source-only PR head
+
+on:
+  push:
+    branches:
+      - agent/source-only-policy-clean
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/source-only-policy-clean
+          persist-credentials: false
+      - name: Remove temporary files
+        run: |
+          rm -f .github/.should-not-exist .github/.source-only-pr-ready
+          rm -f .github/workflows/cleanup-source-only-pr-head-once.yml
+          rm -f .github/workflows/cleanup-source-only-pr-marker-once.yml
+          test -z "$(find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -print -quit)"
+          git diff --check
+      - name: Commit final head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/source-only-policy-clean
+        run: |
+          set -euo pipefail
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'ci: finalize source-only policy head'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
