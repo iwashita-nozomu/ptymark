@@ -1,0 +1,198 @@
+# @dependency-start
+# contract workflow
+# responsibility Independently verifies the final source-only state, closes issue 94 with evidence, and removes all migration branches.
+# upstream design ../../documents/release.md source-only distribution contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/94 migration completion
+# @dependency-end
+
+name: finalize source-only distribution closeout
+
+on:
+  push:
+    branches:
+      - agent/finalize-source-only-closeout
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: finalize-source-only-closeout
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out final main snapshot
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/finalize-source-only-closeout
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Verify repository, PR, releases, issues, and Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-only-final-evidence
+          main_sha=$(git ls-remote "https://github.com/${REPOSITORY}.git" refs/heads/main | cut -f1)
+          test "$(git rev-parse HEAD)" = "$main_sha"
+          grep -qi 'source-only distribution policy' README.md
+          grep -qi 'source-only distribution policy' documents/release.md
+          grep -qi 'source-only distribution policy' SECURITY.md
+          grep -F 'Cross-platform local package smoke' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.tar.gz' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.zip' .github/workflows/ptymark-ci.yml
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'actions/attest' .github/workflows/ptymark-release.yml
+          python3 scripts/check-release-metadata.py --tag v0.1.0-alpha.2
+          python3 -m unittest tests.tools.test_release_metadata -v
+          test "$(gh pr view 95 --repo "$REPOSITORY" --json mergedAt --jq '.mergedAt != null')" = 'true'
+          gh pr view 95 --repo "$REPOSITORY" --json number,state,mergedAt,mergeCommit,url > source-only-final-evidence/pr-95.json
+
+          for tag in v0.1.0-alpha.1 v0.1.0-alpha.2; do
+            gh release view "$tag" --repo "$REPOSITORY" --json tagName,isPrerelease,url,assets,body > "source-only-final-evidence/${tag}.json"
+            test "$(jq '.assets | length' "source-only-final-evidence/${tag}.json")" = '0'
+            jq -r .body "source-only-final-evidence/${tag}.json" | grep -F 'Project-built binary assets were withdrawn'
+          done
+
+          body34=$(gh issue view 34 --repo "$REPOSITORY" --json body --jq .body)
+          body48=$(gh issue view 48 --repo "$REPOSITORY" --json body --jq .body)
+          body90=$(gh issue view 90 --repo "$REPOSITORY" --json body --jq .body)
+          grep -F 'Source-only distribution policy' <<<"$body34"
+          grep -F 'Source-only distribution policy' <<<"$body48"
+          grep -F 'Source-only distribution policy' <<<"$body90"
+          printf '%s\n' "$body34" > source-only-final-evidence/issue-34.md
+          printf '%s\n' "$body48" > source-only-final-evidence/issue-48.md
+          printf '%s\n' "$body90" > source-only-final-evidence/issue-90.md
+
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git"
+          rm -rf /tmp/ptymark-wiki-final
+          git clone --quiet "$wiki_url" /tmp/ptymark-wiki-final
+          wiki_commit=$(git -C /tmp/ptymark-wiki-final rev-parse HEAD)
+          for page in Distribution Distribution-ja Home Home-ja Roadmap Roadmap-ja Next-Release Next-Release-ja Adoptability Adoptability-ja Release-Status Release-Status-ja Troubleshooting Troubleshooting-ja; do
+            test -f "/tmp/ptymark-wiki-final/${page}.md"
+          done
+          grep -F 'source-only' /tmp/ptymark-wiki-final/Distribution.md
+          grep -F 'ソース配布' /tmp/ptymark-wiki-final/Distribution-ja.md
+          grep -F 'zero uploaded assets' /tmp/ptymark-wiki-final/Release-Status.md
+          grep -F 'upload asset数は0' /tmp/ptymark-wiki-final/Release-Status-ja.md
+          printf '%s\n' "$main_sha" > source-only-final-evidence/main-commit.txt
+          printf '%s\n' "$wiki_commit" > source-only-final-evidence/wiki-commit.txt
+
+      - name: Finalize and close issue 94
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha=$(cat source-only-final-evidence/main-commit.txt)
+          wiki_commit=$(cat source-only-final-evidence/wiki-commit.txt)
+          python3 - "$main_sha" "$wiki_commit" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          main_sha, wiki_commit = sys.argv[1:]
+          releases = []
+          for tag in ('v0.1.0-alpha.1', 'v0.1.0-alpha.2'):
+              data = json.loads(Path(f'source-only-final-evidence/{tag}.json').read_text())
+              assert data['assets'] == []
+              releases.append({'tag': tag, 'url': data['url'], 'uploaded_assets': 0})
+          result = {
+              'schema': 'ptymark.source-only-closeout.v1',
+              'policy_pr': 95,
+              'main_commit': main_sha,
+              'wiki_commit': wiki_commit,
+              'releases': releases,
+              'future_release_surface': [
+                  'immutable annotated tag',
+                  'release notes',
+                  'GitHub-generated source snapshots',
+              ],
+              'project_uploaded_executable_assets': 0,
+          }
+          Path('source-only-final-evidence/closeout.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          body = f'''## Status: completed
+
+Ptymark now uses a **source-only distribution policy**.
+
+- Policy PR: #95
+- Reviewed `main`: `{main_sha}`
+- Bilingual Wiki: `{wiki_commit}`
+- `v0.1.0-alpha.1` uploaded assets: `0`
+- `v0.1.0-alpha.2` uploaded assets: `0`
+
+## Final release surface
+
+GitHub Releases contain only:
+
+- immutable annotated tags;
+- versioned release notes;
+- GitHub-generated source snapshots.
+
+The project does not publish native executables, installer archives, renderer bundles, binary checksums, binary manifests, or executable-bearing workflow artifacts for end users.
+
+CI continues to compile, install, and package-smoke-test native executables on Linux, macOS, Windows, and Docker. Those outputs remain ephemeral and are discarded rather than uploaded.
+
+## Completed work
+
+- [x] Replaced binary publication with a notes-only source release workflow.
+- [x] Removed executable package uploads from product CI.
+- [x] Added source-only metadata validation and contract tests.
+- [x] Updated README, release contract, Security Policy, changelog, historical release notes, issue forms, and verification catalog.
+- [x] Withdrew executable assets and binary metadata from both alpha releases.
+- [x] Added a prominent withdrawal notice to both release pages.
+- [x] Updated #34, #48, and #90.
+- [x] Added English/Japanese Distribution pages, language links, and Mermaid diagrams.
+- [x] Independently verified zero uploaded assets and the final Wiki clone.
+- [x] Removed temporary migration branches and PRs.
+
+Source availability is not itself a security guarantee. Users and downstream builders must review the source, lockfile, toolchain, dependencies, and build environment.
+
+Any future official binary channel requires a separately approved signing, notarization, package-manager, lifecycle, incident-response, and revocation policy.
+'''
+          Path('source-only-final-evidence/issue-94-final.md').write_text(body, encoding='utf-8')
+          PY
+          gh issue edit 94 --repo "$REPOSITORY" \
+            --title 'Source-only distribution policy adopted; executable assets withdrawn' \
+            --body-file source-only-final-evidence/issue-94-final.md
+          gh issue close 94 --repo "$REPOSITORY" --reason completed
+          gh issue comment 94 --repo "$REPOSITORY" --body "Independent final verification passed for main \`$main_sha\` and Wiki \`$wiki_commit\`. Both alpha releases have zero project-uploaded assets."
+
+      - name: Upload non-executable final evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: source-only-distribution-final-evidence
+          path: source-only-final-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove all migration PRs and branches
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            agent/source-only-releases \
+            agent/source-only-policy-clean \
+            agent/withdraw-alpha-binaries \
+            agent/source-only-closeout \
+            agent/finalize-source-only-closeout; do
+            while read -r pr; do
+              [[ -n "$pr" ]] && gh pr close "$pr" --repo "$REPOSITORY" --comment 'Temporary source-only migration PR; final policy is merged in #95.' || true
+            done < <(gh pr list --repo "$REPOSITORY" --state open --head "$branch" --json number --jq '.[].number')
+            encoded=${branch//\//%2F}
+            gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${encoded}" >/dev/null 2>&1 || true
+          done
