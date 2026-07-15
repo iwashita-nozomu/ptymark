@@ -8,24 +8,27 @@
 # upstream environment ../.devcontainer/post-create.sh devcontainer post-create entrypoint
 # downstream environment ../.github/workflows/ci.yml selects the verification profile for CI
 # downstream environment packs/default.toml smoke-runs the default verification profile
+# downstream workflow ../.github/workflows/python-dependency-layers.yml validates profile selection
 # @dependency-end
 
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: docker/install_python_dependencies.sh [WORKSPACE] [--profile runtime|verification]
+Usage: docker/install_python_dependencies.sh [WORKSPACE] [--profile runtime|verification] [--print-requirements]
 
 Profiles:
   runtime       Install only packages required by the canonical workload runtime.
   verification  Install runtime plus test, lint, documentation, and audit packages.
 
 The default profile is verification for backward-compatible devcontainer behavior.
+Use --print-requirements to show the selected manifest without installing packages.
 EOF
 }
 
 workspace="/workspace"
 profile="verification"
+print_requirements=0
 
 if [ "$#" -gt 0 ] && [[ "$1" != --* ]]; then
   workspace="$1"
@@ -41,6 +44,10 @@ while [ "$#" -gt 0 ]; do
       }
       profile="$2"
       shift 2
+      ;;
+    --print-requirements)
+      print_requirements=1
+      shift
       ;;
     --help|-h)
       usage
@@ -80,6 +87,12 @@ for dependency_file in "${hash_inputs[@]}"; do
     exit 2
   fi
 done
+
+if [ "$print_requirements" -eq 1 ]; then
+  printf 'python_dependency_profile=%s requirements=%s\n' \
+    "$profile" "${requirements#${workspace%/}/}"
+  exit 0
+fi
 
 marker_dir="${PYTHON_DEPENDENCY_MARKER_DIR:-/usr/local/share/project-template}"
 marker="${marker_dir%/}/python-requirements-${profile}.sha256"
