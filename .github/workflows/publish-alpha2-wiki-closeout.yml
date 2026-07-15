@@ -1,0 +1,58 @@
+# @dependency-start
+# contract workflow
+# responsibility Publishes the released alpha.2 state and alpha.3 roadmap to the bilingual GitHub Wiki, then verifies a fresh clone.
+# upstream design ../../documents/release.md release closeout contract
+# upstream implementation ../../scripts/publish-alpha2-wiki.py Wiki page generator and verifier
+# downstream design https://github.com/iwashita-nozomu/ptymark/wiki public documentation
+# @dependency-end
+
+name: Publish alpha.2 bilingual Wiki closeout
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-alpha2-wiki-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.event.pull_request.head.ref == 'agent/publish-alpha2-wiki-closeout'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out publisher branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/publish-alpha2-wiki-closeout
+          persist-credentials: false
+          submodules: false
+
+      - name: Publish and fresh-clone verify bilingual Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-alpha2-wiki.py
+
+      - name: Upload Wiki publication evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: alpha2-bilingual-wiki-closeout
+          path: wiki-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove publisher branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent/publish-alpha2-wiki-closeout"
