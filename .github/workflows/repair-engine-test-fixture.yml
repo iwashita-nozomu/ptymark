@@ -1,0 +1,94 @@
+name: repair engine test fixture publication
+
+on:
+  push:
+    branches:
+      - agent/deps/consolidated-20260715
+    paths:
+      - .github/workflows/repair-engine-test-fixture.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out integration branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/deps/consolidated-20260715
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
+          rustup override set 1.97.0
+
+      - name: Publish test executables atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/engine.rs')
+          text = path.read_text(encoding='utf-8')
+          old_import = '''    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+'''
+          new_import = '''    use std::fs;
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+'''
+          old_helper = '''    fn executable(path: &Path, source: &str) {
+        fs::write(path, source).expect("write executable");
+        let mut permissions = fs::metadata(path).expect("metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions).expect("chmod");
+    }
+'''
+          new_helper = '''    fn executable(path: &Path, source: &str) {
+        let staged = path.with_extension("tmp");
+        {
+            let mut file = fs::File::create(&staged).expect("create staged executable");
+            file.write_all(source.as_bytes())
+                .expect("write staged executable");
+            file.sync_all().expect("sync staged executable");
+        }
+        let mut permissions = fs::metadata(&staged).expect("metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&staged, permissions).expect("chmod");
+        fs::rename(&staged, path).expect("publish executable");
+    }
+'''
+          if text.count(old_import) != 1:
+              raise SystemExit('engine test import insertion point did not match exactly once')
+          if text.count(old_helper) != 1:
+              raise SystemExit('engine executable helper did not match exactly once')
+          text = text.replace(old_import, new_import, 1).replace(old_helper, new_helper, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          cargo fmt --all
+          cargo fmt --all -- --check
+          for attempt in $(seq 1 25); do
+            cargo test --locked --lib engine::tests::mathjax_cli_is_presented_through_chafa
+          done
+          git diff --check
+
+      - name: Commit the source-only repair
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/deps/consolidated-20260715
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add src/engine.rs
+          git diff --cached --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'test: publish renderer fixtures atomically'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
