@@ -22,17 +22,10 @@ on:
       - "scripts/**"
       - "renderers/**"
       - ".github/workflows/**"
+  # Code scanning is a required merge gate, so pull requests must always publish results.
   pull_request:
     branches:
       - main
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "src/**"
-      - "python/**"
-      - "scripts/**"
-      - "renderers/**"
-      - ".github/workflows/**"
   schedule:
     - cron: "21 18 * * 1"
   workflow_dispatch:
