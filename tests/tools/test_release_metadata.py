@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseMetadataTest(unittest.TestCase):
+    """Verify source-only release metadata and publication constraints."""
+
     def test_release_tree_metadata_is_consistent(self) -> None:
+        """Require the current release tree to satisfy the metadata validator."""
         result = subprocess.run(
             [
                 sys.executable,
@@ -35,6 +38,7 @@ class ReleaseMetadataTest(unittest.TestCase):
         self.assertIn("source-only release metadata ok", result.stdout)
 
     def test_release_workflow_publishes_notes_without_project_assets(self) -> None:
+        """Require release automation to publish notes without binary assets."""
         workflow = (ROOT / ".github/workflows/ptymark-release.yml").read_text()
         self.assertIn("gh release create", workflow)
         self.assertIn("--notes-file", workflow)
@@ -52,6 +56,7 @@ class ReleaseMetadataTest(unittest.TestCase):
             self.assertNotIn(forbidden, workflow)
 
     def test_product_ci_keeps_package_smoke_ephemeral(self) -> None:
+        """Require product package smoke outputs to remain ephemeral."""
         workflow = (ROOT / ".github/workflows/ptymark-ci.yml").read_text()
         self.assertIn("Cross-platform local package smoke", workflow)
         self.assertIn("Discard local package output", workflow)
@@ -60,6 +65,7 @@ class ReleaseMetadataTest(unittest.TestCase):
         self.assertNotIn("dist/*.zip", workflow)
 
     def test_local_packagers_are_not_a_distribution_channel(self) -> None:
+        """Require local packaging scripts to disclaim distribution status."""
         for relative in ("scripts/package-release.sh", "scripts/package-release.ps1"):
             content = (ROOT / relative).read_text(encoding="utf-8").lower()
             self.assertIn("developer/ci verification only", content)
