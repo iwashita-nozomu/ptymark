@@ -1,0 +1,67 @@
+name: export PR 85 CI failure
+
+on:
+  push:
+    branches:
+      - agent/integration/source-only-policy-final-20260715
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out diagnostics branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/integration/source-only-policy-final-20260715
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download and summarize failed job log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: '87348790750'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" > /tmp/pr85-ci.log
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lines = Path('/tmp/pr85-ci.log').read_text(encoding='utf-8-sig', errors='replace').splitlines()
+          needles = (
+              'error', 'fail', 'traceback', 'assert', 'missing', 'unexpected',
+              'workflow', 'credential', 'action', 'dependency', 'process completed',
+              'exit code', 'pr gate', 'finding',
+          )
+          selected = []
+          for index, line in enumerate(lines):
+              if any(needle in line.lower() for needle in needles):
+                  selected.extend(lines[max(0, index - 3):min(len(lines), index + 4)])
+          selected.extend(['', '--- LAST 300 LINES ---', *lines[-300:]])
+          deduped = []
+          previous = None
+          for line in selected:
+              if line != previous:
+                  deduped.append(line)
+              previous = line
+          Path('pr85-ci-failure-summary.txt').write_text('\n'.join(deduped) + '\n', encoding='utf-8')
+          PY
+          rm .github/workflows/export-pr85-ci-failure.yml
+
+      - name: Publish diagnostic summary and remove workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/integration/source-only-policy-final-20260715
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'ci: export PR 85 failure summary'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
