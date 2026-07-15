@@ -8,7 +8,7 @@
 # downstream implementation tests/tools/test_update_latest_result.py imports shared tools in pyright
 # @dependency-end
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=83.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,11 +25,11 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8",
-  "ruff>=0.5",
+  "pytest>=9.1.1",
+  "ruff>=0.15.21",
   "scipy-stubs",
   "pydocstyle>=6.3",
-  "pyyaml>=6",
+  "pyyaml>=6.0.3",
 ]
 
 [tool.setuptools]

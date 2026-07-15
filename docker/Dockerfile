@@ -6,7 +6,7 @@
 # downstream implementation ../tools/ci/check_fresh_clone.sh uses rsync for workspace overlay
 # downstream implementation ../tools/docker_dependency_validator.sh validates canonical image tools
 # @dependency-end
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+FROM nvidia/cuda:13.3.0-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # GCCやビルド系 + Python 3.11

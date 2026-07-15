@@ -14,7 +14,7 @@ scipy
 scipy-stubs
 
 # Testing
-pytest>=8
+pytest>=9.1.1
 
 # Development & Analysis
 pyright
@@ -34,12 +34,12 @@ ipykernel
 # Documentation & Formatting
 mdformat
 mdformat-myst
-pyyaml>=6
-tomli>=2.0.1
+pyyaml>=6.0.3
+tomli>=2.4.1
 
 # Security & Audit
-jsonschema>=4.0.0
-cryptography>=41.0.0
+jsonschema>=4.26.0
+cryptography>=49.0.0
 
 # Data validation
-pydantic>=2.0.0
+pydantic>=2.13.4
