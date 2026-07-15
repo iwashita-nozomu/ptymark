@@ -33,6 +33,35 @@ jobs:
           persist-credentials: false
           submodules: false
 
+      - name: Refine page-role verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/publish-alpha2-wiki.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    assert "v0.1.0-alpha.2" in en_text
+              assert "v0.1.0-alpha.2" in ja_text
+          '''
+          old = '\n'.join(line.removeprefix('          ') for line in old.splitlines()) + '\n'
+          new = '''    if english == "Next-Release.md":
+              assert "v0.1.0-alpha.3" in en_text
+              assert "v0.1.0-alpha.3" in ja_text
+          elif english == "Troubleshooting.md":
+              assert "ptymark.doctor.v1" in en_text
+              assert "ptymark.doctor.v1" in ja_text
+          else:
+              assert "v0.1.0-alpha.2" in en_text
+              assert "v0.1.0-alpha.2" in ja_text
+          '''
+          new = '\n'.join(line.removeprefix('          ') for line in new.splitlines()) + '\n'
+          if text.count(old) != 1:
+              raise SystemExit('page-role assertion block was not found exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
       - name: Publish and fresh-clone verify bilingual Wiki
         env:
           GH_TOKEN: ${{ github.token }}
