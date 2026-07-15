@@ -4,17 +4,25 @@ on:
   push:
     branches:
       - agent/integration/source-only-policy-final-20260715
+    paths:
+      - .github/workflows/export-pr107-object-failure.yml
 
 permissions:
   actions: read
-  contents: read
+  contents: write
 
 jobs:
   export:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Download failed job log
+      - name: Check out diagnostics branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/integration/source-only-policy-final-20260715
+          persist-credentials: false
+
+      - name: Download focused failed job log
         env:
           GH_TOKEN: ${{ github.token }}
           JOB_ID: '87357291246'
@@ -23,11 +31,17 @@ jobs:
           set -euo pipefail
           gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" > pr107-object-full.log
           tail -n 180 pr107-object-full.log > pr107-object-failure.txt
+          rm pr107-object-full.log
 
-      - name: Upload focused failure log
-        uses: actions/upload-artifact@v7
-        with:
-          name: pr107-object-failure
-          path: pr107-object-failure.txt
-          if-no-files-found: error
-          retention-days: 1
+      - name: Publish focused failure log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/integration/source-only-policy-final-20260715
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add pr107-object-failure.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'ci: capture PR 107 object failure'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
