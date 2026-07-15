@@ -69,7 +69,7 @@ jobs:
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Install managed-bundle Node runtime
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24.18.0
           package-manager-cache: false
