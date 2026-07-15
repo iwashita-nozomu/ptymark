@@ -80,8 +80,13 @@ pub(crate) fn run(
     let stdout = io::stdout();
     let mut display = stdout.lock();
 
-    if let Err(error) = PipelinePump::standard().run(&mut child_stdout, &mut display, &mut pipeline)
-    {
+    if let Err(error) = PipelinePump::standard().run_bounded_with_updates(
+        &mut child_stdout,
+        &mut display,
+        &mut pipeline,
+        |_| {},
+        || terminate_child(&mut child),
+    ) {
         terminate_child(&mut child);
         return Err(format!("cannot process child stdout: {error}"));
     }

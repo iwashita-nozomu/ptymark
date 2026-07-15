@@ -14,14 +14,26 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a problem. Remove secrets, private terminal source, credentials, tokens, and identifying paths before submitting. Security-sensitive reports belong in the private Security Advisories flow.
+        Thanks for reporting a problem. Start with `ptymark doctor` when possible. `ptymark.doctor.v1` excludes semantic source, child environment, secrets, credentials, and raw renderer stderr by default. Do not paste unrestricted environment dumps. Security-sensitive reports belong in the private Security Advisories flow.
 
   - type: input
     id: version
     attributes:
       label: ptymark version
       description: Paste the output of `ptymark --version`, or identify the commit when testing an unreleased build.
-      placeholder: ptymark 0.1.0-alpha.1
+      placeholder: ptymark 0.1.0-alpha.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release-channel
+    attributes:
+      label: Installation or release channel
+      options:
+        - GitHub prerelease archive
+        - source checkout
+        - development commit or pull request
+        - other
     validations:
       required: true
 
@@ -30,6 +42,7 @@ body:
     attributes:
       label: Invocation mode
       options:
+        - doctor or support report
         - preview
         - run -- COMMAND
         - native PTY/ConPTY -- COMMAND
@@ -57,10 +70,24 @@ body:
       required: true
 
   - type: textarea
+    id: doctor-report
+    attributes:
+      label: Redacted ptymark.doctor.v1 report (recommended)
+      description: Paste `ptymark doctor --json`, or attach the file written by `ptymark doctor --support-report PATH`. This field may be omitted when ptymark or doctor cannot start. The default report excludes semantic source, secrets, child environment, and raw renderer stderr.
+      placeholder: |
+        {
+          "schema": "ptymark.doctor.v1",
+          "status": "degraded"
+        }
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
     id: configuration
     attributes:
-      label: Redacted configuration and renderer selection
-      description: Include only relevant fields and replace private paths or values with placeholders.
+      label: Additional redacted configuration context
+      description: Include only details not already covered by the doctor report. Replace private paths or values with placeholders.
       render: toml
     validations:
       required: false
@@ -69,10 +96,10 @@ body:
     id: reproduction
     attributes:
       label: Minimal reproduction
-      description: Give exact commands and the smallest safe input that reproduces the problem.
+      description: Give exact commands and the smallest safe input that reproduces the problem. Do not include private semantic source.
       placeholder: |
         1. Run `...`
-        2. Print `...`
+        2. Print a safe fixture such as `...`
         3. Observe `...`
     validations:
       required: true
@@ -88,7 +115,7 @@ body:
     id: actual
     attributes:
       label: Actual behavior
-      description: Include exit status and redacted stderr. Do not paste secrets or private terminal content.
+      description: Include exit status and the finding code when available. Do not paste raw source-bearing renderer stderr.
     validations:
       required: true
 
@@ -108,7 +135,7 @@ body:
     attributes:
       label: Submission checks
       options:
-        - label: I removed secrets, credentials, private source text, and identifying paths.
+        - label: I did not add semantic source, secrets, credentials, child environment, or raw renderer stderr beyond the redacted doctor report.
           required: true
         - label: This is not a security vulnerability that should be reported privately.
           required: true

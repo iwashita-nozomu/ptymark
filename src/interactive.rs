@@ -49,6 +49,7 @@ pub(crate) fn run(
     let mut session = NativeTerminalSession::spawn(&command, parent.initial_size())?;
     let _raw_mode = parent.enter_raw_mode()?;
     let control = SessionControl::start(&mut session, parent)?;
+    let output_killer = session.kill_handle();
     let waiter = match session.start_exit_waiter() {
         Ok(waiter) => waiter,
         Err(waiter_error) => {
@@ -81,7 +82,7 @@ pub(crate) fn run(
         let stdout = io::stdout();
         let mut display = stdout.lock();
         PipelinePump::interactive()
-            .run_with_updates(
+            .run_bounded_with_updates(
                 session.output_reader(),
                 &mut display,
                 &mut pipeline,
@@ -89,6 +90,9 @@ pub(crate) fn run(
                     if let Some(size) = control.latest_resize() {
                         pipeline.set_columns(size.cols);
                     }
+                },
+                || {
+                    let _ = output_killer.kill();
                 },
             )
             .map_err(|error| format!("cannot process child PTY output: {error}"))

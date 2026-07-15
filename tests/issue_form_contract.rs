@@ -17,9 +17,19 @@ fn release_support_routes_are_present_and_security_stays_private() {
     assert!(config.contains("security/advisories/new"));
     assert!(config.contains("Usage and design questions"));
 
+    for name in ["bug-report.yml", "terminal-compatibility.yml"] {
+        let form = issue_template(name);
+        assert!(form.contains("ptymark.doctor.v1"), "form={name}");
+        assert!(form.contains("ptymark doctor --json"), "form={name}");
+        assert!(form.contains("support-report"), "form={name}");
+        assert!(form.contains("required: false"), "form={name}");
+        assert!(form.contains("semantic source"), "form={name}");
+        assert!(form.contains("child environment"), "form={name}");
+        assert!(form.contains("raw renderer stderr"), "form={name}");
+    }
+
     let bug = issue_template("bug-report.yml");
     assert!(bug.contains("name: Bug report"));
-    assert!(bug.contains("ptymark --version"));
     assert!(bug.contains("--safe"));
     assert!(bug.contains("--source"));
     assert!(bug.contains("--private"));
@@ -31,16 +41,19 @@ fn release_support_routes_are_present_and_security_stays_private() {
     assert!(compatibility.contains("tmux"));
     assert!(compatibility.contains("SSH"));
     assert!(compatibility.contains("CJK"));
+    assert!(compatibility.contains("renderer timeout or output-limit"));
 }
 
 #[test]
-fn public_forms_require_redaction_and_reproduction_evidence() {
+fn public_forms_require_safe_reproduction_evidence_without_environment_dumps() {
     for name in ["bug-report.yml", "terminal-compatibility.yml"] {
         let form = issue_template(name);
         assert!(form.contains("Minimal reproduction"), "form={name}");
         assert!(form.contains("required: true"), "form={name}");
         assert!(form.contains("secrets"), "form={name}");
         assert!(form.contains("private"), "form={name}");
-        assert!(form.contains("identifying paths"), "form={name}");
+        assert!(form.contains("environment dump"), "form={name}");
+        assert!(!form.contains("printenv"), "form={name}");
+        assert!(!form.contains("Get-ChildItem Env:"), "form={name}");
     }
 }

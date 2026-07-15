@@ -88,6 +88,57 @@ impl ManagedBundleManifest {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ManagedBundleInspection {
+    pub manifest_path: PathBuf,
+    pub schema_version: u32,
+    pub node_path: PathBuf,
+    pub browser_path: Option<PathBuf>,
+    pub browser_available: Option<bool>,
+    pub complete: bool,
+}
+
+/// Inspect the manifest next to a managed renderer alias without starting
+/// Node, Chromium, an engine, or a presenter. Non-managed executables return
+/// `None`.
+pub fn inspect_managed_alias(executable: &Path) -> Option<Result<ManagedBundleInspection, String>> {
+    ManagedRole::from_executable(executable)?;
+    let bin_root = executable.parent()?;
+    let bundle_root = bin_root.parent()?;
+    let manifest_path = bundle_root.join("bundle.toml");
+    if !manifest_path.is_file() {
+        return None;
+    }
+    let source = match fs::read_to_string(&manifest_path) {
+        Ok(source) => source,
+        Err(error) => {
+            return Some(Err(format!(
+                "cannot read managed bundle manifest `{}`: {error}",
+                manifest_path.display()
+            )));
+        }
+    };
+    let manifest: ManagedBundleManifest = match toml::from_str(&source) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            return Some(Err(format!(
+                "cannot parse managed bundle manifest `{}`: {error}",
+                manifest_path.display()
+            )));
+        }
+    };
+    let browser_available = manifest.browser_path.as_deref().map(Path::is_file);
+    let complete = manifest.validate().is_ok();
+    Some(Ok(ManagedBundleInspection {
+        manifest_path,
+        schema_version: manifest.schema_version,
+        node_path: manifest.node_path,
+        browser_path: manifest.browser_path,
+        browser_available,
+        complete,
+    }))
+}
+
 fn validate_absolute_file(label: &str, path: &Path) -> Result<(), String> {
     if !path.is_absolute() {
         return Err(format!("managed bundle {label} must be absolute"));

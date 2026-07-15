@@ -14,6 +14,32 @@ All notable changes to ptymark are documented in this file. The project follows 
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-07-14
+
+### Added
+
+- `ptymark doctor`, `ptymark doctor --json`, and atomic redacted support-report files using the versioned `ptymark.doctor.v1` schema.
+- Stable diagnostic finding codes and ready/degraded/unusable exit categories (`0`, `10`, and `20`).
+- Public-safe support forms and packaged troubleshooting documentation.
+
+### Changed
+
+- External render and presentation attempts now share a ten-second monotonic hard deadline.
+- Later terminal output held behind one unresolved semantic block is bounded to one MiB; overload restores exact source and resumes in order.
+- Renderer stdout, artifacts, presentation bytes, and diagnostic stderr remain bounded; source-bearing stderr is not copied into public findings.
+
+### Safety
+
+- Timeout, output-limit, process-exit, invalid-artifact, and presentation failures never enter the cache.
+- Timed-out renderer/presenter process trees are cleaned up without terminating the user's PTY/ConPTY child.
+- Default doctor performs no install, download, network access, renderer/browser execution, child launch, or mutation.
+- Default reports exclude semantic source, child environment, credentials, sensitive path prefixes, raw renderer stderr, and terminal-control bytes.
+
+### Known limitations
+
+- Guided setup, CJK/grapheme/accessibility completion, lifecycle commands, signed channels, persistent workers/cache, and image protocols remain later work.
+- This remains an unsigned alpha prerelease.
+
 ## [0.1.0-alpha.1] - 2026-07-14
 
 ### Added

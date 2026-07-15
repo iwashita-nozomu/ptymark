@@ -1,10 +1,13 @@
 use crate::detector::SemanticDetector;
+use crate::diagnostics::{DiagnosticComponent, DiagnosticFinding, DiagnosticSeverity, code};
 use crate::model::StreamItem;
-use crate::render::{RenderContext, RenderError, RenderService};
+use crate::render::{RenderCancellation, RenderContext, RenderError, RenderService};
 use crate::terminal::{OutputSegment, TerminalOutputGate};
 use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
+
+pub const MAX_PENDING_OUTPUT_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PipelineReport {
@@ -15,6 +18,7 @@ pub struct PipelineReport {
     pub rendered_blocks: usize,
     pub fallback_blocks: usize,
     pub cache_hits: usize,
+    pub findings: Vec<DiagnosticFinding>,
 }
 
 #[derive(Debug)]
@@ -51,6 +55,7 @@ pub struct DisplayPipeline {
     gate: TerminalOutputGate,
     detector: Box<dyn SemanticDetector>,
     renderer: RenderService,
+    cancellation: RenderCancellation,
     context: RenderContext,
     strict: bool,
     report: PipelineReport,
@@ -63,14 +68,35 @@ impl DisplayPipeline {
         context: RenderContext,
         strict: bool,
     ) -> Self {
+        Self::with_cancellation(
+            detector,
+            renderer,
+            RenderCancellation::default(),
+            context,
+            strict,
+        )
+    }
+
+    pub fn with_cancellation(
+        detector: Box<dyn SemanticDetector>,
+        renderer: RenderService,
+        cancellation: RenderCancellation,
+        context: RenderContext,
+        strict: bool,
+    ) -> Self {
         Self {
             gate: TerminalOutputGate::default(),
             detector,
             renderer,
+            cancellation,
             context,
             strict,
             report: PipelineReport::default(),
         }
+    }
+
+    pub fn cancellation_handle(&self) -> RenderCancellation {
+        self.cancellation.clone()
     }
 
     pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PipelineError> {
@@ -128,7 +154,14 @@ impl DisplayPipeline {
         items: Vec<StreamItem>,
         display: &mut dyn Write,
     ) -> Result<(), PipelineError> {
-        for item in items {
+        let mut pending_after = vec![0_usize; items.len()];
+        let mut pending = 0_usize;
+        for (index, item) in items.iter().enumerate().rev() {
+            pending_after[index] = pending;
+            pending = pending.saturating_add(stream_item_bytes(item));
+        }
+
+        for (index, item) in items.into_iter().enumerate() {
             match item {
                 StreamItem::Passthrough(bytes) => {
                     display.write_all(&bytes)?;
@@ -137,6 +170,39 @@ impl DisplayPipeline {
                 }
                 StreamItem::Semantic(block) => {
                     self.report.semantic_blocks = self.report.semantic_blocks.saturating_add(1);
+                    if self.cancellation.is_cancelled()
+                        || pending_after[index] > MAX_PENDING_OUTPUT_BYTES
+                    {
+                        let error = RenderError::coded(
+                            code::RENDER_OUTPUT_LIMIT,
+                            format!(
+                                "pending terminal output exceeded {} bytes while a semantic block was unresolved",
+                                MAX_PENDING_OUTPUT_BYTES
+                            ),
+                        );
+                        self.report
+                            .findings
+                            .push(error.diagnostic_finding(self.strict));
+                        if self.strict {
+                            self.cancellation.reset();
+                            return Err(PipelineError::Render(error));
+                        }
+                        self.report.findings.push(
+                            DiagnosticFinding::new(
+                                code::PRESENTATION_FALLBACK,
+                                DiagnosticSeverity::Warning,
+                                DiagnosticComponent::Presentation,
+                                "exact source was restored after pending output exceeded its bound",
+                            )
+                            .with_remedy(
+                                "reduce the producing command's burst size or use source/safe mode",
+                            ),
+                        );
+                        display.write_all(block.source())?;
+                        self.report.fallback_blocks = self.report.fallback_blocks.saturating_add(1);
+                        self.cancellation.reset();
+                        continue;
+                    }
                     match self.renderer.render(&block, self.context) {
                         Ok(output) => {
                             display.write_all(&output.bytes)?;
@@ -145,14 +211,30 @@ impl DisplayPipeline {
                             if output.cache_hit {
                                 self.report.cache_hits = self.report.cache_hits.saturating_add(1);
                             }
+                            self.cancellation.reset();
                         }
                         Err(error) if self.strict => {
+                            self.report.findings.push(error.diagnostic_finding(true));
+                            self.cancellation.reset();
                             return Err(PipelineError::Render(error));
                         }
-                        Err(_) => {
+                        Err(error) => {
+                            self.report.findings.push(error.diagnostic_finding(false));
+                            self.report.findings.push(
+                                DiagnosticFinding::new(
+                                    code::PRESENTATION_FALLBACK,
+                                    DiagnosticSeverity::Warning,
+                                    DiagnosticComponent::Presentation,
+                                    "exact source was restored after a rendering failure",
+                                )
+                                .with_remedy(
+                                    "use `ptymark doctor` to inspect the selected renderer",
+                                ),
+                            );
                             display.write_all(block.source())?;
                             self.report.fallback_blocks =
                                 self.report.fallback_blocks.saturating_add(1);
+                            self.cancellation.reset();
                         }
                     }
                 }
@@ -162,13 +244,24 @@ impl DisplayPipeline {
     }
 }
 
+fn stream_item_bytes(item: &StreamItem) -> usize {
+    match item {
+        StreamItem::Passthrough(bytes) => bytes.len(),
+        StreamItem::Semantic(block) => block.source().len(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::DisplayPipeline;
+    use super::{DisplayPipeline, MAX_PENDING_OUTPUT_BYTES};
     use crate::cache::NoopCache;
     use crate::config::DetectionConfig;
     use crate::detector::FencedDetector;
-    use crate::render::{PreviewRenderer, RenderContext, RenderService};
+    use crate::diagnostics::code;
+    use crate::model::SemanticBlock;
+    use crate::render::{
+        PreviewRenderer, RenderArtifact, RenderContext, RenderError, RenderService, Renderer,
+    };
 
     fn preview_pipeline() -> DisplayPipeline {
         let detector = Box::new(FencedDetector::new(&DetectionConfig::default()));
@@ -223,5 +316,88 @@ mod tests {
         }
         pipeline.finish(&mut output).expect("finish");
         assert_eq!(output, source);
+    }
+
+    struct PanicRenderer;
+
+    impl Renderer for PanicRenderer {
+        fn id(&self) -> &str {
+            "panic-renderer"
+        }
+
+        fn render(
+            &mut self,
+            _block: &SemanticBlock,
+            _context: RenderContext,
+        ) -> Result<RenderArtifact, RenderError> {
+            panic!("renderer must not start when pending output is already over the bound")
+        }
+    }
+
+    struct TimeoutRenderer;
+
+    impl Renderer for TimeoutRenderer {
+        fn id(&self) -> &str {
+            "timeout-renderer"
+        }
+
+        fn render(
+            &mut self,
+            _block: &SemanticBlock,
+            _context: RenderContext,
+        ) -> Result<RenderArtifact, RenderError> {
+            Err(RenderError::coded(
+                code::RENDER_TIMEOUT,
+                "PRIVATE SEMANTIC SOURCE token-123",
+            ))
+        }
+    }
+
+    #[test]
+    fn excessive_pending_output_restores_source_without_starting_renderer() {
+        let detector = Box::new(FencedDetector::new(&DetectionConfig::default()));
+        let renderer = RenderService::new(Box::new(PanicRenderer), Box::new(NoopCache::default()));
+        let mut pipeline =
+            DisplayPipeline::new(detector, renderer, RenderContext::default(), false);
+        let mut input = b"$$\nE = mc^2\n$$\n".to_vec();
+        input.extend(std::iter::repeat_n(b'x', MAX_PENDING_OUTPUT_BYTES + 1));
+        let mut output = Vec::new();
+        pipeline
+            .feed(&input, &mut output)
+            .expect("bounded fallback");
+        pipeline.finish(&mut output).expect("finish");
+        assert_eq!(output, input);
+        assert_eq!(pipeline.report().fallback_blocks, 1);
+        assert!(
+            pipeline
+                .report()
+                .findings
+                .iter()
+                .any(|finding| finding.code == code::RENDER_OUTPUT_LIMIT)
+        );
+    }
+
+    #[test]
+    fn render_failure_finding_never_copies_source_bearing_detail() {
+        let detector = Box::new(FencedDetector::new(&DetectionConfig::default()));
+        let renderer =
+            RenderService::new(Box::new(TimeoutRenderer), Box::new(NoopCache::default()));
+        let mut pipeline =
+            DisplayPipeline::new(detector, renderer, RenderContext::default(), false);
+        let source = b"$$\nE = mc^2\n$$\n";
+        let mut output = Vec::new();
+        pipeline.feed(source, &mut output).expect("fallback");
+        pipeline.finish(&mut output).expect("finish");
+        assert_eq!(output, source);
+        let report = pipeline.report();
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|finding| finding.code == code::RENDER_TIMEOUT)
+        );
+        let debug = format!("{:?}", report.findings);
+        assert!(!debug.contains("PRIVATE SEMANTIC SOURCE"));
+        assert!(!debug.contains("token-123"));
     }
 }

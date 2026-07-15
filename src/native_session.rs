@@ -18,6 +18,7 @@ const CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);
 
 type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
 type SharedWriter = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
+type SharedKiller = Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ParentTerminal {
@@ -82,7 +83,7 @@ pub(crate) struct NativeTerminalSession {
     reader: Box<dyn Read + Send>,
     writer: Option<Box<dyn Write + Send>>,
     child: Option<Box<dyn PtyChild + Send + Sync>>,
-    killer: Box<dyn ChildKiller + Send + Sync>,
+    killer: SharedKiller,
 }
 
 impl NativeTerminalSession {
@@ -119,11 +120,11 @@ impl NativeTerminalSession {
             reader,
             writer: Some(writer),
             child: Some(child),
-            killer,
+            killer: Arc::new(Mutex::new(killer)),
         })
     }
 
-    pub(crate) fn output_reader(&mut self) -> &mut dyn Read {
+    pub(crate) fn output_reader(&mut self) -> &mut (dyn Read + Send) {
         self.reader.as_mut()
     }
 
@@ -151,9 +152,13 @@ impl NativeTerminalSession {
     }
 
     pub(crate) fn kill(&mut self) -> Result<(), String> {
-        self.killer
-            .kill()
-            .map_err(|error| format!("cannot terminate child process: {error}"))
+        self.kill_handle().kill()
+    }
+
+    pub(crate) fn kill_handle(&self) -> NativeSessionKiller {
+        NativeSessionKiller {
+            killer: Arc::clone(&self.killer),
+        }
     }
 
     #[cfg(all(test, unix))]
@@ -185,6 +190,23 @@ impl NativeTerminalSession {
                 result
             })
             .map_err(|error| format!("cannot start child process exit waiter: {error}"))
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct NativeSessionKiller {
+    killer: SharedKiller,
+}
+
+impl NativeSessionKiller {
+    pub(crate) fn kill(&self) -> Result<(), String> {
+        let mut killer = self
+            .killer
+            .lock()
+            .map_err(|_| "child process killer lock was poisoned".to_owned())?;
+        killer
+            .kill()
+            .map_err(|error| format!("cannot terminate child process: {error}"))
     }
 }
 

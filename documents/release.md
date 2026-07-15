@@ -51,6 +51,20 @@ gh attestation verify ptymark-*.tar.gz --repo iwashita-nozomu/ptymark
 gh attestation verify .\ptymark-*.zip --repo iwashita-nozomu/ptymark
 ```
 
+## Support and diagnosis
+
+Every alpha.2 package contains `documents/troubleshooting.md`. The public support path is:
+
+```text
+ptymark doctor
+ptymark doctor --json
+ptymark doctor --support-report PATH
+```
+
+The versioned schema is `ptymark.doctor.v1`. Default reports are designed for public attachment and exclude semantic source, child environment, credentials, raw source-bearing renderer stderr, sensitive path prefixes, and terminal-control bytes. Doctor performs no installation, download, network access, renderer/browser execution, child launch, or mutation by default.
+
+A support report is supplemental evidence, not an upload mechanism. Users review and attach it explicitly. Security vulnerabilities and accidental credential exposure remain private Security Advisory reports.
+
 ## Recovery and rollback
 
 Published assets are immutable. A defective release is not rebuilt under the same tag. Instead:

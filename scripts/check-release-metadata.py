@@ -68,6 +68,7 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         "CHANGELOG.md",
         "SECURITY.md",
         "documents/release.md",
+        "documents/troubleshooting.md",
         "scripts/build-release-manifest.py",
         ".github/workflows/ptymark-release.yml",
     )
@@ -82,6 +83,13 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         flags=re.MULTILINE,
     ):
         failures.append(f"CHANGELOG.md has no dated section for {version}")
+
+    notes_path = root / "release-notes" / f"{version}.md"
+    notes = _read_text(notes_path, failures)
+    if notes and not notes.startswith(f"# ptymark v{version}\n"):
+        failures.append(f"release notes heading does not identify v{version}: {notes_path}")
+    if notes and "ptymark.doctor.v1" not in notes:
+        failures.append(f"release notes do not document ptymark.doctor.v1: {notes_path}")
 
     release_workflow = _read_text(
         root / ".github/workflows/ptymark-release.yml", failures
@@ -109,7 +117,13 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
 
     for package_script in ("scripts/package-release.sh", "scripts/package-release.ps1"):
         content = _read_text(root / package_script, failures)
-        for packaged_document in ("CHANGELOG.md", "SECURITY.md", "documents/release.md"):
+        for packaged_document in (
+            "CHANGELOG.md",
+            "SECURITY.md",
+            "documents/release.md",
+            "documents/troubleshooting.md",
+            "release-notes",
+        ):
             markers = (packaged_document, packaged_document.replace("/", "\\"))
             if content and not any(marker in content for marker in markers):
                 failures.append(
