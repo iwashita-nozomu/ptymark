@@ -1,0 +1,67 @@
+name: export PR 108 Docker failure
+
+on:
+  push:
+    branches:
+      - agent/integration/source-only-policy-final-20260715
+    paths:
+      - .github/workflows/export-pr108-docker-failure.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out diagnostics branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/integration/source-only-policy-final-20260715
+          persist-credentials: false
+
+      - name: Download and summarize failed Docker job
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: '87361083204'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" > /tmp/pr108-docker.log
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lines = Path('/tmp/pr108-docker.log').read_text(encoding='utf-8-sig', errors='replace').splitlines()
+          needles = (
+              'error', 'fail', 'panic', 'assert', 'test result', 'caused by',
+              'process completed', 'exit code', 'cuda', 'nvidia', 'expected', 'actual',
+          )
+          selected = []
+          for index, line in enumerate(lines):
+              if any(needle in line.lower() for needle in needles):
+                  selected.extend(lines[max(0, index - 6):min(len(lines), index + 10)])
+          selected.extend(['', '--- LAST 500 LINES ---', *lines[-500:]])
+          deduped = []
+          previous = None
+          for line in selected:
+              if line != previous:
+                  deduped.append(line)
+              previous = line
+          Path('pr108-docker-failure.txt').write_text('\n'.join(deduped) + '\n', encoding='utf-8')
+          PY
+          rm .github/workflows/export-pr108-docker-failure.yml
+
+      - name: Publish focused failure log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/integration/source-only-policy-final-20260715
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'ci: capture PR 108 Docker failure'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
