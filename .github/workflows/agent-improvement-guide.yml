@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           submodules: false
           persist-credentials: false
@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -78,7 +78,7 @@ jobs:
           echo "guide_path=${guide_path}" >> "$GITHUB_OUTPUT"
 
       - name: Upload improvement guide
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: agent-improvement-guide-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.guide.outputs.guide_path }}
