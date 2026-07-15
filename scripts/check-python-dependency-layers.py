@@ -177,9 +177,10 @@ def validate_dependabot_groups(
 def validate_text_contracts(
     runtime_names: list[str], verification_names: list[str], issues: list[str]
 ) -> None:
-    """Validate installer, CI, focused workflow, and update routing contracts."""
+    """Validate installer, shared CI, focused workflow, and update routing contracts."""
     installer = INSTALLER_PATH.read_text(encoding="utf-8")
     for required in (
+        'profile="verification"',
         "--profile",
         "--print-requirements",
         "requirements-runtime.txt",
@@ -191,13 +192,10 @@ def validate_text_contracts(
             issues.append(f"docker/install_python_dependencies.sh: missing {required!r}")
 
     workflow = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
-    for required in (
-        "docker/requirements.txt",
-        "docker/requirements-runtime.txt",
-        "docker/requirements-dev.txt",
-    ):
-        if required not in workflow:
-            issues.append(f".github/workflows/ci.yml: cache does not track {required}")
+    if "cache-dependency-path: docker/requirements.txt" not in workflow:
+        issues.append(
+            ".github/workflows/ci.yml: shared CI must cache the generated requirements aggregate"
+        )
     install_lines = [
         line.strip()
         for line in workflow.splitlines()
@@ -206,9 +204,9 @@ def validate_text_contracts(
     if not install_lines:
         issues.append(".github/workflows/ci.yml: no Python dependency installer invocation found")
     for line in install_lines:
-        if "--profile verification" not in line:
+        if "--profile" in line and "--profile verification" not in line:
             issues.append(
-                ".github/workflows/ci.yml: CI installer must select verification profile: "
+                ".github/workflows/ci.yml: shared CI cannot select a non-verification profile: "
                 + line
             )
 
