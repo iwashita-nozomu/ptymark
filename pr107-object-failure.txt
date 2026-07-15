@@ -1,0 +1,180 @@
+2026-07-15T12:53:03.3709537Z Removing HTTP extra header
+2026-07-15T12:53:03.3713517Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:53:03.3751128Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:53:03.3972988Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:53:03.3976064Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:53:03.4009524Z includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path
+2026-07-15T12:53:03.4010487Z includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:53:03.4011455Z includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:53:03.4011956Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:53:03.4018201Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path
+2026-07-15T12:53:03.4049813Z /home/runner/work/_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4059201Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git.path /home/runner/work/_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4098460Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path
+2026-07-15T12:53:03.4126850Z /home/runner/work/_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4134978Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/ptymark/ptymark/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4180246Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-07-15T12:53:03.4209486Z /github/runner_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4217508Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4255475Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-07-15T12:53:03.4284768Z /github/runner_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4292372Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config
+2026-07-15T12:53:03.4329908Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:53:03.4553275Z Removing credentials config '/home/runner/work/_temp/git-credentials-1ad8f417-a7a1-4fb0-a840-26ec6d8c5940.config'
+2026-07-15T12:53:03.4564544Z ##[endgroup]
+2026-07-15T12:53:03.4830279Z ##[group]Run bash .github/scripts/checkout_agent_canon_submodule.sh
+2026-07-15T12:53:03.4831172Z [36;1mbash .github/scripts/checkout_agent_canon_submodule.sh[0m
+2026-07-15T12:53:03.4990362Z shell: /usr/bin/bash -e {0}
+2026-07-15T12:53:03.4990995Z env:
+2026-07-15T12:53:03.4991268Z   AGENT_CANON_REPO_TOKEN: 
+2026-07-15T12:53:03.4991595Z   AGENT_CANON_REPO_SSH_KEY: 
+2026-07-15T12:53:03.4991913Z ##[endgroup]
+2026-07-15T12:53:03.8280364Z AGENT_CANON_SUBMODULE_AUTH=anonymous
+2026-07-15T12:53:04.1551290Z Submodule 'vendor/agent-canon' (https://github.com/iwashita-nozomu/agent-canon.git) registered for path 'vendor/agent-canon'
+2026-07-15T12:53:04.1575940Z Cloning into '/home/runner/work/ptymark/ptymark/vendor/agent-canon'...
+2026-07-15T12:53:05.7974871Z From https://github.com/iwashita-nozomu/agent-canon
+2026-07-15T12:53:05.7975529Z  * branch            11f7e13f3fb457b38c6e5072c070ff5ec889b454 -> FETCH_HEAD
+2026-07-15T12:53:05.8833711Z Submodule path 'vendor/agent-canon': checked out '11f7e13f3fb457b38c6e5072c070ff5ec889b454'
+2026-07-15T12:53:05.8901906Z AGENT_CANON_SUBMODULE=ready path=vendor/agent-canon sha=11f7e13f3fb457b38c6e5072c070ff5ec889b454
+2026-07-15T12:53:05.8946459Z ##[group]Run set -euo pipefail
+2026-07-15T12:53:05.8946842Z [36;1mset -euo pipefail[0m
+2026-07-15T12:53:05.8947077Z [36;1mpython3 - <<'PY'[0m
+2026-07-15T12:53:05.8947308Z [36;1mfrom pathlib import Path[0m
+2026-07-15T12:53:05.8947547Z [36;1m[0m
+2026-07-15T12:53:05.8947718Z [36;1mupdates = ([0m
+2026-07-15T12:53:05.8947914Z [36;1m    ([0m
+2026-07-15T12:53:05.8948159Z [36;1m        '.github/workflows/dependency-review.yml',[0m
+2026-07-15T12:53:05.8948714Z [36;1m        'actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4',[0m
+2026-07-15T12:53:05.8949410Z [36;1m        'actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0',[0m
+2026-07-15T12:53:05.8949880Z [36;1m        True,[0m
+2026-07-15T12:53:05.8950080Z [36;1m    ),[0m
+2026-07-15T12:53:05.8950257Z [36;1m    ([0m
+2026-07-15T12:53:05.8950474Z [36;1m        '.github/workflows/docker-build.yml',[0m
+2026-07-15T12:53:05.8951192Z [36;1m        'actions/checkout@v4',[0m
+2026-07-15T12:53:05.8951495Z [36;1m        'actions/checkout@v7',[0m
+2026-07-15T12:53:05.8951747Z [36;1m        True,[0m
+2026-07-15T12:53:05.8951941Z [36;1m    ),[0m
+2026-07-15T12:53:05.8952116Z [36;1m    ([0m
+2026-07-15T12:53:05.8952333Z [36;1m        '.github/workflows/ptymark-ci.yml',[0m
+2026-07-15T12:53:05.8952635Z [36;1m        'actions/setup-node@v6',[0m
+2026-07-15T12:53:05.8952905Z [36;1m        'actions/setup-node@v7',[0m
+2026-07-15T12:53:05.8953153Z [36;1m        True,[0m
+2026-07-15T12:53:05.8953348Z [36;1m    ),[0m
+2026-07-15T12:53:05.8953524Z [36;1m    ([0m
+2026-07-15T12:53:05.8953794Z [36;1m        '.github/workflows/ptymark-dependency-alignment.yml',[0m
+2026-07-15T12:53:05.8954192Z [36;1m        'actions/setup-node@v6',[0m
+2026-07-15T12:53:05.8954467Z [36;1m        'actions/setup-node@v7',[0m
+2026-07-15T12:53:05.8954716Z [36;1m        True,[0m
+2026-07-15T12:53:05.8954930Z [36;1m    ),[0m
+2026-07-15T12:53:05.8955104Z [36;1m    ([0m
+2026-07-15T12:53:05.8955381Z [36;1m        '.github/workflows/ptymark-release-metadata.yml',[0m
+2026-07-15T12:53:05.8955989Z [36;1m        'actions/setup-python@v5',[0m
+2026-07-15T12:53:05.8956280Z [36;1m        'actions/setup-python@v6',[0m
+2026-07-15T12:53:05.8956538Z [36;1m        True,[0m
+2026-07-15T12:53:05.8956734Z [36;1m    ),[0m
+2026-07-15T12:53:05.8956908Z [36;1m    ([0m
+2026-07-15T12:53:05.8957145Z [36;1m        '.github/workflows/ptymark-release.yml',[0m
+2026-07-15T12:53:05.8957604Z [36;1m        'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5',[0m
+2026-07-15T12:53:05.8958155Z [36;1m        'actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0',[0m
+2026-07-15T12:53:05.8958565Z [36;1m        False,[0m
+2026-07-15T12:53:05.8958761Z [36;1m    ),[0m
+2026-07-15T12:53:05.8958929Z [36;1m)[0m
+2026-07-15T12:53:05.8959093Z [36;1m[0m
+2026-07-15T12:53:05.8959309Z [36;1mfor relative, old, new, required in updates:[0m
+2026-07-15T12:53:05.8959617Z [36;1m    path = Path(relative)[0m
+2026-07-15T12:53:05.8959897Z [36;1m    text = path.read_text(encoding='utf-8')[0m
+2026-07-15T12:53:05.8960199Z [36;1m    old_count = text.count(old)[0m
+2026-07-15T12:53:05.8960464Z [36;1m    new_count = text.count(new)[0m
+2026-07-15T12:53:05.8961113Z [36;1m    if old_count == 1:[0m
+2026-07-15T12:53:05.8961465Z [36;1m        path.write_text(text.replace(old, new), encoding='utf-8')[0m
+2026-07-15T12:53:05.8961843Z [36;1m        print(f'updated {relative}')[0m
+2026-07-15T12:53:05.8962120Z [36;1m    elif old_count > 1:[0m
+2026-07-15T12:53:05.8962538Z [36;1m        raise SystemExit(f'{relative}: expected at most one old marker, found {old_count}')[0m
+2026-07-15T12:53:05.8962985Z [36;1m    elif new_count >= 1:[0m
+2026-07-15T12:53:05.8963257Z [36;1m        print(f'already updated {relative}')[0m
+2026-07-15T12:53:05.8963544Z [36;1m    elif required:[0m
+2026-07-15T12:53:05.8963882Z [36;1m        raise SystemExit(f'{relative}: required action marker is missing')[0m
+2026-07-15T12:53:05.8964467Z [36;1m    else:[0m
+2026-07-15T12:53:05.8964750Z [36;1m        print(f'skipped obsolete marker in {relative}')[0m
+2026-07-15T12:53:05.8965064Z [36;1mPY[0m
+2026-07-15T12:53:05.9000198Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-15T12:53:05.9000878Z ##[endgroup]
+2026-07-15T12:53:05.9277740Z updated .github/workflows/dependency-review.yml
+2026-07-15T12:53:05.9278819Z updated .github/workflows/docker-build.yml
+2026-07-15T12:53:05.9279725Z updated .github/workflows/ptymark-ci.yml
+2026-07-15T12:53:05.9280732Z updated .github/workflows/ptymark-dependency-alignment.yml
+2026-07-15T12:53:05.9281464Z updated .github/workflows/ptymark-release-metadata.yml
+2026-07-15T12:53:05.9282206Z skipped obsolete marker in .github/workflows/ptymark-release.yml
+2026-07-15T12:53:05.9358015Z ##[group]Run set -euo pipefail
+2026-07-15T12:53:05.9358339Z [36;1mset -euo pipefail[0m
+2026-07-15T12:53:05.9358583Z [36;1mgit diff --check[0m
+2026-07-15T12:53:05.9358837Z [36;1mbash tools/sync_agent_canon.sh check[0m
+2026-07-15T12:53:05.9359172Z [36;1mpython3 tools/ci/check_github_workflows.py[0m
+2026-07-15T12:53:05.9359615Z [36;1mtest "$(git diff --name-only origin/main | sort | tr '\n' ' ')" = \[0m
+2026-07-15T12:53:05.9361306Z [36;1m  ".github-actions-update-trigger .github/workflows/apply-github-actions-updates-once.yml .github/workflows/dependency-review.yml .github/workflows/docker-build.yml .github/workflows/ptymark-ci.yml .github/workflows/ptymark-dependency-alignment.yml .github/workflows/ptymark-release-metadata.yml "[0m
+2026-07-15T12:53:05.9395852Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-15T12:53:05.9396197Z ##[endgroup]
+2026-07-15T12:53:06.5930904Z shared surface is in sync
+2026-07-15T12:53:06.8548476Z GITHUB_WORKFLOWS_CHECKED=17
+2026-07-15T12:53:06.8549020Z GITHUB_WORKFLOW_ERRORS=0
+2026-07-15T12:53:06.8549410Z GITHUB_WORKFLOW_WARNINGS=0
+2026-07-15T12:53:06.8549786Z GITHUB_WORKFLOWS=pass
+2026-07-15T12:53:06.9225230Z ##[group]Run set -euo pipefail
+2026-07-15T12:53:06.9225571Z [36;1mset -euo pipefail[0m
+2026-07-15T12:53:06.9225955Z [36;1mfiles=([0m
+2026-07-15T12:53:06.9226199Z [36;1m  .github/workflows/dependency-review.yml[0m
+2026-07-15T12:53:06.9226529Z [36;1m  .github/workflows/docker-build.yml[0m
+2026-07-15T12:53:06.9226831Z [36;1m  .github/workflows/ptymark-ci.yml[0m
+2026-07-15T12:53:06.9227189Z [36;1m  .github/workflows/ptymark-dependency-alignment.yml[0m
+2026-07-15T12:53:06.9227584Z [36;1m  .github/workflows/ptymark-release-metadata.yml[0m
+2026-07-15T12:53:06.9227892Z [36;1m)[0m
+2026-07-15T12:53:06.9228109Z [36;1mbase_commit=$(git rev-parse origin/main)[0m
+2026-07-15T12:53:06.9228459Z [36;1mbase_tree=$(git rev-parse "${base_commit}^{tree}")[0m
+2026-07-15T12:53:06.9228947Z [36;1mjq -n --arg base_tree "$base_tree" '{base_tree: $base_tree, tree: []}' > /tmp/tree.json[0m
+2026-07-15T12:53:06.9229386Z [36;1mfor path in "${files[@]}"; do[0m
+2026-07-15T12:53:06.9229702Z [36;1m  blob_sha=$(base64 -w0 "$path" |[0m
+2026-07-15T12:53:06.9230023Z [36;1m    jq -Rs '{content: ., encoding: "base64"}' |[0m
+2026-07-15T12:53:06.9230503Z [36;1m    gh api --method POST "/repos/${GITHUB_REPOSITORY}/git/blobs" --input - --jq .sha)[0m
+2026-07-15T12:53:06.9231299Z [36;1m  jq --arg path "$path" --arg sha "$blob_sha" \[0m
+2026-07-15T12:53:06.9231701Z [36;1m    '.tree += [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \[0m
+2026-07-15T12:53:06.9232089Z [36;1m    /tmp/tree.json > /tmp/tree.next.json[0m
+2026-07-15T12:53:06.9232397Z [36;1m  mv /tmp/tree.next.json /tmp/tree.json[0m
+2026-07-15T12:53:06.9232672Z [36;1mdone[0m
+2026-07-15T12:53:06.9232981Z [36;1mtree_sha=$(gh api --method POST "/repos/${GITHUB_REPOSITORY}/git/trees" \[0m
+2026-07-15T12:53:06.9233395Z [36;1m  --input /tmp/tree.json --jq .sha)[0m
+2026-07-15T12:53:06.9233672Z [36;1mcommit_sha=$(jq -n \[0m
+2026-07-15T12:53:06.9234004Z [36;1m  --arg message 'chore(deps): update GitHub Actions runtimes' \[0m
+2026-07-15T12:53:06.9234378Z [36;1m  --arg tree "$tree_sha" \[0m
+2026-07-15T12:53:06.9234645Z [36;1m  --arg parent "$base_commit" \[0m
+2026-07-15T12:53:06.9234991Z [36;1m  '{message: $message, tree: $tree, parents: [$parent]}' |[0m
+2026-07-15T12:53:06.9235504Z [36;1m  gh api --method POST "/repos/${GITHUB_REPOSITORY}/git/commits" --input - --jq .sha)[0m
+2026-07-15T12:53:06.9236072Z [36;1mprintf 'base_commit=%s\nbase_tree=%s\ntree_sha=%s\ncommit_sha=%s\n' \[0m
+2026-07-15T12:53:06.9236626Z [36;1m  "$base_commit" "$base_tree" "$tree_sha" "$commit_sha" > github-actions-final-commit.txt[0m
+2026-07-15T12:53:06.9269120Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-15T12:53:06.9269461Z env:
+2026-07-15T12:53:06.9272291Z   GH_TOKEN: ***
+2026-07-15T12:53:06.9272507Z ##[endgroup]
+2026-07-15T12:53:09.6374681Z gh: Resource not accessible by integration (HTTP 403)
+2026-07-15T12:53:09.6409322Z ##[error]Process completed with exit code 1.
+2026-07-15T12:53:09.6543338Z Post job cleanup.
+2026-07-15T12:53:09.7381580Z [command]/usr/bin/git version
+2026-07-15T12:53:09.7425434Z git version 2.54.0
+2026-07-15T12:53:09.7468252Z Copying '/home/runner/.gitconfig' to '/home/runner/work/_temp/f06de9e3-3384-4f3c-85f3-4cd893d5c482/.gitconfig'
+2026-07-15T12:53:09.7478898Z Temporarily overriding HOME='/home/runner/work/_temp/f06de9e3-3384-4f3c-85f3-4cd893d5c482' before making global git config changes
+2026-07-15T12:53:09.7480180Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-15T12:53:09.7485522Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ptymark/ptymark
+2026-07-15T12:53:09.7521732Z Removing SSH command configuration
+2026-07-15T12:53:09.7528965Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-15T12:53:09.7569365Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-15T12:53:09.7812305Z Entering 'vendor/agent-canon'
+2026-07-15T12:53:09.8040317Z Removing HTTP extra header
+2026-07-15T12:53:09.8047273Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-15T12:53:09.8092176Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-15T12:53:09.8346493Z Entering 'vendor/agent-canon'
+2026-07-15T12:53:09.8405559Z Removing includeIf entries pointing to credentials config files
+2026-07-15T12:53:09.8413970Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:53:09.8460456Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-15T12:53:09.8685663Z Entering 'vendor/agent-canon'
+2026-07-15T12:53:09.8706923Z file:/home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config	remote.origin.url
+2026-07-15T12:53:09.8744647Z [command]/usr/bin/git config --file /home/runner/work/ptymark/ptymark/.git/modules/vendor/agent-canon/config --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-15T12:53:09.8918534Z Cleaning up orphan processes
