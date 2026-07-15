@@ -1,0 +1,213 @@
+name: Verify published alpha.2 release
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  attestations: read
+  contents: write
+
+concurrency:
+  group: verify-alpha2-release-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event.pull_request.head.ref == 'agent/verify-alpha2-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: v0.1.0-alpha.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p published evidence
+          gh release download "$TAG" --repo "$REPOSITORY" --dir published
+          find published -maxdepth 1 -type f -printf '%f %s bytes\n' | sort | tee evidence/assets.txt
+
+      - name: Verify checksums, manifest, packages, binary, and attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: v0.1.0-alpha.2
+          SOURCE_SHA: c4f23c924c855094d09077c293d06b2a6157250d
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp published/SHA256SUMS published/release-manifest.json evidence/
+          (cd published && sha256sum --check SHA256SUMS) | tee evidence/checksums.log
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          published = Path('published')
+          evidence = Path('evidence')
+          manifest = json.loads((published / 'release-manifest.json').read_text())
+          assert manifest['schema_version'] == 1
+          assert manifest['project'] == 'ptymark'
+          assert manifest['version'] == '0.1.0-alpha.2'
+          assert manifest['tag'] == os.environ['TAG']
+          assert manifest['prerelease'] is True
+          assert manifest['source']['repository'] == os.environ['REPOSITORY']
+          assert manifest['source']['commit'] == os.environ['SOURCE_SHA']
+
+          required_suffixes = {
+              'README.md',
+              'CHANGELOG.md',
+              'SECURITY.md',
+              'PACKAGE-MANIFEST.txt',
+              'documents/release.md',
+              'documents/troubleshooting.md',
+              'release-notes/0.1.0-alpha.2.md',
+              'examples/ptymark.toml',
+              'examples/wezterm.lua',
+              'plugin/init.lua',
+          }
+          platforms = set()
+          verified_assets = []
+          for asset in manifest['assets']:
+              platforms.add(asset['platform'])
+              archive = published / asset['name']
+              sidecar = published / asset['checksum_asset']
+              payload = archive.read_bytes()
+              digest = hashlib.sha256(payload).hexdigest()
+              assert archive.stat().st_size == asset['bytes']
+              assert digest == asset['sha256']
+              assert sidecar.read_text().strip() == f"{digest}  {archive.name}"
+
+              if archive.name.endswith('.tar.gz'):
+                  with tarfile.open(archive, 'r:gz') as handle:
+                      names = set(handle.getnames())
+              else:
+                  with zipfile.ZipFile(archive) as handle:
+                      names = set(handle.namelist())
+              roots = {name.split('/', 1)[0] for name in names if '/' in name}
+              assert len(roots) == 1, (archive.name, roots)
+              root = next(iter(roots))
+              normalized = {
+                  name[len(root) + 1:].rstrip('/')
+                  for name in names
+                  if name.startswith(root + '/') and name != root + '/'
+              }
+              missing = sorted(required_suffixes - normalized)
+              assert not missing, (archive.name, missing)
+              binary = 'bin/ptymark.exe' if asset['platform'] == 'windows' else 'bin/ptymark'
+              assert binary in normalized, (archive.name, binary)
+              verified_assets.append({
+                  'name': archive.name,
+                  'platform': asset['platform'],
+                  'architecture': asset['architecture'],
+                  'bytes': asset['bytes'],
+                  'sha256': digest,
+                  'root': root,
+                  'entries': len(names),
+              })
+
+          assert platforms == {'linux', 'macos', 'windows'}
+          (evidence / 'manifest-verification.json').write_text(
+              json.dumps({
+                  'tag': manifest['tag'],
+                  'source_commit': manifest['source']['commit'],
+                  'compatibility': manifest['compatibility'],
+                  'managed_bundle': manifest['managed_bundle'],
+                  'assets': verified_assets,
+              }, indent=2, sort_keys=True) + '\n'
+          )
+          PY
+
+          mkdir -p evidence/linux
+          tar -xzf published/ptymark-0.1.0-alpha.2-linux-x86_64.tar.gz -C evidence/linux
+          package_root="evidence/linux/ptymark-0.1.0-alpha.2-linux-x86_64"
+          binary="$package_root/bin/ptymark"
+          "$binary" --version | tee evidence/version.txt
+          test "$(cat evidence/version.txt)" = 'ptymark 0.1.0-alpha.2'
+
+          set +e
+          "$binary" doctor --json > evidence/doctor.json
+          doctor_status=$?
+          set -e
+          test "$doctor_status" -eq 0 -o "$doctor_status" -eq 10
+          python3 - <<'PY'
+          import json
+          report = json.load(open('evidence/doctor.json'))
+          assert report['schema'] == 'ptymark.doctor.v1'
+          assert report['ptymark']['version'] == '0.1.0-alpha.2'
+          assert report['status'] in {'ready', 'degraded'}
+          PY
+          printf '%s\n' "$doctor_status" > evidence/doctor-exit.txt
+
+          cat > evidence/input.txt <<'EOF'
+          before
+          ```mermaid
+          graph TD
+          A-->B
+          ```
+          after
+          EOF
+          sed -i 's/^          //' evidence/input.txt
+          "$binary" preview --source evidence/input.txt > evidence/source.out
+          "$binary" preview --safe evidence/input.txt > evidence/safe.out
+          cmp evidence/input.txt evidence/source.out
+          cmp evidence/input.txt evidence/safe.out
+          sha256sum evidence/input.txt evidence/source.out evidence/safe.out > evidence/lossless-sha256.txt
+
+          : > evidence/attestations.log
+          for archive in \
+            published/ptymark-0.1.0-alpha.2-linux-x86_64.tar.gz \
+            published/ptymark-0.1.0-alpha.2-macos-aarch64.tar.gz \
+            published/ptymark-0.1.0-alpha.2-windows-x86_64.zip
+          do
+            gh attestation verify "$archive" --repo "$REPOSITORY" | tee -a evidence/attestations.log
+          done
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          summary = {
+              'release': 'v0.1.0-alpha.2',
+              'source_commit': 'c4f23c924c855094d09077c293d06b2a6157250d',
+              'checksums': 'verified',
+              'manifest': 'verified',
+              'package_contents': 'verified for linux, macos, windows',
+              'linux_version': Path('evidence/version.txt').read_text().strip(),
+              'doctor_schema': json.load(open('evidence/doctor.json'))['schema'],
+              'source_mode': 'byte-exact',
+              'safe_mode': 'byte-exact',
+              'build_provenance': 'verified for three archives',
+          }
+          Path('evidence/summary.json').write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + '\n'
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload independent verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: alpha2-independent-verification
+          path: evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove verification branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent/verify-alpha2-release"
