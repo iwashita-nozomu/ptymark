@@ -1,0 +1,84 @@
+# @dependency-start
+# contract workflow
+# responsibility Applies the reviewed source-only distribution migration once, validates it, and removes itself.
+# upstream design ../../documents/release.md source-only publication contract
+# upstream implementation ../../scripts/apply-source-only-policy-once.py migration script
+# downstream implementation ./ptymark-release.yml source-only publication
+# @dependency-end
+
+name: apply source-only release policy
+
+on:
+  push:
+    branches:
+      - agent/source-only-releases
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-only-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/agent/source-only-releases'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out policy branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/source-only-releases
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ''
+          AGENT_CANON_REPO_SSH_KEY: ''
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
+          rustup override set 1.97.0
+
+      - name: Apply source-only policy
+        run: python3 scripts/apply-source-only-policy-once.py
+
+      - name: Remove one-time migration files
+        run: |
+          rm scripts/apply-source-only-policy-once.py
+          rm .github/workflows/apply-source-only-release-policy-once.yml
+
+      - name: Validate source-only release tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          python3 scripts/check-release-metadata.py --tag v0.1.0-alpha.2
+          python3 -m unittest tests.tools.test_release_metadata -v
+          test -z "$(find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -print -quit)"
+          ! grep -F 'dist/*.tar.gz' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.zip' .github/workflows/ptymark-ci.yml
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'actions/attest' .github/workflows/ptymark-release.yml
+
+      - name: Commit source-only release policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/source-only-releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'release: adopt source-only distribution'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
