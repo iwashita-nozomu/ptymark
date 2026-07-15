@@ -1,0 +1,273 @@
+# @dependency-start
+# contract workflow
+# responsibility Scans existing Actions artifacts for native executables/packages, deletes executable-bearing artifacts, verifies retained artifacts are non-executable, records evidence, and removes itself.
+# upstream design ../../documents/release.md source-only release contract
+# upstream policy ../../SECURITY.md source-only security policy
+# downstream tracking ../../issues/94 source-only migration closeout
+# @dependency-end
+
+name: purge executable GitHub Actions artifacts
+
+on:
+  push:
+    branches:
+      - agent/purge-executable-actions-artifacts
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+
+concurrency:
+  group: purge-executable-actions-artifacts
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source-only policy
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/purge-executable-actions-artifacts
+          submodules: false
+          persist-credentials: false
+
+      - name: Verify source-only repository policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eqi 'source[- ]only|source only' README.md
+          grep -Eqi 'source[- ]only' documents/release.md
+          ! grep -F 'actions/upload-artifact' .github/workflows/ptymark-release.yml
+          ! grep -F 'dist/*.tar.gz' .github/workflows/ptymark-ci.yml
+          ! grep -F 'dist/*.zip' .github/workflows/ptymark-ci.yml
+
+      - name: Scan and delete executable-bearing Actions artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact-purge-evidence
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          import shutil
+          import tempfile
+          import urllib.error
+          import urllib.request
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          token = os.environ['GH_TOKEN']
+          repository = os.environ['REPOSITORY']
+          api_base = f'https://api.github.com/repos/{repository}'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'ptymark-source-only-artifact-audit',
+          }
+
+          def request_json(path: str, method: str = 'GET'):
+              request = urllib.request.Request(
+                  f'{api_base}/{path.lstrip("/")}',
+                  method=method,
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  data = response.read()
+              return json.loads(data) if data else None
+
+          def list_artifacts() -> list[dict]:
+              artifacts: list[dict] = []
+              page = 1
+              while True:
+                  data = request_json(f'actions/artifacts?per_page=100&page={page}')
+                  batch = data.get('artifacts', [])
+                  artifacts.extend(batch)
+                  if len(batch) < 100:
+                      break
+                  page += 1
+              return artifacts
+
+          exact_suspicious_names = {
+              'ptymark-release-linux',
+              'ptymark-release-macos',
+              'ptymark-release-windows',
+              'ptymark-linux-release',
+              'ptymark-macos-release',
+              'ptymark-windows-release',
+              'alpha1-independent-verification',
+              'alpha2-independent-verification',
+              'ptymark-v0.1.0-alpha.1-verification',
+              'ptymark-v0.1.0-alpha.2-independent-verification',
+          }
+          suspicious_name = re.compile(
+              r'(?i)(?:^|[-_])(?:alpha[12].*(?:release|verification)|release-(?:linux|macos|windows)|(?:linux|macos|windows)-release)(?:$|[-_])'
+          )
+          archive_name = re.compile(
+              r'(?i)^ptymark-.*-(?:linux|macos|windows)-(?:x86_64|aarch64)\.(?:tar\.gz|zip)$'
+          )
+          native_suffixes = ('.exe', '.dll', '.dylib', '.so')
+
+          def classify_entries(names: list[str]) -> list[str]:
+              reasons: list[str] = []
+              for raw in names:
+                  normalized = raw.replace('\\', '/')
+                  path = PurePosixPath(normalized)
+                  base = path.name.lower()
+                  if base in {'ptymark', 'ptymark.exe'}:
+                      reasons.append(f'native executable entry: {raw}')
+                  elif archive_name.fullmatch(path.name):
+                      reasons.append(f'native release archive entry: {raw}')
+                  elif base.endswith(native_suffixes):
+                      reasons.append(f'native binary entry: {raw}')
+                  elif '/target/release/ptymark' in f'/{normalized.lower()}':
+                      reasons.append(f'release build output entry: {raw}')
+              return sorted(set(reasons))
+
+          artifacts = [artifact for artifact in list_artifacts() if not artifact.get('expired')]
+          deleted: list[dict] = []
+          retained: list[dict] = []
+          failures: list[dict] = []
+
+          with tempfile.TemporaryDirectory(prefix='ptymark-artifact-audit-') as temp_dir:
+              temp = Path(temp_dir)
+              for artifact in artifacts:
+                  artifact_id = int(artifact['id'])
+                  name = str(artifact['name'])
+                  reasons: list[str] = []
+                  if name in exact_suspicious_names or suspicious_name.search(name):
+                      reasons.append(f'suspicious artifact name: {name}')
+
+                  size = int(artifact.get('size_in_bytes') or 0)
+                  if size > 250 * 1024 * 1024 and not reasons:
+                      failures.append({
+                          'id': artifact_id,
+                          'name': name,
+                          'reason': f'artifact exceeds audit download limit: {size}',
+                      })
+                      continue
+
+                  archive_path = temp / f'{artifact_id}.zip'
+                  try:
+                      request = urllib.request.Request(
+                          str(artifact['archive_download_url']),
+                          headers=headers,
+                      )
+                      with urllib.request.urlopen(request, timeout=180) as response, archive_path.open('wb') as output:
+                          shutil.copyfileobj(response, output)
+                      with zipfile.ZipFile(archive_path) as archive:
+                          entries = archive.namelist()
+                      reasons.extend(classify_entries(entries))
+                  except (OSError, urllib.error.URLError, zipfile.BadZipFile) as error:
+                      failures.append({
+                          'id': artifact_id,
+                          'name': name,
+                          'reason': f'cannot inspect artifact: {error}',
+                      })
+                      continue
+                  finally:
+                      archive_path.unlink(missing_ok=True)
+
+                  if reasons:
+                      request_json(f'actions/artifacts/{artifact_id}', method='DELETE')
+                      deleted.append({
+                          'id': artifact_id,
+                          'name': name,
+                          'size_in_bytes': size,
+                          'reasons': sorted(set(reasons)),
+                          'workflow_run': artifact.get('workflow_run'),
+                      })
+                  else:
+                      retained.append({
+                          'id': artifact_id,
+                          'name': name,
+                          'size_in_bytes': size,
+                          'digest': artifact.get('digest'),
+                      })
+
+          if failures:
+              raise SystemExit('artifact audit was incomplete: ' + json.dumps(failures, indent=2))
+
+          remaining_ids = {int(artifact['id']) for artifact in list_artifacts() if not artifact.get('expired')}
+          deleted_ids = {item['id'] for item in deleted}
+          if remaining_ids & deleted_ids:
+              raise SystemExit(f'deleted artifact IDs still present: {sorted(remaining_ids & deleted_ids)}')
+          retained_ids = {item['id'] for item in retained}
+          unexpected = remaining_ids - retained_ids
+          if unexpected:
+              raise SystemExit(f'unclassified artifacts appeared during audit: {sorted(unexpected)}')
+
+          report = {
+              'schema': 'ptymark.actions-artifact-purge.v1',
+              'repository': repository,
+              'scanned_active_artifacts': len(artifacts),
+              'deleted_executable_bearing_artifacts': deleted,
+              'deleted_count': len(deleted),
+              'retained_non_executable_artifacts': retained,
+              'retained_count': len(retained),
+              'remaining_suspicious_artifacts': 0,
+          }
+          Path('artifact-purge-evidence/result.json').write_text(
+              json.dumps(report, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          Path('artifact-purge-evidence/deleted.txt').write_text(
+              ''.join(f"{item['id']}\t{item['name']}\n" for item in deleted),
+              encoding='utf-8',
+          )
+          Path('artifact-purge-evidence/retained.txt').write_text(
+              ''.join(f"{item['id']}\t{item['name']}\n" for item in retained),
+              encoding='utf-8',
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+
+      - name: Record artifact purge on issue 94
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deleted=$(jq -r .deleted_count artifact-purge-evidence/result.json)
+          retained=$(jq -r .retained_count artifact-purge-evidence/result.json)
+          cat > artifact-purge-evidence/issue-comment.md <<EOF
+          ## Executable-bearing GitHub Actions artifacts purged
+
+          The repository-wide artifact audit inspected every active GitHub Actions artifact and deleted every artifact whose name or ZIP contents contained a native ptymark executable or platform release package.
+
+          - Deleted executable-bearing artifacts: **${deleted}**
+          - Retained artifacts verified as non-executable: **${retained}**
+          - Remaining suspicious artifacts: **0**
+
+          Future product CI continues to compile and package locally, then deletes executable outputs before job completion. Only non-executable diagnostics and policy evidence may be retained.
+          EOF
+          sed -i 's/^          //' artifact-purge-evidence/issue-comment.md
+          gh issue comment 94 --repo "$REPOSITORY" --body-file artifact-purge-evidence/issue-comment.md
+
+      - name: Upload non-executable purge evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: source-only-executable-artifact-purge
+          path: artifact-purge-evidence/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary artifact-purge branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent%2Fpurge-executable-actions-artifacts"
