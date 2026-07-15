@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# @dependency-start
+# contract tool
+# responsibility Validates and regenerates repository Python runtime and verification dependency layers.
+# upstream environment ../docker/requirements-runtime.txt canonical Python runtime dependencies
+# upstream environment ../docker/requirements-dev.txt canonical Python verification dependencies
+# upstream environment ../docker/requirements.txt generated compatibility aggregate
+# upstream configuration ../pyproject.toml package-local Python dependency metadata
+# upstream configuration ../.github/dependabot.yml dependency update routing
+# downstream workflow ../.github/workflows/python-dependency-layers.yml runs this contract
+# downstream design ../documents/dependency-layers.md dependency ownership and upgrade rules
+# @dependency-end
 """Validate and regenerate the repository Python dependency layers."""
 
 from __future__ import annotations
@@ -16,6 +27,7 @@ AGGREGATE_PATH = ROOT / "docker" / "requirements.txt"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 INSTALLER_PATH = ROOT / "docker" / "install_python_dependencies.sh"
 CI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
+LAYER_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "python-dependency-layers.yml"
 DEPENDABOT_PATH = ROOT / ".github" / "dependabot.yml"
 
 _PACKAGE_PATTERN = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^]]+\])?")
@@ -29,9 +41,13 @@ def requirement_specs(path: Path) -> list[str]:
         if not line:
             continue
         if line.startswith("-"):
-            raise ValueError(f"{path.relative_to(ROOT)}:{line_number}: leaf files cannot include pip options")
+            raise ValueError(
+                f"{path.relative_to(ROOT)}:{line_number}: leaf files cannot include pip options"
+            )
         if _PACKAGE_PATTERN.match(line) is None:
-            raise ValueError(f"{path.relative_to(ROOT)}:{line_number}: unsupported requirement: {line}")
+            raise ValueError(
+                f"{path.relative_to(ROOT)}:{line_number}: unsupported requirement: {line}"
+            )
         specs.append(line)
     return specs
 
@@ -82,7 +98,9 @@ def optional_dependency_specs(pyproject: dict[str, object], name: str) -> list[s
         raise ValueError("pyproject.toml: missing [project.optional-dependencies]")
     value = optional.get(name)
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise ValueError(f"pyproject.toml: optional dependency group {name!r} must be a string list")
+        raise ValueError(
+            f"pyproject.toml: optional dependency group {name!r} must be a string list"
+        )
     return [item for item in value if isinstance(item, str)]
 
 
@@ -108,11 +126,62 @@ def duplicate_names(names: list[str]) -> list[str]:
     return sorted(duplicates)
 
 
-def validate_text_contracts(issues: list[str]) -> None:
-    """Validate installer, CI cache, and Dependabot routing contracts."""
+def bounded_section(text: str, start_marker: str, end_marker: str) -> str | None:
+    """Return text between two required routing markers."""
+    start = text.find(start_marker)
+    if start < 0:
+        return None
+    end = text.find(end_marker, start + len(start_marker))
+    if end < 0:
+        return None
+    return text[start:end]
+
+
+def validate_dependabot_groups(
+    dependabot: str,
+    runtime_names: list[str],
+    verification_names: list[str],
+    issues: list[str],
+) -> None:
+    """Validate that every container package is routed to its ownership group."""
+    runtime_group = bounded_section(
+        dependabot,
+        "      python-container-runtime:\n",
+        "      python-container-verification:\n",
+    )
+    verification_group = bounded_section(
+        dependabot,
+        "      python-container-verification:\n",
+        "\n  - package-ecosystem: docker\n",
+    )
+    if runtime_group is None:
+        issues.append(".github/dependabot.yml: cannot isolate python-container-runtime group")
+    else:
+        for name in runtime_names:
+            if f'          - "{name}"' not in runtime_group:
+                issues.append(
+                    f".github/dependabot.yml: runtime group does not route package {name}"
+                )
+    if verification_group is None:
+        issues.append(
+            ".github/dependabot.yml: cannot isolate python-container-verification group"
+        )
+    else:
+        for name in verification_names:
+            if f'          - "{name}"' not in verification_group:
+                issues.append(
+                    f".github/dependabot.yml: verification group does not route package {name}"
+                )
+
+
+def validate_text_contracts(
+    runtime_names: list[str], verification_names: list[str], issues: list[str]
+) -> None:
+    """Validate installer, CI, focused workflow, and update routing contracts."""
     installer = INSTALLER_PATH.read_text(encoding="utf-8")
     for required in (
         "--profile",
+        "--print-requirements",
         "requirements-runtime.txt",
         "requirements-dev.txt",
         "requirements.txt",
@@ -138,7 +207,21 @@ def validate_text_contracts(issues: list[str]) -> None:
         issues.append(".github/workflows/ci.yml: no Python dependency installer invocation found")
     for line in install_lines:
         if "--profile verification" not in line:
-            issues.append(f".github/workflows/ci.yml: CI installer must select verification profile: {line}")
+            issues.append(
+                ".github/workflows/ci.yml: CI installer must select verification profile: "
+                + line
+            )
+
+    layer_workflow = LAYER_WORKFLOW_PATH.read_text(encoding="utf-8")
+    for required in (
+        "python3 scripts/check-python-dependency-layers.py",
+        "--profile runtime --print-requirements",
+        "--profile verification --print-requirements",
+    ):
+        if required not in layer_workflow:
+            issues.append(
+                f".github/workflows/python-dependency-layers.yml: missing {required!r}"
+            )
 
     dependabot = DEPENDABOT_PATH.read_text(encoding="utf-8")
     for required in (
@@ -149,7 +232,10 @@ def validate_text_contracts(issues: list[str]) -> None:
         '"docker/**"',
     ):
         if required not in dependabot:
-            issues.append(f".github/dependabot.yml: missing dependency routing marker {required!r}")
+            issues.append(
+                f".github/dependabot.yml: missing dependency routing marker {required!r}"
+            )
+    validate_dependabot_groups(dependabot, runtime_names, verification_names, issues)
 
 
 def validate(write: bool) -> int:
@@ -208,7 +294,7 @@ def validate(write: bool) -> int:
             + ", ".join(missing_verification)
         )
 
-    validate_text_contracts(issues)
+    validate_text_contracts(runtime_names, verification_names, issues)
 
     if issues:
         for issue in issues:
