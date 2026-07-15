@@ -4,6 +4,7 @@
 # upstream design vendor/agent-canon/documents/agent-canon-subtree-migration.md defines vendoring policy
 # downstream implementation vendor/agent-canon provides shared tools, workflows, skills, and runtime links
 # @dependency-end
+# Temporary diagnostic trigger; no submodule behavior changes.
 [submodule "vendor/agent-canon"]
 	path = vendor/agent-canon
 	url = https://github.com/iwashita-nozomu/agent-canon.git
