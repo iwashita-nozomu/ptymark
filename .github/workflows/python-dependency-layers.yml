@@ -5,6 +5,7 @@
 # upstream environment ../../docker/requirements-dev.txt canonical Python verification dependencies
 # upstream environment ../../docker/requirements.txt generated compatibility aggregate
 # upstream tool ../../scripts/check-python-dependency-layers.py dependency layer validator
+# upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
 # downstream design ../../documents/dependency-layers.md dependency ownership and upgrade rules
 # @dependency-end
 
@@ -56,6 +57,12 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+
+      - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
+          AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
+        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
