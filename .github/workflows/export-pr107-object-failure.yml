@@ -1,0 +1,33 @@
+name: export PR 107 object failure
+
+on:
+  push:
+    branches:
+      - agent/integration/source-only-policy-final-20260715
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download failed job log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: '87357291246'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${JOB_ID}/logs" > pr107-object-full.log
+          tail -n 180 pr107-object-full.log > pr107-object-failure.txt
+
+      - name: Upload focused failure log
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr107-object-failure
+          path: pr107-object-failure.txt
+          if-no-files-found: error
+          retention-days: 1
