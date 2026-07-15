@@ -1,0 +1,133 @@
+name: Inspect alpha.2 release publication
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: inspect-alpha2-release-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: github.event.pull_request.head.ref == 'agent/inspect-alpha2-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Query workflow, tag, release, and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-status
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          repository = os.environ['REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'ptymark-release-inspector',
+          }
+
+          def get(path):
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repository}{path}',
+                  headers=headers,
+              )
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      return {
+                          'status': response.status,
+                          'body': json.load(response),
+                      }
+              except urllib.error.HTTPError as error:
+                  raw = error.read().decode('utf-8', errors='replace')
+                  try:
+                      body = json.loads(raw)
+                  except json.JSONDecodeError:
+                      body = raw
+                  return {'status': error.code, 'body': body}
+
+          branch = urllib.parse.quote('release/v0.1.0-alpha.2', safe='')
+          runs = get(f'/actions/runs?branch={branch}&event=push&per_page=30')
+          release = get('/releases/tags/v0.1.0-alpha.2')
+          tag = get('/git/ref/tags/v0.1.0-alpha.2')
+
+          selected_runs = []
+          for run in (runs.get('body') or {}).get('workflow_runs', []):
+              if run.get('name') == 'ptymark Release':
+                  selected_runs.append({
+                      key: run.get(key)
+                      for key in (
+                          'id', 'name', 'event', 'status', 'conclusion',
+                          'head_branch', 'head_sha', 'run_number',
+                          'html_url', 'created_at', 'updated_at',
+                          'jobs_url', 'artifacts_url',
+                      )
+                  })
+
+          release_body = release.get('body') if isinstance(release.get('body'), dict) else {}
+          assets = []
+          for asset in release_body.get('assets', []):
+              assets.append({
+                  key: asset.get(key)
+                  for key in (
+                      'id', 'name', 'size', 'state', 'content_type',
+                      'browser_download_url', 'digest', 'created_at', 'updated_at',
+                  )
+              })
+
+          result = {
+              'runs_query_status': runs.get('status'),
+              'release_query_status': release.get('status'),
+              'tag_query_status': tag.get('status'),
+              'release_runs': selected_runs,
+              'tag': tag.get('body'),
+              'release': {
+                  key: release_body.get(key)
+                  for key in (
+                      'id', 'tag_name', 'target_commitish', 'name', 'draft',
+                      'prerelease', 'created_at', 'published_at', 'html_url',
+                  )
+              } if release.get('status') == 200 else release.get('body'),
+              'assets': assets,
+          }
+          Path('release-status/status.json').write_text(
+              json.dumps(result, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload release status
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: alpha2-release-status
+          path: release-status/status.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Remove probe branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/agent/inspect-alpha2-release"
