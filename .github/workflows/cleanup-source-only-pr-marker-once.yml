@@ -1,0 +1,40 @@
+name: cleanup source-only PR marker
+
+on:
+  push:
+    branches:
+      - agent/source-only-policy-clean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cleanup-source-only-pr-marker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: agent/source-only-policy-clean
+          persist-credentials: false
+      - name: Remove marker and workflow
+        run: |
+          rm -f .github/.source-only-pr-ready
+          rm -f .github/workflows/cleanup-source-only-pr-marker-once.yml
+          test -z "$(find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -print -quit)"
+          git diff --check
+      - name: Commit clean PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: agent/source-only-policy-clean
+        run: |
+          set -euo pipefail
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'ci: clean source-only policy PR head'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
