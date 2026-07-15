@@ -23,7 +23,6 @@ on:
       - "scripts/check-ptymark-runtime-dependencies.mjs"
       - "documents/ptymark-runtime-dependencies.md"
       - ".github/workflows/ptymark-ci.yml"
-      - ".github/workflows/ptymark-release.yml"
       - ".github/workflows/ptymark-dependency-alignment.yml"
   pull_request:
     branches:
@@ -38,7 +37,6 @@ on:
       - "scripts/check-ptymark-runtime-dependencies.mjs"
       - "documents/ptymark-runtime-dependencies.md"
       - ".github/workflows/ptymark-ci.yml"
-      - ".github/workflows/ptymark-release.yml"
       - ".github/workflows/ptymark-dependency-alignment.yml"
   workflow_dispatch:
 

@@ -310,33 +310,33 @@ evidence = ["ptymark-shellcheck-evidence", "Windows PowerShell, cmd, WinBash, an
 required = true
 
 [[check]]
-id = "release.linux"
+id = "package-smoke.linux"
 owner = "ptymark-ci"
 level = "package"
 platforms = ["linux"]
 command = "bash scripts/package-release.sh target/release/ptymark dist"
 sources = ["scripts/package-release.sh", "distribution/install.sh"]
-evidence = ["ptymark-linux-release"]
+evidence = ["Cross-platform local package smoke (linux)"]
 required = true
 
 [[check]]
-id = "release.macos"
+id = "package-smoke.macos"
 owner = "ptymark-ci"
 level = "package"
 platforms = ["macos"]
 command = "bash scripts/package-release.sh target/release/ptymark dist"
 sources = ["scripts/package-release.sh", "distribution/install.sh"]
-evidence = ["ptymark-macos-release"]
+evidence = ["Cross-platform local package smoke (macos)"]
 required = true
 
 [[check]]
-id = "release.windows"
+id = "package-smoke.windows"
 owner = "ptymark-ci"
 level = "package"
 platforms = ["windows"]
 command = "pwsh -File scripts/package-release.ps1"
 sources = ["scripts/package-release.ps1", "distribution/install.ps1", "distribution/install.cmd"]
-evidence = ["ptymark-windows-release"]
+evidence = ["Cross-platform local package smoke (windows)"]
 required = true
 
 [[check]]

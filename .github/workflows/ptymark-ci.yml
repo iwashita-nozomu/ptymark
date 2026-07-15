@@ -414,8 +414,8 @@ jobs:
         if: always()
         run: test '${{ steps.selected-renderer-check.outcome }}' = success
 
-  release-packages:
-    name: Build and smoke-test release package (${{ matrix.label }})
+  local-package-smoke:
+    name: Cross-platform local package smoke (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -457,14 +457,11 @@ jobs:
             -Binary ((Resolve-Path 'target/release/ptymark.exe').Path) `
             -OutputDir (Join-Path $env:GITHUB_WORKSPACE 'dist')
 
-      - name: Upload executable package
-        uses: actions/upload-artifact@v7
-        with:
-          name: ptymark-${{ matrix.label }}-release
-          path: |
-            dist/*.tar.gz
-            dist/*.tar.gz.sha256
-            dist/*.zip
-            dist/*.zip.sha256
-          if-no-files-found: error
-          retention-days: 30
+
+      - name: Discard local package output
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d dist
+          rm -rf dist
+          test ! -e dist

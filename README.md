@@ -55,7 +55,7 @@ Implemented:
 - `ptymark doctor`, versioned redacted JSON/support reports, and stable ready/degraded/unusable status;
 - bounded external-renderer deadlines, output limits, ordered exact-source recovery, and process cleanup;
 - a thin WezTerm launcher plugin and portable example;
-- release executable packages for Linux, macOS, and Windows in GitHub Actions;
+- cross-platform local executable/package smoke tests whose outputs are discarded rather than distributed;
 - shell coexistence contracts for Bash, Zsh, Fish, PowerShell, and Nushell;
 - Docker plus Ubuntu, macOS, and Windows GitHub Actions validation.
 
@@ -66,67 +66,24 @@ Not implemented yet:
 - complete CJK/grapheme-width and screen-reader-oriented presentation;
 - persistent renderer workers;
 - resize-generation cancellation and persistent cache;
-- supported upgrade, rollback, uninstall, purge, signing, and package-manager channels.
+- supported upgrade, rollback, uninstall, purge, and any approved signed binary/package-manager channel.
 
 `ptymark -- COMMAND` is the practical interactive path. It starts the child in a native Unix PTY or
 Windows ConPTY, forwards input, propagates size changes, filters only safe child-output regions, and
 returns the child exit status. `ptymark run -- COMMAND` remains the pipe-oriented path for batch and
 log-producing commands.
 
-## Install from a versioned GitHub Release
+## Distribution policy: source-only
 
-Version tags publish smoke-tested native archives for Linux, macOS, and Windows. Asset names include
-the ptymark version, operating system, and architecture:
+Ptymark does **not** publish project-built native executables, installer archives, renderer bundles, or executable-bearing GitHub Actions artifacts for end-user installation. GitHub Releases retain an immutable tag, release notes, and GitHub-generated source-code archives only.
 
-```text
-ptymark-<version>-linux-<architecture>.tar.gz
-ptymark-<version>-macos-<architecture>.tar.gz
-ptymark-<version>-windows-<architecture>.zip
-```
+The GitHub `Source code (zip)` and `Source code (tar.gz)` links are source snapshots, not prebuilt executables. Build locally from a reviewed tag or commit. This avoids presenting unsigned and unnotarized native downloads as an operating-system-trusted channel; it does not make a local build automatically safe.
 
-Download the archive and its adjacent `.sha256` file, or download `SHA256SUMS` and
-`release-manifest.json` from the same GitHub Release. Verify the checksum before installation. GitHub
-CLI users can also verify the build-provenance attestation:
+The executable assets originally uploaded for `v0.1.0-alpha.1` and `v0.1.0-alpha.2` have been withdrawn. Their tags, release notes, and source history remain.
 
-```bash
-gh attestation verify ptymark-*.tar.gz --repo iwashita-nozomu/ptymark
-```
+The complete policy and requirements for any future signed binary channel are documented in [`documents/release.md`](documents/release.md).
 
-```powershell
-gh attestation verify .\ptymark-*.zip --repo iwashita-nozomu/ptymark
-```
-
-### Linux or macOS package
-
-```bash
-tar -xzf ptymark-*.tar.gz
-cd ptymark-*
-bash install.sh
-```
-
-### Windows package from PowerShell
-
-```powershell
-Expand-Archive .\ptymark-*.zip -DestinationPath .\ptymark-package
-Set-Location .\ptymark-package\ptymark-*
-.\install.ps1
-```
-
-### Windows package from cmd.exe
-
-```bat
-install.cmd
-```
-
-The package installer uses the executable shipped in `bin/`; Rust and Cargo are not required for
-this path. Missing default renderer roles may still require network access during the first managed
-bundle installation. Release archives are currently unsigned alpha packages; SHA-256 verification
-and GitHub provenance do not replace Apple Developer ID or Windows Authenticode signing.
-
-The immutable asset, checksum, compatibility, and rollback rules are documented in
-[`documents/release.md`](documents/release.md).
-
-## Install from a source checkout
+## Build and install from a source checkout
 
 Source installation requires Git and Rust/Cargo 1.97 or newer.
 
@@ -616,7 +573,7 @@ make ptymark-check
 make ptymark-dev
 ```
 
-Build a release package locally after a release build:
+Build a local package for developer/CI verification after a release build. These outputs are not an official distribution channel:
 
 ```bash
 cargo build --release --locked
@@ -641,8 +598,8 @@ GitHub Actions is the formal pull-request evidence. It runs:
 - direct and strict Mermaid, MathJax, and presenter rendering;
 - canonical Docker checks, ShellCheck, and isolated managed-engine smoke;
 - WezTerm plugin and platform example checks;
-- Linux, macOS, and Windows release-package creation, package-local installation, configuration
-  validation, preview smoke, checksums, and artifact upload;
+- Linux, macOS, and Windows local package assembly, package-local installation, configuration
+  validation, and preview smoke; executable outputs are discarded and never uploaded;
 - inherited repository and Docker-pack checks.
 
 ## Design documents

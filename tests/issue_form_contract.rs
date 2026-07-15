@@ -26,6 +26,11 @@ fn release_support_routes_are_present_and_security_stays_private() {
         assert!(form.contains("semantic source"), "form={name}");
         assert!(form.contains("child environment"), "form={name}");
         assert!(form.contains("raw renderer stderr"), "form={name}");
+        assert!(
+            form.contains("GitHub-generated source archive"),
+            "form={name}"
+        );
+        assert!(!form.contains("GitHub prerelease archive"), "form={name}");
     }
 
     let bug = issue_template("bug-report.yml");
