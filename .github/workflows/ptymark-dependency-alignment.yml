@@ -1,9 +1,8 @@
 # @dependency-start
 # contract workflow
-# responsibility Fails fast when ptymark runtime or renderer dependency pins drift.
+# responsibility Fails fast when shipped or managed-renderer dependency pins drift.
 # upstream implementation ../../scripts/check-ptymark-runtime-dependencies.mjs alignment contract
 # upstream environment ../../renderers/managed-bundle.env managed dependency versions
-# upstream environment ../../docker/ptymark-versions.env canonical product image inputs
 # downstream design ../../documents/ptymark-runtime-dependencies.md ownership and upgrade rules
 # @dependency-end
 
@@ -21,9 +20,6 @@ on:
       - "renderers/managed-bundle.env"
       - "renderers/package.json"
       - "renderers/package-lock.json"
-      - "docker/ptymark-versions.env"
-      - "docker/ptymark.Dockerfile"
-      - "docker/ptymark-compose.yaml"
       - "scripts/check-ptymark-runtime-dependencies.mjs"
       - "documents/ptymark-runtime-dependencies.md"
       - ".github/workflows/ptymark-ci.yml"
@@ -39,9 +35,6 @@ on:
       - "renderers/managed-bundle.env"
       - "renderers/package.json"
       - "renderers/package-lock.json"
-      - "docker/ptymark-versions.env"
-      - "docker/ptymark.Dockerfile"
-      - "docker/ptymark-compose.yaml"
       - "scripts/check-ptymark-runtime-dependencies.mjs"
       - "documents/ptymark-runtime-dependencies.md"
       - ".github/workflows/ptymark-ci.yml"
@@ -58,7 +51,7 @@ concurrency:
 
 jobs:
   check:
-    name: Validate runtime dependency alignment
+    name: Validate product dependency alignment
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -69,11 +62,11 @@ jobs:
           submodules: false
           persist-credentials: false
 
-      - name: Install pinned Node runtime
+      - name: Install managed-bundle Node runtime
         uses: actions/setup-node@v6
         with:
           node-version: 24.18.0
           package-manager-cache: false
 
-      - name: Validate dependency sources
+      - name: Validate product dependency sources
         run: make ptymark-runtime-dependencies
