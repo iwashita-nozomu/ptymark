@@ -3,6 +3,8 @@
 # responsibility Blocks pull requests that introduce dependencies with known moderate-or-higher vulnerabilities.
 # upstream environment ../dependabot.yml proposes dependency updates
 # upstream environment ../../Cargo.lock resolved Rust dependency graph
+# upstream environment ../../docker/requirements-runtime.txt Python runtime dependencies
+# upstream environment ../../docker/requirements-dev.txt Python verification dependencies
 # upstream environment ../../renderers/package-lock.json resolved renderer dependency graph
 # downstream design ../../SECURITY.md vulnerability reporting and support policy
 # @dependency-end
@@ -17,7 +19,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "pyproject.toml"
-      - "docker/requirements.txt"
+      - "docker/requirements*.txt"
       - "docker/Dockerfile"
       - "docker/**/Dockerfile"
       - "docker/*.Dockerfile"
