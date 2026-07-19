@@ -30,7 +30,7 @@ dependencies = []
 # tools remain in docker/requirements-dev.txt.
 verification = [
   "pytest>=9.1.1",
-  "ruff>=0.15.21",
+  "ruff>=0.15.22",
   "scipy-stubs",
   "pydocstyle>=6.3",
   "pyyaml>=6.0.3",
@@ -38,7 +38,7 @@ verification = [
 # Backward-compatible alias for existing `pip install .[dev]` callers.
 dev = [
   "pytest>=9.1.1",
-  "ruff>=0.15.21",
+  "ruff>=0.15.22",
   "scipy-stubs",
   "pydocstyle>=6.3",
   "pyyaml>=6.0.3",
