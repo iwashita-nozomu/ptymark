@@ -1,129 +1,126 @@
 <!--
 @dependency-start
 contract design
-responsibility Indexes repository-local design, verification, compatibility, and shared policy.
+responsibility Provides the task-oriented documentation map and records document ownership.
+upstream design ../README.md product entrypoint
 upstream design ../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md shared ownership policy
 upstream design ../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md parent readiness policy
+downstream design ./openmath.md structured math input contract
 downstream design ./ptymark-design.md architecture contract
 downstream design ./ptymark-installer.md installation contract
-downstream design ./ptymark-runtime-dependencies.md product dependency ownership
-downstream design ./dependency-layers.md runtime and verification dependency ownership
 downstream design ./shell-plugin-compatibility.md coexistence evidence
 downstream design ../verification/README.md verification policy
 @dependency-end
 -->
 
-# documents/
+# Documentation map
 
-`documents/` is a mixed documentation directory. The root `documents/README.md`
-is repo-local and should stay a regular file after template clone. AgentCanon may
-seed this file, but derived repositories own their local index.
+Start from the task you are trying to complete. Product behavior belongs in the project documents linked near the top; repository ownership and shared AgentCanon policy are recorded later for maintainers.
 
-## Reader Map
+## Start by task
 
-- This file owns the root `documents/` index and separates AgentCanon-owned
-  shared policy sources from template-owned and project-owned regular files.
-- Use the ownership matrix first, then follow project, canon runtime, coding
-  policy, template-owned active contract, and tooling/artifact references.
-- Read it when choosing whether to edit `vendor/agent-canon/documents/` or a root
-  `documents/` regular file.
-- It is an index and ownership guide, not the source of the policies linked from
-  the referenced documents.
+| Goal | Start here | Continue with |
+| --- | --- | --- |
+| Build and install from source | [README: build and install](../README.md#build-and-install-from-a-source-checkout) | [Installer design](./ptymark-installer.md) |
+| Verify an installation | [README: verify installation](../README.md#verify-installation) | [Troubleshooting](./troubleshooting.md) |
+| Render Mermaid or TeX | [README: use `preview`](../README.md#use-preview) | [Architecture](./ptymark-design.md) |
+| Render structured mathematics | [OpenMath input](./openmath.md) | [Runnable OpenMath example](../examples/openmath.md) |
+| Run an interactive shell or command | [Interactive PTY and ConPTY session](./interactive-session.md) | [Terminal safety in the architecture](./ptymark-design.md#3-terminal-and-stream-invariants) |
+| Filter a batch or log-producing command | [Filtered command execution](./filtered-command.md) | [README: safety and failure behavior](../README.md#safety-and-failure-behavior) |
+| Recover from a problem or prepare a report | [Troubleshooting](./troubleshooting.md) | [README: diagnose and recover safely](../README.md#diagnose-and-recover-safely) |
+| Configure engines and cache behavior | [README: configuration](../README.md#configuration) | [Configuration examples](../examples/README.md) |
+| Add Ptymark to WezTerm | [WezTerm example](../examples/README.md#wezterm) | [Interactive session](./interactive-session.md) |
+| Check shell/plugin coexistence | [Shell and rich-plugin compatibility](./shell-plugin-compatibility.md) | [Verification catalog](../verification/README.md) |
+| Change the rendering architecture | [Ptymark design](./ptymark-design.md) | [Verification catalog](../verification/README.md) |
+| Prepare or review a release | [Release and recovery contract](./release.md) | [Product dependencies](./ptymark-runtime-dependencies.md) |
 
-## Project-Owned Documents
+## Recommended reading paths
 
-- [ptymark Design](./ptymark-design.md): current pre-display architecture,
-  terminal-safety invariants, render decision policy, typed engine handoff,
-  installed-engine contracts, cache identity, extension rules, and test strategy.
-- [Interactive PTY And ConPTY Session](./interactive-session.md): the practical
-  `ptymark -- COMMAND` path, parent raw mode, native child terminal allocation,
-  input and resize forwarding, real-process evidence, and protected TUI behavior.
-- [Filtered Command Execution](./filtered-command.md): the pipe-based
-  `ptymark run -- COMMAND` contract, stdout-only filtering boundary, inherited
-  stdin/stderr behavior, exit-status preservation, and explicit PTY limitations.
-- [Release And Recovery Contract](./release.md): immutable source and tag
-  requirements, stable archive names, checksums, provenance attestations, GitHub
-  Release publication, rollback, and failed-release recovery.
-- [ptymark Installer Design](./ptymark-installer.md): source and packaged core
-  installation, OS/shell frontends, installation-time engine resolution,
-  absolute-path snapshots, managed renderer isolation, idempotent replacement,
-  failure policy, and resolver extension boundary.
-- [ptymark Product Dependencies](./ptymark-runtime-dependencies.md): shipped Rust
-  and managed-bundle version ownership, alignment checks, and the safe upgrade
-  sequence.
-- [Dependency Layers](./dependency-layers.md): ownership boundaries for shipped
-  product dependencies, repository Python runtime packages, verification-only
-  tools, installer profiles, and update automation.
-- [Shell And Rich-Plugin Compatibility](./shell-plugin-compatibility.md): behavior
-  profiles, verification levels, unchanged-profile and environment contracts,
-  and twenty reviewed integrations each for Bash, Zsh, Fish, PowerShell, and
-  Nushell.
-- [Verification Catalog](../verification/README.md): machine-readable merge gates,
-  canonical commands, evidence levels, artifact names, and the rule that every
-  required check must pass for the current PR head.
+### New user
 
-## Ownership Matrix
+1. Build and install from the root README.
+2. Run the verification commands and `ptymark doctor`.
+3. Try `ptymark preview` with Mermaid, TeX, or the OpenMath example.
+4. Add the WezTerm launcher only after the native command works.
+5. Use troubleshooting for recovery; do not infer setup steps from architecture documents.
+
+### Contributor changing semantic rendering
+
+1. Read the terminal and stream invariants in [`ptymark-design.md`](./ptymark-design.md).
+2. Read the format-specific contract, such as [`openmath.md`](./openmath.md).
+3. Keep detection, format adaptation, engine selection, presentation, cache, and display commit as separate boundaries.
+4. Add unit, chunk-boundary, fallback, native-platform, and documentation evidence to the verification catalog where applicable.
+
+### Maintainer changing installation or dependencies
+
+1. Read [`ptymark-installer.md`](./ptymark-installer.md).
+2. Identify the dependency owner in [`ptymark-runtime-dependencies.md`](./ptymark-runtime-dependencies.md) or [`dependency-layers.md`](./dependency-layers.md).
+3. Follow the release and recovery contract before changing any public distribution surface.
+
+## Project-owned product documents
+
+- [Ptymark design](./ptymark-design.md): current pre-display architecture, terminal-safety invariants, source-format adaptation, render decisions, typed engine handoff, cache identity, extension rules, and test strategy.
+- [OpenMath input](./openmath.md): explicit fence, supported OpenMath XML object model, Content Dictionary rendering, bounds, failure behavior, and non-goals.
+- [Interactive PTY and ConPTY session](./interactive-session.md): native child terminal allocation, raw mode, input and resize forwarding, filtered output, exit status, and real-process evidence.
+- [Filtered command execution](./filtered-command.md): pipe-based `ptymark run -- COMMAND`, stdout filtering, inherited stdin/stderr, and explicit PTY limitations.
+- [Troubleshooting](./troubleshooting.md): doctor findings, recovery ordering, redaction, and safe public support reports.
+- [Ptymark installer design](./ptymark-installer.md): source installation, platform frontends, renderer resolution, managed bundle isolation, replacement, and failure policy.
+- [Release and recovery contract](./release.md): source-only releases, immutable tags, rollback, and requirements for any future signed binary channel.
+- [Ptymark product dependencies](./ptymark-runtime-dependencies.md): shipped Rust and managed-renderer version ownership and safe upgrade sequence.
+- [Dependency layers](./dependency-layers.md): workload runtime, verification-only tools, installer profiles, and update automation.
+- [Shell and rich-plugin compatibility](./shell-plugin-compatibility.md): behavior profiles and reviewed Bash, Zsh, Fish, PowerShell, and Nushell integrations.
+- [Verification catalog](../verification/README.md): machine-readable merge gates, commands, evidence levels, and check/artifact names.
+
+## Examples
+
+- [Example index](../examples/README.md): WezTerm setup, configuration examples, and semantic input samples.
+- [OpenMath sample](../examples/openmath.md): standard and project-specific Content Dictionary symbols.
+- [Validated TOML](../examples/ptymark.toml): representative runtime configuration.
+- [External engine TOML](../examples/external-engines.toml): explicit executable selection.
+- [WezTerm configuration](../examples/wezterm.lua): append-only launcher integration.
+
+## Document ownership
+
+`documents/` contains project-owned product contracts, template-owned active contracts, and references to AgentCanon-owned shared policy. Edit the actual owner rather than copying shared policy into a product document.
 
 | Class | Examples | Edit source |
 | --- | --- | --- |
-| AgentCanon-owned shared policy source | coding conventions, review process, workflow-supporting policies, shared templates, tool docs | `vendor/agent-canon/documents/` |
-| Template-owned active contract | bootstrap, host requirements, server contract, remote execution contract, template remote policy, licensing boundary | root `documents/` regular files |
-| Project-owned docs | architecture notes, project-specific design specs, implementation contracts | root `documents/` regular files |
-| Generated or run artifacts | agent reports, experiment outputs, logs | `reports/` or `experiments/`, not `documents/` |
+| Project-owned product contract | architecture, OpenMath, runtime, installer, release, compatibility | root `documents/` regular file |
+| Template-owned active contract | bootstrap, host, remote execution, licensing, repository audit | root `documents/` regular file |
+| AgentCanon-owned shared policy source | coding conventions, review process, shared workflow policy and templates | `vendor/agent-canon/documents/` |
+| Generated or run artifact | reports, experiment outputs, logs | `reports/` or `experiments/`, not `documents/` |
 
-If a file is AgentCanon-owned, edit the source under `vendor/agent-canon/`. If a
-file is a template-owned active contract, edit the root regular file.
+The root `documents/README.md` is project-owned and remains a regular file after template cloning. AgentCanon may seed an initial index, but the derived repository owns its reader flow.
 
-## Canon Runtime References
+## Template-owned active contracts
 
-- [Runtime Profiles And Check Matrix](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md):
-  active profile selection, risk classes, and check matrix.
-- [Runtime Profiles Inventory JSON](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.json):
-  machine-readable runtime profile inventory (root `documents/` has no vendored JSON copy).
-- [Template / AgentCanon Audit Resolution](../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md):
-  2026-05-16 500-item audit coverage and resolution ledger.
-- [Shared Runtime Surfaces](../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md): owner classes,
-  symlink/copy/regular behavior, and root-view repair rules.
-- [Shared Runtime Surface Manifest](../vendor/agent-canon/documents/shared-runtime-surfaces.toml):
-  machine-readable surface ownership list.
-- [AgentCanon Parent Repository Latest-State Checklist](../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md):
-  task-start checklist for repos that vendor AgentCanon.
-- [Codex Configuration Reference](../vendor/agent-canon/documents/codex-configuration-reference.md): Codex CLI
-  / config schema / hooks / MCP / skills / subagents reference.
-- [AgentCanon GitHub Remote](../vendor/agent-canon/documents/agent-canon-github-remote.md): GitHub canonical
-  remote and submodule update workflow.
+These files remain regular files in the derived repository:
 
-## Coding Policy References
+- [Template bootstrap](./template-bootstrap.md)
+- [Licensing policy](./licensing-policy.md)
+- [Template GitHub remote](./template-github-remote.md)
+- [Linux / WSL host requirements](./linux-wsl-host-requirements.md)
+- [Server host contract](./server-host-contract.md)
+- [Remote execution repository contract](./remote-execution-repo-contract.md)
+- [Repository audit checklist](./repository-audit-checklist.md)
 
-- [Algorithm Implementation Boundary Policy](../vendor/agent-canon/documents/algorithm-implementation-boundary.md):
-  math/specification boundary, implementation boundary, change classes, and
-  review gates.
-- [Object-Oriented Design Policy](../vendor/agent-canon/documents/object-oriented-design.md): class,
-  dataclass, Protocol, composition, and inheritance policy.
-- [Python Coding Conventions](../vendor/agent-canon/documents/coding-conventions-python.md): Python-specific
-  implementation rules.
-- [Project Coding Conventions](../vendor/agent-canon/documents/coding-conventions-project.md): project-wide
-  environment, dependency, and runtime rules.
+AgentCanon provides reusable contract templates under [`vendor/agent-canon/documents/templates/`](../vendor/agent-canon/documents/templates/), but the active contract for this repository belongs here.
 
-## Template-Owned Active Contracts
+## Shared AgentCanon policy references
 
-These files should be regular files in the template or derived repo root:
+Use these only when changing repository-wide policy or shared tooling:
 
-- [Template Bootstrap](./template-bootstrap.md)
-- [Licensing Policy](./licensing-policy.md)
-- [Template GitHub Remote](./template-github-remote.md)
-- [Linux / WSL Host Requirements](./linux-wsl-host-requirements.md)
-- [Server Host Contract](./server-host-contract.md)
-- [Remote Execution Repo Contract](./remote-execution-repo-contract.md)
-- [Repository Audit Checklist](./repository-audit-checklist.md)
-
-AgentCanon provides reusable contract templates under
-[templates/](../vendor/agent-canon/documents/templates/),
-but the active contract for a derived repo belongs to that repo.
-
-## Tooling And Artifact References
-
-- [Result Log Retention And Visualization](../vendor/agent-canon/documents/result-log-retention-and-visualization.md):
-  run result, summary, visualization artifact, and retention rules.
-- [Repo-Local Tool Imports](../vendor/agent-canon/documents/repo-local-tool-imports.md): disposition ledger for
-  tools that grow in derived repos before AgentCanon promotion.
+- [Runtime profiles and check matrix](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.md)
+- [Runtime profiles inventory JSON](../vendor/agent-canon/documents/runtime-profiles-and-check-matrix.json)
+- [Template / AgentCanon audit resolution](../vendor/agent-canon/documents/template-agent-canon-audit-resolution.md)
+- [Shared runtime surfaces](../vendor/agent-canon/documents/SHARED_RUNTIME_SURFACES.md)
+- [Shared runtime surface manifest](../vendor/agent-canon/documents/shared-runtime-surfaces.toml)
+- [AgentCanon parent repository latest-state checklist](../vendor/agent-canon/documents/agent-canon-parent-repo-latest-checklist.md)
+- [Codex configuration reference](../vendor/agent-canon/documents/codex-configuration-reference.md)
+- [AgentCanon GitHub remote](../vendor/agent-canon/documents/agent-canon-github-remote.md)
+- [Algorithm implementation boundary policy](../vendor/agent-canon/documents/algorithm-implementation-boundary.md)
+- [Object-oriented design policy](../vendor/agent-canon/documents/object-oriented-design.md)
+- [Python coding conventions](../vendor/agent-canon/documents/coding-conventions-python.md)
+- [Project coding conventions](../vendor/agent-canon/documents/coding-conventions-project.md)
+- [Result log retention and visualization](../vendor/agent-canon/documents/result-log-retention-and-visualization.md)
+- [Repository-local tool imports](../vendor/agent-canon/documents/repo-local-tool-imports.md)
