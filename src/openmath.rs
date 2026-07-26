@@ -59,10 +59,10 @@ pub fn to_tex(input: &[u8]) -> Result<String, OpenMathError> {
 }
 
 fn validate_openmath_namespace(root: &XmlElement) -> Result<(), OpenMathError> {
-    let namespace_key = root
-        .name
-        .split_once(':')
-        .map_or_else(|| "xmlns".to_owned(), |(prefix, _)| format!("xmlns:{prefix}"));
+    let namespace_key = root.name.split_once(':').map_or_else(
+        || "xmlns".to_owned(),
+        |(prefix, _)| format!("xmlns:{prefix}"),
+    );
     match root.attributes.get(&namespace_key).map(String::as_str) {
         Some(OPENMATH_NAMESPACE) => Ok(()),
         Some(namespace) => Err(OpenMathError::new(format!(
@@ -145,9 +145,9 @@ fn parse_object(element: &XmlElement, depth: usize) -> Result<OpenMathObject, Op
                 .filter(|character| !character.is_ascii_whitespace())
                 .collect::<String>();
             if value.is_empty()
-                || !value
-                    .chars()
-                    .all(|character| character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '='))
+                || !value.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '=')
+                })
             {
                 return Err(OpenMathError::new("OMB contains invalid base64 text"));
             }
@@ -208,10 +208,7 @@ fn parse_object(element: &XmlElement, depth: usize) -> Result<OpenMathObject, Op
 
 fn parse_float(element: &XmlElement) -> Result<OpenMathObject, OpenMathError> {
     require_empty(element)?;
-    match (
-        element.attributes.get("dec"),
-        element.attributes.get("hex"),
-    ) {
+    match (element.attributes.get("dec"), element.attributes.get("hex")) {
         (Some(decimal), None) if valid_decimal(decimal) => {
             Ok(OpenMathObject::Float(decimal.clone()))
         }
@@ -309,10 +306,7 @@ fn valid_decimal(value: &str) -> bool {
         })
 }
 
-fn required_attribute<'a>(
-    element: &'a XmlElement,
-    name: &str,
-) -> Result<&'a str, OpenMathError> {
+fn required_attribute<'a>(element: &'a XmlElement, name: &str) -> Result<&'a str, OpenMathError> {
     element
         .attributes
         .get(name)
@@ -413,10 +407,10 @@ fn render_object(object: &OpenMathObject) -> String {
 }
 
 fn render_application(operator: &OpenMathObject, arguments: &[OpenMathObject]) -> String {
-    if let OpenMathObject::Symbol(symbol) = operator {
-        if let Some(rendered) = render_known_application(symbol, arguments) {
-            return rendered;
-        }
+    if let OpenMathObject::Symbol(symbol) = operator
+        && let Some(rendered) = render_known_application(symbol, arguments)
+    {
+        return rendered;
     }
     format!(
         "{}\\left({}\\right)",
@@ -447,9 +441,7 @@ fn render_known_application(symbol: &Symbol, arguments: &[OpenMathObject]) -> Op
 
     match (symbol.cd.as_str(), symbol.name.as_str()) {
         ("arith1", "plus") if !arguments.is_empty() => Some(join_infix(arguments, "+")),
-        ("arith1", "times") if !arguments.is_empty() => {
-            Some(join_infix(arguments, "\\cdot"))
-        }
+        ("arith1", "times") if !arguments.is_empty() => Some(join_infix(arguments, "\\cdot")),
         ("arith1", "minus") => binary("-"),
         ("arith1", "unary_minus") => unary("-"),
         ("arith1", "divide") if arguments.len() == 2 => Some(format!(
@@ -467,10 +459,9 @@ fn render_known_application(symbol: &Symbol, arguments: &[OpenMathObject]) -> Op
             render_object(&arguments[1]),
             render_object(&arguments[0])
         )),
-        ("arith1", "abs") if arguments.len() == 1 => Some(format!(
-            "\\left|{}\\right|",
-            render_object(&arguments[0])
-        )),
+        ("arith1", "abs") if arguments.len() == 1 => {
+            Some(format!("\\left|{}\\right|", render_object(&arguments[0])))
+        }
         ("arith1", "gcd") => function("gcd"),
         ("arith1", "lcm") => function("lcm"),
         ("arith1", "sum") => function("sum"),
@@ -482,12 +473,8 @@ fn render_known_application(symbol: &Symbol, arguments: &[OpenMathObject]) -> Op
         ("relation1", "gt") => binary(">"),
         ("relation1", "geq") => binary("\\geq"),
         ("relation1", "approx") => binary("\\approx"),
-        ("logic1", "and") if !arguments.is_empty() => {
-            Some(join_infix(arguments, "\\land"))
-        }
-        ("logic1", "or") if !arguments.is_empty() => {
-            Some(join_infix(arguments, "\\lor"))
-        }
+        ("logic1", "and") if !arguments.is_empty() => Some(join_infix(arguments, "\\land")),
+        ("logic1", "or") if !arguments.is_empty() => Some(join_infix(arguments, "\\lor")),
         ("logic1", "not") => unary("\\neg "),
         ("logic1", "implies") => binary("\\Rightarrow"),
         ("logic1", "equivalent") => binary("\\Leftrightarrow"),
@@ -495,12 +482,8 @@ fn render_known_application(symbol: &Symbol, arguments: &[OpenMathObject]) -> Op
         ("set1", "notin") => binary("\\notin"),
         ("set1", "subset") => binary("\\subseteq"),
         ("set1", "prsubset") => binary("\\subset"),
-        ("set1", "union") if !arguments.is_empty() => {
-            Some(join_infix(arguments, "\\cup"))
-        }
-        ("set1", "intersect") if !arguments.is_empty() => {
-            Some(join_infix(arguments, "\\cap"))
-        }
+        ("set1", "union") if !arguments.is_empty() => Some(join_infix(arguments, "\\cup")),
+        ("set1", "intersect") if !arguments.is_empty() => Some(join_infix(arguments, "\\cap")),
         ("set1", "setdiff") => binary("\\setminus"),
         ("set1", "cartesian_product") if !arguments.is_empty() => {
             Some(join_infix(arguments, "\\times"))
@@ -509,18 +492,13 @@ fn render_known_application(symbol: &Symbol, arguments: &[OpenMathObject]) -> Op
             "\\left\\{{{}\\right\\}}",
             render_arguments(arguments)
         )),
-        ("list1", "list") => Some(format!(
-            "\\left[{}\\right]",
-            render_arguments(arguments)
-        )),
+        ("list1", "list") => Some(format!("\\left[{}\\right]", render_arguments(arguments))),
         ("interval1", "integer_interval") if arguments.len() == 2 => Some(format!(
             "\\left[{}, {}\\right]_{{\\mathbb{{Z}}}}",
             render_object(&arguments[0]),
             render_object(&arguments[1])
         )),
-        ("interval1", "interval") | ("interval1", "interval_cc")
-            if arguments.len() == 2 =>
-        {
+        ("interval1", "interval") | ("interval1", "interval_cc") if arguments.len() == 2 => {
             Some(render_interval(arguments, '[', ']'))
         }
         ("interval1", "interval_co") if arguments.len() == 2 => {
@@ -729,9 +707,7 @@ impl<'a> XmlParser<'a> {
 
     fn parse_element(&mut self, depth: usize) -> Result<XmlElement, OpenMathError> {
         if depth >= MAX_XML_DEPTH {
-            return Err(self.error(format!(
-                "XML nesting exceeds {MAX_XML_DEPTH} levels"
-            )));
+            return Err(self.error(format!("XML nesting exceeds {MAX_XML_DEPTH} levels")));
         }
         self.expect("<")?;
         if self.starts_with("/") || self.starts_with("!") || self.starts_with("?") {
@@ -756,17 +732,13 @@ impl<'a> XmlParser<'a> {
                 .insert(attribute_name.clone(), attribute_value)
                 .is_some()
             {
-                return Err(self.error(format!(
-                    "duplicate XML attribute `{attribute_name}`"
-                )));
+                return Err(self.error(format!("duplicate XML attribute `{attribute_name}`")));
             }
         };
 
         self.nodes = self.nodes.saturating_add(1);
         if self.nodes > MAX_XML_NODES {
-            return Err(self.error(format!(
-                "XML element count exceeds {MAX_XML_NODES}"
-            )));
+            return Err(self.error(format!("XML element count exceeds {MAX_XML_NODES}")));
         }
         if self_closing {
             return Ok(XmlElement {
@@ -801,7 +773,9 @@ impl<'a> XmlParser<'a> {
             } else if self.starts_with_ascii_case_insensitive("<!DOCTYPE") {
                 return Err(self.error("DOCTYPE is not permitted"));
             } else if self.starts_with("<!") {
-                return Err(self.error("XML declarations other than comments and CDATA are not permitted"));
+                return Err(
+                    self.error("XML declarations other than comments and CDATA are not permitted")
+                );
             } else if self.starts_with("<") {
                 children.push(XmlChild::Element(self.parse_element(depth + 1)?));
             } else {
@@ -1070,28 +1044,41 @@ mod tests {
         let source = br#"<OMOBJ xmlns="http://www.openmath.org/OpenMath">
   <OMSTR>A &amp; B &#x3c0;</OMSTR>
 </OMOBJ>"#;
-        assert_eq!(
-            to_tex(source).expect("convert"),
-            "\\text{A \\& B π}"
-        );
+        assert_eq!(to_tex(source).expect("convert"), "\\text{A \\& B π}");
     }
 
     #[test]
     fn rejects_doctype_and_external_entity_surfaces() {
         let source = br#"<!DOCTYPE OMOBJ [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
 <OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMSTR>&xxe;</OMSTR></OMOBJ>"#;
-        assert!(to_tex(source).expect_err("doctype").to_string().contains("DOCTYPE"));
+        assert!(
+            to_tex(source)
+                .expect_err("doctype")
+                .to_string()
+                .contains("DOCTYPE")
+        );
     }
 
     #[test]
     fn rejects_cross_object_references() {
-        let source = br#"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"#;
-        assert!(to_tex(source).expect_err("reference").to_string().contains("OMR"));
+        let source =
+            br##"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"##;
+        assert!(
+            to_tex(source)
+                .expect_err("reference")
+                .to_string()
+                .contains("OMR")
+        );
     }
 
     #[test]
     fn requires_the_openmath_namespace() {
         let source = br#"<OMOBJ><OMI>1</OMI></OMOBJ>"#;
-        assert!(to_tex(source).expect_err("namespace").to_string().contains("declare"));
+        assert!(
+            to_tex(source)
+                .expect_err("namespace")
+                .to_string()
+                .contains("declare")
+        );
     }
 }

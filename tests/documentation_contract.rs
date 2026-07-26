@@ -53,7 +53,11 @@ fn current_design_describes_native_sessions_and_format_adaptation() {
     ] {
         assert!(DESIGN.contains(required), "design is missing `{required}`");
     }
-    assert!(!DESIGN.contains("interactive PTY host and Windows ConPTY host remain separate follow-up work"));
+    assert!(
+        !DESIGN.contains(
+            "interactive PTY host and Windows ConPTY host remain separate follow-up work"
+        )
+    );
     assert!(!DESIGN.contains("30-second wall-clock cold-start ceiling"));
 }
 
@@ -67,7 +71,10 @@ fn openmath_contract_and_example_are_cross_linked() {
         "remote Content Dictionary",
         "../examples/openmath.md",
     ] {
-        assert!(OPENMATH.contains(required), "OpenMath contract is missing `{required}`");
+        assert!(
+            OPENMATH.contains(required),
+            "OpenMath contract is missing `{required}`"
+        );
     }
     assert!(EXAMPLES.contains("openmath.md"));
     assert!(OPENMATH_EXAMPLE.contains("```openmath"));

@@ -175,7 +175,7 @@ impl Renderer for PreviewRenderer {
         if context.color {
             bytes.extend_from_slice(b"\x1b[1;36m");
         }
-        bytes.extend_from_slice(format!("┌─ ptymark {} ─\n", block.format()).as_bytes());
+        bytes.extend_from_slice(format!("┌─ ptymark {} ─\n", block.kind()).as_bytes());
         if context.color {
             bytes.extend_from_slice(b"\x1b[0m");
         }
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_identifies_the_concrete_source_format() {
+    fn preview_keeps_the_stable_semantic_role() {
         let block = SemanticBlock::with_format(
             BlockKind::Math,
             SemanticFormat::OpenMath,
@@ -316,7 +316,7 @@ mod tests {
         assert!(
             String::from_utf8(artifact.bytes)
                 .expect("UTF-8")
-                .contains("ptymark openmath")
+                .contains("ptymark math")
         );
     }
 

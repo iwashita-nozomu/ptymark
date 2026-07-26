@@ -13,7 +13,9 @@ fn valid_input() -> &'static [u8] {
 fn openmath_rendering_is_independent_of_stream_chunk_boundaries() {
     let mut whole = pipeline(PipelineOptions::default());
     let mut whole_output = Vec::new();
-    whole.feed(valid_input(), &mut whole_output).expect("whole feed");
+    whole
+        .feed(valid_input(), &mut whole_output)
+        .expect("whole feed");
     whole.finish(&mut whole_output).expect("whole finish");
 
     let mut bytewise = pipeline(PipelineOptions::default());
@@ -75,7 +77,9 @@ fn source_and_safe_modes_preserve_openmath_exactly() {
     ] {
         let mut pipeline = pipeline(options);
         let mut output = Vec::new();
-        pipeline.feed(valid_input(), &mut output).expect("mode feed");
+        pipeline
+            .feed(valid_input(), &mut output)
+            .expect("mode feed");
         pipeline.finish(&mut output).expect("mode finish");
         assert_eq!(output, valid_input());
     }
