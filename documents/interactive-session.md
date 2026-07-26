@@ -3,8 +3,10 @@
 contract design
 responsibility Defines native PTY and ConPTY session behavior.
 upstream design ./ptymark-design.md terminal-safety boundary
+upstream design ./openmath.md structured math input contract
 downstream implementation ../src/interactive.rs session composition
 downstream implementation ../tests/interactive_pty_contract.rs native runtime validation
+downstream implementation ../tests/openmath_contract.rs structured math safety evidence
 @dependency-end
 -->
 
@@ -27,6 +29,7 @@ parent terminal size ----------------------> PTY / ConPTY resize
 child PTY output
     -> TerminalOutputGate
     -> SemanticDetector
+    -> source-format adapter when required
     -> RenderDecider
     -> EngineHandoff
     -> ArtifactCache
@@ -47,7 +50,7 @@ No shell command string is synthesized. The executable and each argument remain 
 The interactive host is retained in every mode; only pre-display rendering policy changes:
 
 - `--source` keeps semantic detection active and replaces each complete block with its exact source;
-- `--safe` uses the passthrough detector and never invokes a semantic renderer or presenter;
+- `--safe` uses the passthrough detector and never invokes a semantic renderer, source-format adapter, or presenter;
 - `--private` keeps the selected rendering policy but selects `NoopCache` for the invocation.
 
 `--source` and `--safe` are mutually exclusive. `--private` can accompany either mode. All options are
@@ -74,7 +77,7 @@ native_session.rs
     resize observation
 
 runtime.rs
-    detector / renderer / cache composition
+    detector / source-format adapter / renderer / cache composition
 
 stream.rs
     reader -> DisplayPipeline -> display pumping
@@ -105,22 +108,21 @@ integration tests without replacing the PTY with a mock.
 
 ## Output safety
 
-Only complete explicit Mermaid and block-math forms on safe text lines are eligible for rendering.
-The following remain byte-exact:
+Only complete explicit Mermaid, TeX block-math, and OpenMath forms on safe text lines are eligible for rendering. OpenMath uses the same `math` role and is converted locally before the configured math renderer. The following remain byte-exact:
 
 - ANSI/CSI styling and cursor movement;
 - OSC hyperlinks, cwd markers, shell integration, and titles;
 - DCS, APC, PM, and unknown string controls;
 - carriage-return progress and line-editor redraws;
 - alternate-screen applications;
-- incomplete, oversized, invalid, or failed semantic blocks.
+- incomplete, oversized, invalid, unsupported, or failed semantic blocks.
 
 PTY line endings commonly arrive as CRLF. An exact CRLF pair is treated as a logical safe newline
 while preserving both bytes. A bare carriage return remains a redraw control and puts the rest of the
 line on the raw bypass path.
 
 Full-screen Codex, fuzzy finders, editors, pagers, and other alternate-screen or cursor-addressed
-interfaces are intentionally preserved rather than rewritten. Line-oriented Markdown emitted outside
+interfaces are intentionally preserved rather than rewritten. Line-oriented semantic blocks emitted outside
 those protected regions can be rendered.
 
 ## Resize behavior
@@ -138,8 +140,8 @@ Generation-based cancellation of an in-flight stale render remains follow-up wor
 - child stdout and stderr are combined by the PTY, as they are in a normal terminal;
 - ordinary child exit codes are returned by ptymark;
 - EOF or the platform's closed-PTY indication completes the display pipeline before exit;
-- a strict rendering failure terminates the child and returns a ptymark error;
-- a non-strict rendering failure restores the exact semantic source;
+- a strict conversion or rendering failure terminates the child and returns a ptymark error;
+- a non-strict conversion or rendering failure restores the exact semantic source;
 - display write failure terminates the child rather than continuing invisibly;
 - normal rendering never installs dependencies or performs network access.
 
@@ -155,6 +157,4 @@ Generation-based cancellation of an in-flight stale render remains follow-up wor
 - a real Unix PTY resize changes the size observed by `stty`.
 
 Managed-renderer smoke tests additionally run Mermaid and MathJax through the interactive PTY/ConPTY
-path, so an engine failure cannot be hidden by a mock adapter or source fallback. Session-mode
-contracts run through the same real host and verify that source/safe output remains exact, private mode
-continues to render, and conflicting options fail before child launch.
+path, so an engine failure cannot be hidden by a mock adapter or source fallback. OpenMath contracts exercise the same canonical pipeline, including chunk independence, exact fallback, strict failure, source/safe modes, and protected terminal regions. Session-mode contracts verify that source/safe output remains exact, private mode continues to render, and conflicting options fail before child launch.
