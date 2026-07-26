@@ -59,6 +59,7 @@ fn current_design_describes_native_sessions_and_format_adaptation() {
         )
     );
     assert!(!DESIGN.contains("30-second wall-clock cold-start ceiling"));
+    assert!(DESIGN.contains("````text\n```mermaid ... ```"));
 }
 
 #[test]

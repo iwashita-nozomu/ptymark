@@ -97,12 +97,12 @@ An exact CRLF pair may be treated as one logical newline while both bytes remain
 
 The detector recognizes these line-bounded forms:
 
-```text
+````text
 ```mermaid ... ```
 $$ ... $$
 ```math|latex|tex ... ```
 ```openmath ... ```
-```
+````
 
 OpenMath is detected only through the explicit fence. Raw `OMOBJ` XML elsewhere is ordinary text. Inline `$...$`, headings, lists, and XML-looking prompt output are not interpreted.
 
