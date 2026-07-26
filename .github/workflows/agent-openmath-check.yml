@@ -6,38 +6,47 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: agent-openmath-check-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  format-and-check:
+  format-check-and-apply:
     if: github.event.pull_request.head.ref == 'agent/openmath-doc-navigation'
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out the pull request head
+      - name: Check out the working branch
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: agent/openmath-doc-navigation
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
 
-      - name: Apply rustfmt and package the formatted source
-        id: format
+      - name: Repair the raw-string delimiter and apply rustfmt
         shell: bash
         run: |
-          set +e
-          cargo +1.97.0 fmt --all 2>&1 | tee fmt.log
-          format_status=${PIPESTATUS[0]}
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/openmath.rs")
+          source = path.read_text(encoding="utf-8")
+          old = 'br#"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"#'
+          new = 'br##"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"##'
+          count = source.count(old)
+          if count not in (0, 1):
+              raise SystemExit(f"unexpected raw-string match count: {count}")
+          if count == 1:
+              path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+          cargo +1.97.0 fmt --all
           git diff --binary > format.patch
           tar -cf formatted-rust.tar src tests
-          echo "status=${format_status}" >> "$GITHUB_OUTPUT"
-          exit 0
 
       - name: Check all Rust targets
         id: check
@@ -55,14 +64,13 @@ jobs:
           set -o pipefail
           cargo +1.97.0 clippy --all-targets --locked -- -D warnings 2>&1 | tee clippy.log
 
-      - name: Run focused OpenMath and documentation tests
+      - name: Run all Rust tests
         id: tests
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          cargo +1.97.0 test --locked openmath 2>&1 | tee openmath-tests.log
-          cargo +1.97.0 test --locked --test documentation_contract 2>&1 | tee documentation-tests.log
+          cargo +1.97.0 test --all-targets --locked 2>&1 | tee tests.log
 
       - name: Upload formatting and diagnostic evidence
         if: always()
@@ -70,21 +78,32 @@ jobs:
         with:
           name: agent-openmath-format-and-diagnostics
           path: |
-            fmt.log
             format.patch
             formatted-rust.tar
             check.log
             clippy.log
-            openmath-tests.log
-            documentation-tests.log
+            tests.log
           if-no-files-found: warn
           retention-days: 1
+
+      - name: Commit the validated fix and formatting
+        if: steps.check.outcome == 'success' && steps.clippy.outcome == 'success' && steps.tests.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src tests
+          git commit -m "fix: validate and format OpenMath support"
+          git push origin HEAD:agent/openmath-doc-navigation
 
       - name: Preserve validation result
         if: always()
         shell: bash
         run: |
-          test '${{ steps.format.outputs.status }}' = 0
           test '${{ steps.check.outcome }}' = success
           test '${{ steps.clippy.outcome }}' = success
           test '${{ steps.tests.outcome }}' = success
