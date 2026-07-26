@@ -1,70 +1,84 @@
 name: Agent OpenMath branch check
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/openmath-doc-navigation
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: agent-openmath-check
+  group: agent-openmath-check-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   format-and-check:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.head.ref == 'agent/openmath-doc-navigation'
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out working branch
+      - name: Check out the pull request head
         uses: actions/checkout@v7
         with:
-          ref: agent/openmath-doc-navigation
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
 
-      - name: Apply rustfmt and push the result
+      - name: Apply rustfmt and package the formatted source
         shell: bash
         run: |
           set -euo pipefail
           cargo +1.97.0 fmt --all
-          if ! git diff --quiet; then
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add --all
-            git commit -m "style: apply rustfmt"
-            git push origin HEAD:agent/openmath-doc-navigation
-          fi
+          git diff --binary > format.patch
+          tar -cf formatted-rust.tar src tests
 
       - name: Check all Rust targets
+        id: check
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          if ! cargo +1.97.0 check --all-targets --locked --message-format short > check.log 2>&1; then
-            tail -n 200 check.log
-            exit 1
-          fi
-          tail -n 40 check.log
+          set -o pipefail
+          cargo +1.97.0 check --all-targets --locked --message-format short 2>&1 | tee check.log
 
       - name: Run Clippy with warnings denied
+        id: clippy
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          if ! cargo +1.97.0 clippy --all-targets --locked -- -D warnings > clippy.log 2>&1; then
-            tail -n 200 clippy.log
-            exit 1
-          fi
-          tail -n 40 clippy.log
+          set -o pipefail
+          cargo +1.97.0 clippy --all-targets --locked -- -D warnings 2>&1 | tee clippy.log
 
-      - name: Run focused OpenMath tests
+      - name: Run focused OpenMath and documentation tests
+        id: tests
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          if ! cargo +1.97.0 test --locked openmath > tests.log 2>&1; then
-            tail -n 200 tests.log
-            exit 1
-          fi
-          tail -n 80 tests.log
+          set -o pipefail
+          cargo +1.97.0 test --locked openmath 2>&1 | tee openmath-tests.log
+          cargo +1.97.0 test --locked --test documentation_contract 2>&1 | tee documentation-tests.log
+
+      - name: Upload formatting and diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-openmath-format-and-diagnostics
+          path: |
+            format.patch
+            formatted-rust.tar
+            check.log
+            clippy.log
+            openmath-tests.log
+            documentation-tests.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve validation result
+        if: always()
+        shell: bash
+        run: |
+          test '${{ steps.check.outcome }}' = success
+          test '${{ steps.clippy.outcome }}' = success
+          test '${{ steps.tests.outcome }}' = success
