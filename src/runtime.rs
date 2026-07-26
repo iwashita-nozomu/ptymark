@@ -1,6 +1,7 @@
 use crate::cache::{ArtifactCache, MemoryCache, NoopCache};
-use crate::config::{Config, RenderMode};
+use crate::config::{Config, MathEngine, RenderMode};
 use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
+use crate::format_adapter::OpenMathAdapterRenderer;
 use crate::pipeline::DisplayPipeline;
 use crate::render::{RenderCancellation, RenderContext, RenderService, Renderer, SourceRenderer};
 use crate::routing::RoutedRenderer;
@@ -49,9 +50,15 @@ impl<'a> PipelineFactory<'a> {
         let renderer: Box<dyn Renderer> = if options.safe || source_mode {
             Box::new(SourceRenderer)
         } else {
-            Box::new(RoutedRenderer::configured_with_cancellation(
-                &self.config.engines,
-                cancellation.clone(),
+            let routed: Box<dyn Renderer> = Box::new(
+                RoutedRenderer::configured_with_cancellation(
+                    &self.config.engines,
+                    cancellation.clone(),
+                ),
+            );
+            Box::new(OpenMathAdapterRenderer::new(
+                routed,
+                self.config.engines.math.backend != MathEngine::Source,
             ))
         };
         let cache: Box<dyn ArtifactCache> = if options.safe
