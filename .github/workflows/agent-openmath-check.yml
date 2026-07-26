@@ -28,12 +28,16 @@ jobs:
         run: rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
 
       - name: Apply rustfmt and package the formatted source
+        id: format
         shell: bash
         run: |
-          set -euo pipefail
-          cargo +1.97.0 fmt --all
+          set +e
+          cargo +1.97.0 fmt --all 2>&1 | tee fmt.log
+          format_status=${PIPESTATUS[0]}
           git diff --binary > format.patch
           tar -cf formatted-rust.tar src tests
+          echo "status=${format_status}" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Check all Rust targets
         id: check
@@ -66,19 +70,21 @@ jobs:
         with:
           name: agent-openmath-format-and-diagnostics
           path: |
+            fmt.log
             format.patch
             formatted-rust.tar
             check.log
             clippy.log
             openmath-tests.log
             documentation-tests.log
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
 
       - name: Preserve validation result
         if: always()
         shell: bash
         run: |
+          test '${{ steps.format.outputs.status }}' = 0
           test '${{ steps.check.outcome }}' = success
           test '${{ steps.clippy.outcome }}' = success
           test '${{ steps.tests.outcome }}' = success
