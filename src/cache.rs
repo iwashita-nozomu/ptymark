@@ -1,10 +1,11 @@
-use crate::model::BlockKind;
+use crate::model::{BlockKind, SemanticFormat};
 use std::collections::{HashMap, VecDeque};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CacheKey {
     renderer_id: String,
     kind: BlockKind,
+    format: SemanticFormat,
     source: Vec<u8>,
     columns: u16,
     color: bool,
@@ -12,6 +13,9 @@ pub struct CacheKey {
 }
 
 impl CacheKey {
+    /// Construct a cache key for the default source format of the semantic
+    /// kind. This preserves the original public constructor for callers that
+    /// create TeX or Mermaid blocks directly.
     pub fn new(
         renderer_id: impl Into<String>,
         kind: BlockKind,
@@ -20,9 +24,30 @@ impl CacheKey {
         color: bool,
         theme_fingerprint: u64,
     ) -> Self {
+        Self::new_with_format(
+            renderer_id,
+            kind,
+            SemanticFormat::default_for(kind),
+            source,
+            columns,
+            color,
+            theme_fingerprint,
+        )
+    }
+
+    pub fn new_with_format(
+        renderer_id: impl Into<String>,
+        kind: BlockKind,
+        format: SemanticFormat,
+        source: &[u8],
+        columns: u16,
+        color: bool,
+        theme_fingerprint: u64,
+    ) -> Self {
         Self {
             renderer_id: renderer_id.into(),
             kind,
+            format,
             source: source.to_vec(),
             columns,
             color,
@@ -35,6 +60,7 @@ impl CacheKey {
             .len()
             .saturating_add(self.source.len())
             .saturating_add(std::mem::size_of::<BlockKind>())
+            .saturating_add(std::mem::size_of::<SemanticFormat>())
             .saturating_add(std::mem::size_of::<u16>())
             .saturating_add(std::mem::size_of::<bool>())
             .saturating_add(std::mem::size_of::<u64>())
@@ -184,7 +210,7 @@ impl ArtifactCache for MemoryCache {
 #[cfg(test)]
 mod tests {
     use super::{ArtifactCache, CacheKey, MemoryCache, NoopCache};
-    use crate::model::BlockKind;
+    use crate::model::{BlockKind, SemanticFormat};
 
     fn key(number: u8) -> CacheKey {
         CacheKey::new("test/renderer-v1", BlockKind::Math, &[number], 80, false, 0)
@@ -203,6 +229,29 @@ mod tests {
         assert_eq!(cache.get(&second), None);
         assert_eq!(cache.get(&first), Some(b"one".to_vec()));
         assert_eq!(cache.get(&third), Some(b"tri".to_vec()));
+    }
+
+    #[test]
+    fn source_format_participates_in_cache_identity() {
+        let tex = CacheKey::new_with_format(
+            "test/renderer-v1",
+            BlockKind::Math,
+            SemanticFormat::Tex,
+            b"same source",
+            80,
+            false,
+            0,
+        );
+        let openmath = CacheKey::new_with_format(
+            "test/renderer-v1",
+            BlockKind::Math,
+            SemanticFormat::OpenMath,
+            b"same source",
+            80,
+            false,
+            0,
+        );
+        assert_ne!(tex, openmath);
     }
 
     #[test]
