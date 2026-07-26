@@ -27,22 +27,57 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
 
-      - name: Repair the raw-string delimiter and apply rustfmt
+      - name: Apply the validated fixes and rustfmt
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("src/openmath.rs")
-          source = path.read_text(encoding="utf-8")
-          old = 'br#"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"#'
-          new = 'br##"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"##'
-          count = source.count(old)
-          if count not in (0, 1):
-              raise SystemExit(f"unexpected raw-string match count: {count}")
-          if count == 1:
-              path.write_text(source.replace(old, new), encoding="utf-8")
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              source = target.read_text(encoding="utf-8")
+              count = source.count(old)
+              if count not in (0, 1):
+                  raise SystemExit(f"{path}: unexpected match count {count} for {old!r}")
+              if count == 1:
+                  target.write_text(source.replace(old, new), encoding="utf-8")
+
+          replace_once(
+              "src/openmath.rs",
+              'br#"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"#',
+              'br##"<OMOBJ xmlns="http://www.openmath.org/OpenMath"><OMR href="#other"/></OMOBJ>"##',
+          )
+          replace_once(
+              "src/openmath.rs",
+              """    if let OpenMathObject::Symbol(symbol) = operator {
+                  if let Some(rendered) = render_known_application(symbol, arguments) {
+                      return rendered;
+                  }
+              }
+          """,
+              """    if let OpenMathObject::Symbol(symbol) = operator
+                  && let Some(rendered) = render_known_application(symbol, arguments)
+              {
+                  return rendered;
+              }
+          """,
+          )
+          replace_once(
+              "src/render.rs",
+              'format!("┌─ ptymark {} ─\\n", block.format())',
+              'format!("┌─ ptymark {} ─\\n", block.kind())',
+          )
+          replace_once(
+              "src/render.rs",
+              "fn preview_identifies_the_concrete_source_format()",
+              "fn preview_keeps_the_stable_semantic_role()",
+          )
+          replace_once(
+              "src/render.rs",
+              '.contains("ptymark openmath")',
+              '.contains("ptymark math")',
+          )
           PY
           cargo +1.97.0 fmt --all
           git diff --binary > format.patch
@@ -86,7 +121,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 1
 
-      - name: Commit the validated fix and formatting
+      - name: Commit the validated fixes and formatting
         if: steps.check.outcome == 'success' && steps.clippy.outcome == 'success' && steps.tests.outcome == 'success'
         shell: bash
         run: |
