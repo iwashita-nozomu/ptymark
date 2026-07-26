@@ -1,0 +1,70 @@
+name: Agent OpenMath branch check
+
+on:
+  push:
+    branches:
+      - agent/openmath-doc-navigation
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-openmath-check
+  cancel-in-progress: true
+
+jobs:
+  format-and-check:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out working branch
+        uses: actions/checkout@v7
+        with:
+          ref: agent/openmath-doc-navigation
+          fetch-depth: 0
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.97.0 --profile minimal --component rustfmt,clippy
+
+      - name: Apply rustfmt and push the result
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.97.0 fmt --all
+          if ! git diff --quiet; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add --all
+            git commit -m "style: apply rustfmt"
+            git push origin HEAD:agent/openmath-doc-navigation
+          fi
+
+      - name: Check all Rust targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! cargo +1.97.0 check --all-targets --locked --message-format short > check.log 2>&1; then
+            tail -n 200 check.log
+            exit 1
+          fi
+          tail -n 40 check.log
+
+      - name: Run Clippy with warnings denied
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! cargo +1.97.0 clippy --all-targets --locked -- -D warnings > clippy.log 2>&1; then
+            tail -n 200 clippy.log
+            exit 1
+          fi
+          tail -n 40 clippy.log
+
+      - name: Run focused OpenMath tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! cargo +1.97.0 test --locked openmath > tests.log 2>&1; then
+            tail -n 200 tests.log
+            exit 1
+          fi
+          tail -n 80 tests.log
