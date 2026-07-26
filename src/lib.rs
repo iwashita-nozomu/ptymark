@@ -8,11 +8,13 @@ pub mod diagnostics;
 pub mod doctor;
 pub mod engine;
 mod filtered_run;
+pub mod format_adapter;
 pub mod install;
 mod interactive;
 pub mod managed_launcher;
 pub mod model;
 mod native_session;
+pub mod openmath;
 pub mod pipeline;
 pub mod render;
 pub mod routing;
@@ -33,6 +35,7 @@ pub use diagnostics::{
 };
 pub use doctor::{DOCTOR_SCHEMA, DoctorReport, DoctorRequest};
 pub use engine::{ConfiguredRenderer, EngineCheck, check_configured_engines, resolve_executable};
+pub use format_adapter::OpenMathAdapterRenderer;
 pub use install::{
     EnginePreference, INSTALL_STATE_SCHEMA_VERSION, InstallError, InstallPlan, InstallRequest,
     InstallState, InstalledComponent, Installer, PathProgramResolver, PresenterPreference,
@@ -42,7 +45,10 @@ pub use managed_launcher::{
     MANAGED_BUNDLE_SCHEMA_VERSION, ManagedBundleInspection, inspect_managed_alias,
     run_if_managed_alias,
 };
-pub use model::{BlockKind, SemanticBlock, StreamItem};
+pub use model::{BlockKind, SemanticBlock, SemanticFormat, StreamItem};
+pub use openmath::{
+    OPENMATH_NAMESPACE, OPENMATH_TO_TEX_ID, OpenMathError, to_tex as openmath_to_tex,
+};
 pub use pipeline::{DisplayPipeline, MAX_PENDING_OUTPUT_BYTES, PipelineError, PipelineReport};
 pub use render::{
     PreviewRenderer, RenderArtifact, RenderCancellation, RenderContext, RenderError, RenderOutput,
