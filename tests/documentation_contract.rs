@@ -59,7 +59,18 @@ fn current_design_describes_native_sessions_and_format_adaptation() {
         )
     );
     assert!(!DESIGN.contains("30-second wall-clock cold-start ceiling"));
-    assert!(DESIGN.contains("````text\n```mermaid ... ```"));
+
+    let fence_start = DESIGN.find("````text").expect("literal example fence");
+    let fenced_example = &DESIGN[fence_start + "````text".len()..];
+    let mermaid = fenced_example
+        .find("```mermaid ... ```")
+        .expect("Mermaid literal example");
+    let openmath = fenced_example
+        .find("```openmath ... ```")
+        .expect("OpenMath literal example");
+    let fence_end = fenced_example.find("````").expect("closing example fence");
+    assert!(mermaid < openmath);
+    assert!(openmath < fence_end);
 }
 
 #[test]
