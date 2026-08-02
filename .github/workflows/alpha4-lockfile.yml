@@ -1,6 +1,9 @@
 name: alpha4 branch maintenance
 
 on:
+  push:
+    branches:
+      - agent/alpha4-typed-config
   pull_request:
     branches: [main]
 
@@ -9,13 +12,13 @@ permissions:
 
 jobs:
   maintain:
-    if: github.head_ref == 'agent/alpha4-typed-config'
+    if: github.ref_name == 'agent/alpha4-typed-config' || github.head_ref == 'agent/alpha4-typed-config'
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out head branch
+      - name: Check out alpha4 branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          ref: ${{ github.head_ref }}
+          ref: agent/alpha4-typed-config
           persist-credentials: true
           submodules: false
       - name: Install pinned Rust toolchain
@@ -201,7 +204,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add Cargo.lock src scripts
           git commit -m 'chore: normalize alpha4 generated and Rust sources'
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+          git push origin HEAD:agent/alpha4-typed-config
       - name: Check compilation
         run: cargo check --locked --all-targets
       - name: Upload generated lockfile
