@@ -4,6 +4,7 @@
 # contract test
 # responsibility Exercises source and package-local installation.
 # upstream implementation ../scripts/installer.sh source installation
+# upstream implementation ../scripts/install-managed-bundle.sh private runtime installation
 # upstream implementation ../distribution/install.sh package installation
 # downstream environment ../.github/workflows/ptymark-ci.yml test execution
 # @dependency-end
@@ -87,5 +88,101 @@ bash scripts/install.sh \
 grep -F 'backend = "source"' "$config" >/dev/null
 grep -F 'backend = "mathjax-cli"' "$config" >/dev/null
 "$binary" install status --state "$state" | grep -F $'math\tmathjax-cli\tready' >/dev/null
+
+# A private Node runtime must execute npm even when no global node command is
+# discoverable. The fixture models npm's `#!/usr/bin/env node` entrypoint and
+# fails on the historical implementation because the private runtime was not
+# exposed to that child process.
+# shellcheck disable=SC1091
+source renderers/managed-bundle.env
+case "$(uname -s)" in
+  Darwin) platform=darwin ;;
+  Linux) platform=linux ;;
+  *) platform=unsupported ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) architecture=x64 ;;
+  arm64|aarch64) architecture=arm64 ;;
+  *) architecture=unsupported ;;
+esac
+
+if [[ "$platform" != unsupported && "$architecture" != unsupported ]]; then
+  private_root="$root/private-node-bundle"
+  runtime_bin="$private_root/runtime/node-v${PTYMARK_MANAGED_NODE_VERSION}-${platform}-${architecture}/bin"
+  no_node_path="$root/no-global-node-path"
+  mkdir -p "$runtime_bin" "$no_node_path"
+
+  cat >"$runtime_bin/node" <<'EOF_PRIVATE_NODE'
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  -)
+    output="${2:?missing Puppeteer config path}"
+    printf '{"headless":true}\n' >"$output"
+    ;;
+  */npm)
+    shift
+    prefix=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --prefix)
+          prefix="${2:?missing npm prefix}"
+          shift 2
+          ;;
+        *) shift ;;
+      esac
+    done
+    mkdir -p "${prefix:?missing npm prefix}/node_modules"
+    ;;
+  *)
+    printf 'unexpected fake node entrypoint: %s\n' "${1:-}" >&2
+    exit 1
+    ;;
+esac
+EOF_PRIVATE_NODE
+  cat >"$runtime_bin/npm" <<'EOF_PRIVATE_NPM'
+#!/usr/bin/env node
+EOF_PRIVATE_NPM
+  chmod +x "$runtime_bin/node" "$runtime_bin/npm"
+
+  for command_name in awk basename cat cp dirname install mkdir rm sha256sum uname; do
+    command_path="$(command -v "$command_name")"
+    ln -s "$command_path" "$no_node_path/$command_name"
+  done
+
+  PATH="$no_node_path" /bin/bash scripts/install-managed-bundle.sh \
+    --root "$private_root" \
+    --launcher "$binary" \
+    --browser /bin/true \
+    --skip-browser-download
+
+  test -s "$private_root/bundle.toml"
+  test -s "$private_root/bundle.stamp"
+  test -x "$private_root/bin/mmdc"
+  test -x "$private_root/bin/tex2svg"
+  test -x "$private_root/bin/chafa"
+fi
+
+# A managed-bundle failure must occur before the Rust resolver can atomically
+# commit configuration or install state, and the message must identify the
+# partial core-only outcome.
+failed_config="$root/failed/config.toml"
+failed_state="$root/failed/install.toml"
+failed_log="$root/failed-install.log"
+if bash scripts/installer.sh \
+  --skip-core \
+  --binary "$binary" \
+  --managed always \
+  --managed-root "$root/offline-incomplete-bundle" \
+  --offline \
+  --config "$failed_config" \
+  --state "$failed_state" \
+  >"$failed_log" 2>&1; then
+  echo 'incomplete offline managed bundle unexpectedly succeeded' >&2
+  exit 1
+fi
+test ! -e "$failed_config"
+test ! -e "$failed_state"
+grep -F 'configuration/install state was not committed' "$failed_log" >/dev/null
 
 printf 'ptymark installer smoke: ok\n'
