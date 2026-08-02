@@ -1,11 +1,11 @@
 use ptymark::{
-    Config, EnginePreference, InstallError, InstallRequest, Installer, MathEngine,
-    PathProgramResolver, PresenterPreference, ProgramResolver,
+    EnginePreference, EngineProvider, EngineSelection, InstallError, InstallRequest, Installer,
+    PathProgramResolver, PresenterPreference, PresenterProvider, PresenterSelection,
+    ProgramResolver, UserConfig,
 };
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Default)]
 struct MapResolver {
@@ -28,16 +28,6 @@ impl ProgramResolver for MapResolver {
     }
 }
 
-fn temp_root() -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let root = std::env::temp_dir().join(format!("ptymark-reprobe-{nonce}"));
-    fs::create_dir_all(&root).expect("temp root");
-    root
-}
-
 fn program_path(root: &Path, group: &str, name: &str) -> PathBuf {
     let executable = if cfg!(windows) {
         format!("{name}.exe")
@@ -48,20 +38,25 @@ fn program_path(root: &Path, group: &str, name: &str) -> PathBuf {
 }
 
 #[test]
-fn auto_reprobes_standard_names_instead_of_reusing_stale_absolute_paths() {
-    let root = temp_root();
-    let config_path = root.join("config.toml");
-    let state_path = root.join("install.toml");
-    let old_mmdc = program_path(&root, "old", "mmdc");
-    let old_chafa = program_path(&root, "old", "chafa");
-    let new_mmdc = program_path(&root, "new", "mmdc");
-    let new_chafa = program_path(&root, "new", "chafa");
+fn auto_reprobes_standard_names_without_persisting_stale_paths() {
+    let root = tempfile::tempdir().expect("temp root");
+    let config_path = root.path().join("config.toml");
+    let state_path = root.path().join("install.toml");
+    let old_mmdc = program_path(root.path(), "old", "mmdc");
+    let old_chafa = program_path(root.path(), "old", "chafa");
+    let new_mmdc = program_path(root.path(), "new", "mmdc");
+    let new_chafa = program_path(root.path(), "new", "chafa");
 
-    let mut existing = Config::default();
-    existing.engines.mermaid.backend = ptymark::MermaidEngine::MermaidCli;
-    existing.engines.mermaid.path = old_mmdc;
-    existing.engines.math.backend = MathEngine::Preview;
-    existing.engines.presenter.path = old_chafa;
+    let mut existing = UserConfig::default();
+    let profile = existing.profile_mut("default").expect("profile");
+    profile.engines.mermaid = EngineSelection {
+        provider: EngineProvider::External,
+        program: Some(old_mmdc),
+    };
+    profile.engines.presenter = PresenterSelection {
+        provider: PresenterProvider::External,
+        program: Some(old_chafa),
+    };
     fs::write(&config_path, existing.to_toml().expect("serialize")).expect("write config");
 
     let resolver = MapResolver::default()
@@ -76,7 +71,16 @@ fn auto_reprobes_standard_names_instead_of_reusing_stale_absolute_paths() {
     let plan = installer.plan(&request).expect("re-probe plan");
     assert_eq!(plan.config.engines.mermaid.path, new_mmdc);
     assert_eq!(plan.config.engines.presenter.path, new_chafa);
-    let _ = fs::remove_dir_all(root);
+    assert_eq!(
+        plan.user_config.profiles["default"]
+            .engines
+            .mermaid
+            .provider,
+        EngineProvider::Auto
+    );
+    let source = plan.user_config.to_toml().expect("TOML");
+    assert!(!source.contains("old"));
+    assert!(!source.contains("new"));
 }
 
 #[test]
