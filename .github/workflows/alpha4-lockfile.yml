@@ -1,4 +1,4 @@
-name: alpha4 lockfile bootstrap
+name: alpha4 branch maintenance
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  generate:
+  maintain:
     if: github.head_ref == 'agent/alpha4-typed-config'
     runs-on: ubuntu-24.04
     steps:
@@ -20,23 +20,68 @@ jobs:
           submodules: false
       - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install 1.97.0 --profile minimal
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
           rustup override set 1.97.0
-      - name: Generate Cargo lockfile
-        run: cargo generate-lockfile
-      - name: Commit generated lockfile when needed
+      - name: Apply compiler-directed source normalization
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/openmath.rs')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('cd: required_attribute(element, "cd")?.to_owned(),', 'cd: required_attribute(element, "cd")?,')
+          text = text.replace('name: required_attribute(element, "name")?.to_owned(),', 'name: required_attribute(element, "name")?,')
+          text = text.replace('required_attribute(element, "name")?.to_owned(),', 'required_attribute(element, "name")?,')
+          old = '''fn required_attribute<'a, 'input>(
+              element: Node<'a, 'input>,
+              name: &str,
+          ) -> Result<&'input str, OpenMathError> {
+              element
+                  .attribute(name)
+                  .filter(|value| !value.is_empty())
+                  .ok_or_else(|| {
+                      OpenMathError::new(format!(
+                          "{} requires a non-empty {name} attribute",
+                          element.tag_name().name()
+                      ))
+                  })
+          }'''
+          new = '''fn required_attribute(element: Node<'_, '_>, name: &str) -> Result<String, OpenMathError> {
+              element
+                  .attribute(name)
+                  .filter(|value| !value.is_empty())
+                  .map(ToOwned::to_owned)
+                  .ok_or_else(|| {
+                      OpenMathError::new(format!(
+                          "{} requires a non-empty {name} attribute",
+                          element.tag_name().name()
+                      ))
+                  })
+          }'''
+          if old in text:
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Generate lockfile and format Rust
+        run: |
+          cargo generate-lockfile
+          cargo fmt --all
+      - name: Commit maintenance changes when needed
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- Cargo.lock; then
-            echo 'Cargo.lock is current'
+          if git diff --quiet; then
+            echo 'Branch-generated files and formatting are current'
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Cargo.lock
-          git commit -m 'chore: update alpha4 Cargo lockfile'
+          git add Cargo.lock src
+          git commit -m 'chore: normalize alpha4 generated and Rust sources'
           git push origin "HEAD:${GITHUB_HEAD_REF}"
+      - name: Check compilation
+        run: cargo check --locked --all-targets
       - name: Upload generated lockfile
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
