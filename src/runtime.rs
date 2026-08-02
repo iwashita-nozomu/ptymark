@@ -1,5 +1,5 @@
 use crate::cache::{ArtifactCache, MemoryCache, NoopCache};
-use crate::config::{Config, MathEngine, RenderMode};
+use crate::config::{ColorPolicy, Config, MathEngine, PresentationMode, RenderMode};
 use crate::detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 use crate::format_adapter::OpenMathAdapterRenderer;
 use crate::pipeline::DisplayPipeline;
@@ -17,6 +17,8 @@ pub struct PipelineOptions {
     pub private: bool,
     pub strict: bool,
     pub no_cache: bool,
+    /// Explicit CLI request to enable color. The profile color policy remains
+    /// authoritative for `always` and `never`.
     pub color: bool,
     pub columns: Option<u16>,
     pub theme_fingerprint: u64,
@@ -72,6 +74,11 @@ impl<'a> PipelineFactory<'a> {
                 self.config.cache.max_bytes,
             ))
         };
+        let color = match self.config.rendering.color {
+            ColorPolicy::Auto => options.color,
+            ColorPolicy::Always => true,
+            ColorPolicy::Never => false,
+        };
 
         DisplayPipeline::with_cancellation(
             detector,
@@ -82,7 +89,8 @@ impl<'a> PipelineFactory<'a> {
                     .columns
                     .unwrap_or(self.config.rendering.columns)
                     .max(1),
-                color: options.color,
+                color,
+                plain: self.config.rendering.presentation == PresentationMode::Plain,
                 theme_fingerprint: options.theme_fingerprint,
             },
             options.strict || self.config.rendering.strict,
