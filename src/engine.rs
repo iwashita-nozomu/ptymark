@@ -2,8 +2,7 @@ use crate::config::{EnginesConfig, MathEngine, MermaidEngine};
 use crate::diagnostics::code;
 use crate::limits::{
     EXTERNAL_ATTEMPT_TIMEOUT, MAX_MATH_ARGUMENT_BYTES, MAX_PRESENTATION_BYTES,
-    MAX_RENDER_ARTIFACT_BYTES, MAX_RENDERER_DIAGNOSTIC_BYTES, MAX_SVG_NODES,
-    PROCESS_POLL_INTERVAL,
+    MAX_RENDER_ARTIFACT_BYTES, MAX_RENDERER_DIAGNOSTIC_BYTES, MAX_SVG_NODES, PROCESS_POLL_INTERVAL,
 };
 use crate::model::{BlockKind, SemanticBlock};
 use crate::platform;
@@ -314,16 +313,21 @@ fn renderer_temp_dir() -> Result<TempDir, RenderError> {
     tempfile::Builder::new()
         .prefix("ptymark-render-")
         .tempdir()
-        .map_err(|error| RenderError::new(format!("cannot create renderer temporary directory: {error}")))
+        .map_err(|error| {
+            RenderError::new(format!(
+                "cannot create renderer temporary directory: {error}"
+            ))
+        })
 }
 
 fn validate_svg(bytes: &[u8], engine: &str) -> Result<(), RenderError> {
     if bytes.is_empty() {
-        return Err(invalid_artifact(format!("{engine} produced an empty SVG artifact")));
+        return Err(invalid_artifact(format!(
+            "{engine} produced an empty SVG artifact"
+        )));
     }
-    let text = std::str::from_utf8(bytes).map_err(|error| {
-        invalid_artifact(format!("{engine} output is not UTF-8 SVG: {error}"))
-    })?;
+    let text = std::str::from_utf8(bytes)
+        .map_err(|error| invalid_artifact(format!("{engine} output is not UTF-8 SVG: {error}")))?;
     let document = Document::parse_with_options(
         text,
         ParsingOptions {
@@ -514,8 +518,7 @@ fn run_process_with_deadline(
     let stdout_overflowed = Arc::clone(&overflowed);
     let stdout_reader =
         thread::spawn(move || read_capped_until_limit(stdout, stdout_limit, &stdout_overflowed));
-    let stderr_reader =
-        thread::spawn(move || read_capped(stderr, MAX_RENDERER_DIAGNOSTIC_BYTES));
+    let stderr_reader = thread::spawn(move || read_capped(stderr, MAX_RENDERER_DIAGNOSTIC_BYTES));
 
     let outcome = wait_with_limits(&mut child, timeout, &overflowed, cancellation);
     if outcome.is_err() {
@@ -821,8 +824,7 @@ mod tests {
 
     #[test]
     fn structurally_rejects_a_non_svg_root() {
-        let error = validate_svg(b"<html><svg/></html>", "test")
-            .expect_err("wrong root must fail");
+        let error = validate_svg(b"<html><svg/></html>", "test").expect_err("wrong root must fail");
         assert_eq!(error.code(), code::RENDER_INVALID_ARTIFACT);
     }
 
@@ -834,7 +836,11 @@ mod tests {
         let error = run_process_with_timeout(&renderer, &[], None, 1024, Duration::from_millis(50))
             .expect_err("renderer must time out");
         assert_eq!(error.code(), code::RENDER_TIMEOUT);
-        assert!(!error.to_string().contains(root.path().to_string_lossy().as_ref()));
+        assert!(
+            !error
+                .to_string()
+                .contains(root.path().to_string_lossy().as_ref())
+        );
     }
 
     #[test]

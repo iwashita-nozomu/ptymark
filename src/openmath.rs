@@ -135,15 +135,15 @@ fn parse_object(element: Node<'_, '_>, depth: usize) -> Result<OpenMathObject, O
         "OMS" => {
             require_empty(element)?;
             Ok(OpenMathObject::Symbol(Symbol {
-                cd: required_attribute(element, "cd")?.to_owned(),
-                name: required_attribute(element, "name")?.to_owned(),
+                cd: required_attribute(element, "cd")?,
+                name: required_attribute(element, "name")?,
             }))
         }
         "OMV" => {
             require_empty(element)?;
-            Ok(OpenMathObject::Variable(
-                required_attribute(element, "name")?.to_owned(),
-            ))
+            Ok(OpenMathObject::Variable(required_attribute(
+                element, "name",
+            )?))
         }
         "OMI" => {
             let value = leaf_text(element)?.trim().to_owned();
@@ -278,10 +278,7 @@ fn parse_binding(element: Node<'_, '_>, depth: usize) -> Result<OpenMathObject, 
     })
 }
 
-fn parse_attributed(
-    element: Node<'_, '_>,
-    depth: usize,
-) -> Result<OpenMathObject, OpenMathError> {
+fn parse_attributed(element: Node<'_, '_>, depth: usize) -> Result<OpenMathObject, OpenMathError> {
     let children = object_children(element)?;
     if children.len() != 2 || children[0].tag_name().name() != "OMATP" {
         return Err(OpenMathError::new(
@@ -326,13 +323,11 @@ fn valid_decimal(value: &str) -> bool {
         })
 }
 
-fn required_attribute<'a, 'input>(
-    element: Node<'a, 'input>,
-    name: &str,
-) -> Result<&'input str, OpenMathError> {
+fn required_attribute(element: Node<'_, '_>, name: &str) -> Result<String, OpenMathError> {
     element
         .attribute(name)
         .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
         .ok_or_else(|| {
             OpenMathError::new(format!(
                 "{} requires a non-empty {name} attribute",

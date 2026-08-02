@@ -172,7 +172,9 @@ impl ArtifactCache for MemoryCache {
         }
 
         self.bytes = self.bytes.saturating_add(weight);
-        if let Some((_evicted_key, evicted)) = self.entries.push(key.clone(), CacheEntry { bytes, weight }) {
+        if let Some((_evicted_key, evicted)) =
+            self.entries.push(key.clone(), CacheEntry { bytes, weight })
+        {
             self.bytes = self.bytes.saturating_sub(evicted.weight);
             self.stats.evictions = self.stats.evictions.saturating_add(1);
         }

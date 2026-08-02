@@ -15,18 +15,18 @@ impl PlatformPaths {
         let project = ProjectDirs::from("", "", "ptymark")
             .ok_or_else(|| "cannot determine platform directories for ptymark".to_owned())?;
 
-        let config_file = env_path("PTYMARK_CONFIG")
-            .unwrap_or_else(|| project.config_dir().join("config.toml"));
+        let config_file =
+            env_path("PTYMARK_CONFIG").unwrap_or_else(|| project.config_dir().join("config.toml"));
         let install_state_file = env_path("PTYMARK_INSTALL_STATE").unwrap_or_else(|| {
             project
                 .state_dir()
                 .unwrap_or_else(|| project.data_local_dir())
                 .join("install.toml")
         });
-        let data_dir = env_path("PTYMARK_DATA_HOME")
-            .unwrap_or_else(|| project.data_local_dir().to_path_buf());
-        let cache_dir = env_path("PTYMARK_CACHE_HOME")
-            .unwrap_or_else(|| project.cache_dir().to_path_buf());
+        let data_dir =
+            env_path("PTYMARK_DATA_HOME").unwrap_or_else(|| project.data_local_dir().to_path_buf());
+        let cache_dir =
+            env_path("PTYMARK_CACHE_HOME").unwrap_or_else(|| project.cache_dir().to_path_buf());
 
         Ok(Self {
             config_file,
@@ -38,7 +38,9 @@ impl PlatformPaths {
 }
 
 fn env_path(name: &str) -> Option<PathBuf> {
-    env::var_os(name).filter(|value| !value.is_empty()).map(PathBuf::from)
+    env::var_os(name)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 pub(crate) fn resolve_executable(configured: &Path) -> Result<PathBuf, String> {

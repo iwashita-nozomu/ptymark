@@ -123,7 +123,11 @@ fn validate_manifest(manifest: &ManagedBundleManifest) -> ManagedBundleStatus {
     for (field, path, kind) in [
         ("node_path", manifest.node_path.as_path(), PathKind::File),
         ("app_root", manifest.app_root.as_path(), PathKind::Directory),
-        ("cache_root", manifest.cache_root.as_path(), PathKind::Absolute),
+        (
+            "cache_root",
+            manifest.cache_root.as_path(),
+            PathKind::Absolute,
+        ),
     ] {
         if let Some(reason) = invalid_path_reason(path, kind) {
             return ManagedBundleStatus::InvalidPath { field, reason };
@@ -210,8 +214,9 @@ pub fn inspect_managed_alias(executable: &Path) -> Option<Result<ManagedBundleIn
 }
 
 fn validate_absolute_file(label: &str, path: &Path) -> Result<(), String> {
-    invalid_path_reason(path, PathKind::File)
-        .map_or(Ok(()), |reason| Err(format!("managed bundle {label} is invalid: {reason}")))
+    invalid_path_reason(path, PathKind::File).map_or(Ok(()), |reason| {
+        Err(format!("managed bundle {label} is invalid: {reason}"))
+    })
 }
 
 /// Run a managed renderer alias when the current executable is named `mmdc`,
