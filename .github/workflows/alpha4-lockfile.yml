@@ -28,40 +28,77 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('src/openmath.rs')
-          text = path.read_text(encoding='utf-8')
-          text = text.replace('cd: required_attribute(element, "cd")?.to_owned(),', 'cd: required_attribute(element, "cd")?,')
-          text = text.replace('name: required_attribute(element, "name")?.to_owned(),', 'name: required_attribute(element, "name")?,')
-          text = text.replace('required_attribute(element, "name")?.to_owned(),', 'required_attribute(element, "name")?,')
-          old = '''fn required_attribute<'a, 'input>(
-              element: Node<'a, 'input>,
-              name: &str,
-          ) -> Result<&'input str, OpenMathError> {
-              element
-                  .attribute(name)
-                  .filter(|value| !value.is_empty())
-                  .ok_or_else(|| {
-                      OpenMathError::new(format!(
-                          "{} requires a non-empty {name} attribute",
-                          element.tag_name().name()
-                      ))
-                  })
-          }'''
-          new = '''fn required_attribute(element: Node<'_, '_>, name: &str) -> Result<String, OpenMathError> {
-              element
-                  .attribute(name)
-                  .filter(|value| !value.is_empty())
-                  .map(ToOwned::to_owned)
-                  .ok_or_else(|| {
-                      OpenMathError::new(format!(
-                          "{} requires a non-empty {name} attribute",
-                          element.tag_name().name()
-                      ))
-                  })
-          }'''
-          if old in text:
-              text = text.replace(old, new)
-          path.write_text(text, encoding='utf-8')
+          def rewrite(path_name, transform):
+              path = Path(path_name)
+              source = path.read_text(encoding='utf-8')
+              updated = transform(source)
+              if updated != source:
+                  path.write_text(updated, encoding='utf-8')
+
+          def config_transform(text):
+              text = text.replace(
+                  'use serde::{Deserialize, Serialize};\n',
+                  'use serde::{Deserialize, Serialize};\nuse sha2::{Digest, Sha256};\n',
+              )
+              text = text.replace(
+                  'let state = load_matching_install_state(path);\n        user.resolve(selected_profile, state.as_ref())',
+                  'let state = load_matching_install_state(path, &user);\n        user.resolve(selected_profile, state.as_ref())',
+              )
+              marker = '''    pub fn to_toml(&self) -> Result<String, ConfigError> {
+          toml::to_string_pretty(self)
+              .map_err(|error| ConfigError::new(format!("cannot serialize configuration: {error}")))
+      }
+
+      pub fn profile_mut'''
+              replacement = '''    pub fn fingerprint(&self) -> Result<String, ConfigError> {
+          let normalized = self.to_toml()?;
+          let digest = Sha256::digest(normalized.as_bytes());
+          Ok(format!("{digest:x}"))
+      }
+
+      pub fn to_toml(&self) -> Result<String, ConfigError> {
+          toml::to_string_pretty(self)
+              .map_err(|error| ConfigError::new(format!("cannot serialize configuration: {error}")))
+      }
+
+      pub fn profile_mut'''
+              text = text.replace(marker, replacement)
+              old = '''fn load_matching_install_state(config_path: &Path) -> Option<InstallState> {
+          let state_path = default_install_state_path().ok()?;
+          let state = InstallState::load(&state_path).ok()?;
+          (state.config_path == config_path).then_some(state)
+      }'''
+              new = '''fn load_matching_install_state(
+          config_path: &Path,
+          user: &UserConfig,
+      ) -> Option<InstallState> {
+          let state_path = default_install_state_path().ok()?;
+          let state = InstallState::load(&state_path).ok()?;
+          state.matches_user_config(config_path, user).then_some(state)
+      }'''
+              return text.replace(old, new)
+
+          def pipeline_transform(text):
+              return text.replace(
+                  'pub const MAX_PENDING_OUTPUT_BYTES: usize = 1024 * 1024;',
+                  'pub const MAX_PENDING_OUTPUT_BYTES: usize = crate::limits::MAX_PENDING_TERMINAL_BYTES;',
+              )
+
+          def native_transform(text):
+              text = text.replace(
+                  'use crate::command::ChildCommand;\n',
+                  'use crate::command::ChildCommand;\nuse crate::limits::{DEFAULT_PTY_ROWS, RESIZE_POLL_INTERVAL};\n#[cfg(windows)]\nuse crate::limits::CONPTY_OUTPUT_DRAIN_GRACE;\n',
+              )
+              text = text.replace('use std::time::Duration;\n', '')
+              text = text.replace(
+                  'const DEFAULT_ROWS: u16 = 24;\nconst RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);\n#[cfg(windows)]\nconst CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);\n',
+                  '',
+              )
+              return text.replace('unwrap_or(DEFAULT_ROWS)', 'unwrap_or(DEFAULT_PTY_ROWS)')
+
+          rewrite('src/config.rs', config_transform)
+          rewrite('src/pipeline.rs', pipeline_transform)
+          rewrite('src/native_session.rs', native_transform)
           PY
       - name: Generate lockfile and format Rust
         run: |
