@@ -67,6 +67,27 @@ fn tty_probe_command() -> Vec<OsString> {
 }
 
 #[cfg(unix)]
+fn active_marker_command() -> Vec<OsString> {
+    vec![
+        OsString::from("/bin/sh"),
+        OsString::from("-c"),
+        OsString::from("printf 'PTYMARK_ACTIVE=%s' \"${PTYMARK_ACTIVE:-}\""),
+    ]
+}
+
+#[cfg(windows)]
+fn active_marker_command() -> Vec<OsString> {
+    vec![
+        OsString::from("powershell.exe"),
+        OsString::from("-NoLogo"),
+        OsString::from("-NoProfile"),
+        OsString::from("-NonInteractive"),
+        OsString::from("-Command"),
+        OsString::from("[Console]::Out.Write(\"PTYMARK_ACTIVE=$env:PTYMARK_ACTIVE\")"),
+    ]
+}
+
+#[cfg(unix)]
 fn exit_command(code: u8) -> Vec<OsString> {
     vec![
         OsString::from("/bin/sh"),
@@ -121,6 +142,7 @@ fn native_pty_or_conpty_renders_real_child_output() {
     let text = String::from_utf8_lossy(&output.stdout);
     assert!(text.contains("before"), "{text}");
     assert!(text.contains("ptymark math"), "{text}");
+    assert!(text.contains("\r\n│ E = mc^2\r\n"), "{text:?}");
     assert!(text.contains("after"), "{text}");
     assert!(!text.contains("$$"), "{text}");
 }
@@ -182,6 +204,62 @@ fn child_observes_a_real_terminal() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("TTY_OK"));
+}
+
+#[test]
+fn child_observes_the_public_active_session_marker() {
+    let output = run_interactive(active_marker_command());
+    assert!(
+        output.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("PTYMARK_ACTIVE=1"),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn nested_session_is_rejected_before_child_launch() {
+    let output = Command::new(binary())
+        .env("PTYMARK_ACTIVE", "1")
+        .args([
+            "--config",
+            "examples/ptymark.toml",
+            "--",
+            binary(),
+            "--version",
+        ])
+        .output()
+        .expect("reject nested session");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        output.stdout.is_empty(),
+        "nested child unexpectedly launched"
+    );
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("already running inside Ptymark"), "{error}");
+    assert!(error.contains("Exit the current session first"), "{error}");
+}
+
+#[test]
+fn allow_nested_is_an_explicit_escape_hatch() {
+    let mut command = Command::new(binary());
+    command
+        .env("PTYMARK_ACTIVE", "1")
+        .args(["--config", "examples/ptymark.toml", "--allow-nested", "--"])
+        .args(active_marker_command());
+    let output = command.output().expect("allow intentional nested session");
+    assert!(
+        output.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("PTYMARK_ACTIVE=1"));
 }
 
 #[test]

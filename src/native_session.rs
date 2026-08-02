@@ -95,6 +95,7 @@ impl NativeTerminalSession {
 
         let mut builder = CommandBuilder::new(command.program());
         builder.args(command.arguments());
+        builder.env("PTYMARK_ACTIVE", "1");
         if env::var_os("TERM").is_none() {
             builder.env("TERM", "xterm-256color");
         }

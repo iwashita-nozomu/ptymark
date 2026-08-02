@@ -7,6 +7,7 @@
 # upstream environment ../renderers/managed-bundle.env runtime pins
 # upstream environment ../renderers/package-lock.json package lock
 # downstream implementation ./installer.sh role selection
+# downstream implementation ../tests/install_smoke.sh private-runtime regression
 # downstream implementation ../tests/managed_renderer_smoke.sh bundle validation
 # @dependency-end
 
@@ -149,6 +150,8 @@ else
   npm_cmd="$runtime_root/bin/npm"
 fi
 node_cmd="$(cd "$(dirname "$node_cmd")" && pwd -P)/$(basename "$node_cmd")"
+npm_cmd="$(cd "$(dirname "$npm_cmd")" && pwd -P)/$(basename "$npm_cmd")"
+node_bin_dir="$(dirname "$node_cmd")"
 
 if [[ -n "$browser_path" ]]; then
   browser_path="$(cd "$(dirname "$browser_path")" && pwd -P)/$(basename "$browser_path")"
@@ -212,7 +215,11 @@ if [[ "$installed" -eq 0 ]]; then
   else
     unset PUPPETEER_SKIP_DOWNLOAD || true
   fi
-  "$npm_cmd" ci --prefix "$app_root" --omit=dev --no-audit --no-fund
+  # The private npm entrypoint uses `#!/usr/bin/env node`. Expose only the
+  # selected runtime to this child process and its lifecycle scripts; do not
+  # modify the user's shell or global PATH.
+  PATH="$node_bin_dir${PATH:+:$PATH}" \
+    "$npm_cmd" ci --prefix "$app_root" --omit=dev --no-audit --no-fund
   if [[ -z "$browser_path" && "$skip_browser_download" -eq 0 ]]; then
     "$node_cmd" "$app_root/node_modules/puppeteer/install.mjs"
   fi

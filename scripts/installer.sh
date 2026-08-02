@@ -282,7 +282,11 @@ if [[ "$resolve_defaults" -eq 1 ]]; then
     [[ "$skip_browser_download" -eq 0 ]] || bundle_args+=(--skip-browser-download)
     [[ "$offline" -eq 0 ]] || bundle_args+=(--offline)
     [[ "$force_managed" -eq 0 ]] || bundle_args+=(--force)
-    bash "$repo_root/scripts/install-managed-bundle.sh" "${bundle_args[@]}"
+    if ! bash "$repo_root/scripts/install-managed-bundle.sh" "${bundle_args[@]}"; then
+      echo 'managed renderer bundle installation failed; the core ptymark binary may be present, but configuration/install state was not committed.' >&2
+      echo 'Fix the reported error and rerun scripts/installer.sh.' >&2
+      exit 1
+    fi
     managed_ready=1
   fi
 

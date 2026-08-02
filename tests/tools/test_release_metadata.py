@@ -2,6 +2,7 @@
 # contract test
 # responsibility Verifies version consistency and the source-only release/publication policy.
 # upstream implementation ../../scripts/check-release-metadata.py source-only validator
+# upstream environment ../../Cargo.toml current package version
 # upstream design ../../documents/release.md source-only release contract
 # downstream environment ../../.github/workflows/ptymark-release.yml notes-only publication
 # @dependency-end
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -23,12 +25,14 @@ class ReleaseMetadataTest(unittest.TestCase):
 
     def test_release_tree_metadata_is_consistent(self) -> None:
         """Require the current release tree to satisfy the metadata validator."""
+        cargo = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+        tag = f"v{cargo['package']['version']}"
         result = subprocess.run(
             [
                 sys.executable,
                 str(ROOT / "scripts/check-release-metadata.py"),
                 "--tag",
-                "v0.1.0-alpha.2",
+                tag,
             ],
             cwd=ROOT,
             check=True,

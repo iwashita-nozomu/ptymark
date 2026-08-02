@@ -170,11 +170,27 @@ try {
   $InteractiveScript = @'
 [Console]::Out.Write((@('before','```mermaid','flowchart LR','  Interactive --> ConPTY --> Renderer','```','$$','E = mc^2','$$','after') -join "`n") + "`n")
 '@
-  $InteractiveOutput = Invoke-NativeStage 'strict-interactive-conpty' $Binary @(
+  $InteractiveArguments = @(
     '--config', $StrictConfig,
     '--', $Pwsh,
     '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', $InteractiveScript
   )
+  try {
+    $InteractiveOutput = Invoke-NativeStage 'strict-interactive-conpty' $Binary $InteractiveArguments
+  }
+  catch {
+    $StrictInteractiveStderrPath = Join-Path $LogRoot 'strict-interactive-conpty.stderr.log'
+    $StrictInteractiveStderr = if (Test-Path $StrictInteractiveStderrPath -PathType Leaf) {
+      Get-Content $StrictInteractiveStderrPath -Raw -ErrorAction SilentlyContinue
+    }
+    else {
+      ''
+    }
+    if ($StrictInteractiveStderr -notmatch 'exceeded [0-9]+ ms timeout') { throw }
+    Write-Warning 'Windows hosted-runner startup consumed the fixed interactive render deadline; retrying the complete strict ConPTY path once.'
+    Start-Sleep -Milliseconds 500
+    $InteractiveOutput = Invoke-NativeStage 'strict-interactive-conpty-retry' $Binary $InteractiveArguments
+  }
   if (-not $InteractiveOutput -or $InteractiveOutput.Contains('```mermaid') -or $InteractiveOutput.Contains('$$')) {
     throw 'interactive ConPTY path fell back to semantic source'
   }

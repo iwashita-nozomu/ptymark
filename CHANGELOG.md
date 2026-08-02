@@ -14,6 +14,23 @@ All notable changes to ptymark are documented in this file. The project follows 
 
 ## [Unreleased]
 
+No user-visible changes are currently queued after `0.1.0-alpha.3`.
+
+## [0.1.0-alpha.3] - 2026-08-02
+
+### Added
+
+- Explicit OpenMath XML fences with bounded local XML-to-TeX conversion, generic custom Content Dictionary presentation, exact-source fallback, and task-oriented documentation routes.
+- The stable `PTYMARK_ACTIVE=1` child-environment marker for interactive Unix PTY and Windows ConPTY sessions.
+- `--allow-nested` as an explicit development/debug escape hatch; accidental nested Ptymark sessions are rejected before configuration loading or child launch.
+- Opt-in `[ptymark]` prompt examples without automatic shell-profile modification.
+
+### Fixed
+
+- Managed renderer installation now runs npm with the selected private Node runtime on `PATH` for that child process, so a clean Linux/WSL host does not require a global `node` command.
+- Managed-bundle failures now state that the core binary may exist while configuration and installation state remain uncommitted.
+- Successful renderer output in interactive sessions converts lone LF bytes to CRLF while preserving existing CRLF, child passthrough, terminal controls, and exact-source fallback. This keeps each generated row at terminal column zero.
+
 ### Changed
 
 - Adopted a source-only distribution policy: GitHub Releases contain immutable tags, release notes, and GitHub-generated source snapshots, but no project-uploaded executables or installer archives.
@@ -24,6 +41,12 @@ All notable changes to ptymark are documented in this file. The project follows 
 
 - Clarified that checksums and provenance do not replace operating-system code signing, notarization, reputation, revocation, or an approved package-manager trust path.
 - Local source builds and third-party packages are not automatically trusted or endorsed by the project.
+- Session visibility exposes only the stable active marker; nesting depth, parent PID, and other unstable process metadata are not public API.
+
+### Known limitations
+
+- Interactive semantic blocks must begin on a clean logical line. Prompt or shell-integration control bytes on that line are preserved as raw terminal output; emit a leading newline before a block when required.
+- Guided setup, CJK/grapheme/accessibility completion, lifecycle commands, signed channels, persistent workers/cache, and image protocols remain later work.
 
 ## [0.1.0-alpha.2] - 2026-07-14
 
