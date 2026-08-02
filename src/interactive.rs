@@ -6,6 +6,7 @@ use crate::native_session::{
 };
 use crate::runtime::{PipelineFactory, PipelineOptions};
 use crate::stream::PipelinePump;
+use std::env;
 use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
@@ -16,6 +17,7 @@ pub(crate) fn run(
     mut config_path: Option<PathBuf>,
 ) -> Result<i32, String> {
     let mut options = PipelineOptions::default();
+    let mut allow_nested = false;
     let mut command = Vec::new();
     let mut iterator = arguments.into_iter();
 
@@ -29,8 +31,12 @@ pub(crate) fn run(
         match text {
             "-h" | "--help" => {
                 print!("{}", crate::cli::HELP);
+                println!(
+                    "\nINTERACTIVE OPTION:\n    --allow-nested        allow an intentional nested Ptymark session"
+                );
                 return Ok(0);
             }
+            "--allow-nested" => allow_nested = true,
             "--" => {
                 command.extend(iterator);
                 break;
@@ -44,6 +50,13 @@ pub(crate) fn run(
     }
 
     let command = ChildCommand::from_argv(command, "missing command after `--`")?;
+    if active_session() && !allow_nested {
+        return Err(
+            "already running inside Ptymark.\nExit the current session first, or pass `--allow-nested` for development and debugging."
+                .to_owned(),
+        );
+    }
+
     let config = Config::load(config_path.as_deref()).map_err(|error| error.to_string())?;
     let parent = ParentTerminal::detect(options.columns.unwrap_or(config.rendering.columns));
     let mut session = NativeTerminalSession::spawn(&command, parent.initial_size())?;
@@ -78,6 +91,7 @@ pub(crate) fn run(
     options.color = options.color || parent.output_is_terminal();
     options.columns = Some(parent.initial_size().cols);
     let mut pipeline = PipelineFactory::new(&config).build(options);
+    pipeline.set_terminal_line_endings(true);
     let output_result = {
         let stdout = io::stdout();
         let mut display = stdout.lock();
@@ -111,6 +125,10 @@ pub(crate) fn run(
         status_result,
         kill_error,
     )
+}
+
+fn active_session() -> bool {
+    matches!(env::var("PTYMARK_ACTIVE").as_deref(), Ok("1"))
 }
 
 fn join_exit_waiter(
