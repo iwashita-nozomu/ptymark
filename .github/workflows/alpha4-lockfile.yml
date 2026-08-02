@@ -94,11 +94,66 @@ jobs:
               )
               return text.replace('unwrap_or(DEFAULT_ROWS)', 'unwrap_or(DEFAULT_PTY_ROWS)')
 
+          def doctor_transform(text):
+              text = text.replace(
+                  'pub config_path: Option<PathBuf>,\n    pub pipeline: PipelineOptions,',
+                  'pub config_path: Option<PathBuf>,\n    pub profile: Option<String>,\n    pub pipeline: PipelineOptions,',
+              )
+              text = text.replace(
+                  '''        let (config, config_state, schema_version) = load_configuration(
+              request.config_path.as_deref(),
+              selected_config_path.as_deref(),
+              &mut findings,
+          );''',
+                  '''        let (config, config_state, schema_version) = load_configuration(
+              request.config_path.as_deref(),
+              request.profile.as_deref(),
+              selected_config_path.as_deref(),
+              &mut findings,
+          );''',
+              )
+              text = text.replace(
+                  '''fn load_configuration(
+          explicit: Option<&Path>,
+          selected_path: Option<&Path>,''',
+                  '''fn load_configuration(
+          explicit: Option<&Path>,
+          profile: Option<&str>,
+          selected_path: Option<&Path>,''',
+              )
+              text = text.replace(
+                  '''    let result = match explicit {
+          Some(path) => Config::load_exact(path),
+          None => Config::load(None),
+      };''',
+                  '''    let result = match explicit {
+          Some(path) => Config::load_exact_profile(path, profile),
+          None => Config::load_profile(None, profile),
+      };''',
+              )
+              return text
+
+          def cli_transform(text):
+              old = '''        match arguments[index].to_str() {
+              Some("--config" | "--profile") => index = index.saturating_add(2),
+              _ => break,
+          }'''
+              new = '''        match arguments[index].to_str() {
+              Some("--config" | "--profile") if index + 1 < arguments.len() => {
+                  index += 2;
+              }
+              Some("--config" | "--profile") => return arguments,
+              _ => break,
+          }'''
+              return text.replace(old, new)
+
           rewrite('src/config.rs', config_transform)
           rewrite('src/install.rs', install_transform)
           rewrite('src/routing.rs', routing_transform)
           rewrite('src/pipeline.rs', pipeline_transform)
           rewrite('src/native_session.rs', native_transform)
+          rewrite('src/doctor.rs', doctor_transform)
+          rewrite('src/cli.rs', cli_transform)
           PY
       - name: Generate lockfile and format Rust
         run: |
