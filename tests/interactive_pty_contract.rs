@@ -236,7 +236,10 @@ fn nested_session_is_rejected_before_child_launch() {
         .output()
         .expect("reject nested session");
     assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty(), "nested child unexpectedly launched");
+    assert!(
+        output.stdout.is_empty(),
+        "nested child unexpectedly launched"
+    );
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(error.contains("already running inside Ptymark"), "{error}");
     assert!(error.contains("Exit the current session first"), "{error}");
@@ -247,12 +250,7 @@ fn allow_nested_is_an_explicit_escape_hatch() {
     let mut command = Command::new(binary());
     command
         .env("PTYMARK_ACTIVE", "1")
-        .args([
-            "--config",
-            "examples/ptymark.toml",
-            "--allow-nested",
-            "--",
-        ])
+        .args(["--config", "examples/ptymark.toml", "--allow-nested", "--"])
         .args(active_marker_command());
     let output = command.output().expect("allow intentional nested session");
     assert!(
