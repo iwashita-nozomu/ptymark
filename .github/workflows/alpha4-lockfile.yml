@@ -37,32 +37,9 @@ jobs:
 
           def config_transform(text):
               text = text.replace(
-                  'use serde::{Deserialize, Serialize};\n',
-                  'use serde::{Deserialize, Serialize};\nuse sha2::{Digest, Sha256};\n',
-              )
-              text = text.replace(
                   'let state = load_matching_install_state(path);\n        user.resolve(selected_profile, state.as_ref())',
                   'let state = load_matching_install_state(path, &user);\n        user.resolve(selected_profile, state.as_ref())',
               )
-              marker = '''    pub fn to_toml(&self) -> Result<String, ConfigError> {
-          toml::to_string_pretty(self)
-              .map_err(|error| ConfigError::new(format!("cannot serialize configuration: {error}")))
-      }
-
-      pub fn profile_mut'''
-              replacement = '''    pub fn fingerprint(&self) -> Result<String, ConfigError> {
-          let normalized = self.to_toml()?;
-          let digest = Sha256::digest(normalized.as_bytes());
-          Ok(format!("{digest:x}"))
-      }
-
-      pub fn to_toml(&self) -> Result<String, ConfigError> {
-          toml::to_string_pretty(self)
-              .map_err(|error| ConfigError::new(format!("cannot serialize configuration: {error}")))
-      }
-
-      pub fn profile_mut'''
-              text = text.replace(marker, replacement)
               old = '''fn load_matching_install_state(config_path: &Path) -> Option<InstallState> {
           let state_path = default_install_state_path().ok()?;
           let state = InstallState::load(&state_path).ok()?;
@@ -77,6 +54,27 @@ jobs:
           state.matches_user_config(config_path, user).then_some(state)
       }'''
               return text.replace(old, new)
+
+          def install_transform(text):
+              return text.replace(
+                  'Config, EngineProvider, EngineSelection, MathEngine, MermaidEngine, PresenterProvider,',
+                  'Config, EngineProvider, EngineSelection, PresenterProvider,',
+              )
+
+          def routing_transform(text):
+              return text.replace(
+                  '''RenderContext {
+                      columns: 123,
+                      color: false,
+                      theme_fingerprint: 7,
+                  }''',
+                  '''RenderContext {
+                      columns: 123,
+                      color: false,
+                      plain: false,
+                      theme_fingerprint: 7,
+                  }''',
+              )
 
           def pipeline_transform(text):
               return text.replace(
@@ -97,6 +95,8 @@ jobs:
               return text.replace('unwrap_or(DEFAULT_ROWS)', 'unwrap_or(DEFAULT_PTY_ROWS)')
 
           rewrite('src/config.rs', config_transform)
+          rewrite('src/install.rs', install_transform)
+          rewrite('src/routing.rs', routing_transform)
           rewrite('src/pipeline.rs', pipeline_transform)
           rewrite('src/native_session.rs', native_transform)
           PY
