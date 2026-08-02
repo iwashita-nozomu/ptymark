@@ -5,6 +5,7 @@ responsibility Defines native PTY and ConPTY session behavior.
 upstream design ./ptymark-design.md terminal-safety boundary
 upstream design ./openmath.md structured math input contract
 downstream implementation ../src/interactive.rs session composition
+downstream implementation ../src/native_session.rs child environment contract
 downstream implementation ../tests/interactive_pty_contract.rs native runtime validation
 downstream implementation ../tests/openmath_contract.rs structured math safety evidence
 @dependency-end
@@ -15,7 +16,7 @@ downstream implementation ../tests/openmath_contract.rs structured math safety e
 ## User-facing command
 
 ```text
-ptymark [--config PATH] [--source|--safe] [--private] -- COMMAND [ARG...]
+ptymark [--config PATH] [--source|--safe] [--private] [--allow-nested] -- COMMAND [ARG...]
 ```
 
 This is the practical interactive path. `ptymark` allocates the operating system's native
@@ -47,11 +48,12 @@ No shell command string is synthesized. The executable and each argument remain 
 
 ## Per-session modes
 
-The interactive host is retained in every mode; only pre-display rendering policy changes:
+The interactive host is retained in every rendering mode; only pre-display rendering policy changes:
 
 - `--source` keeps semantic detection active and replaces each complete block with its exact source;
 - `--safe` uses the passthrough detector and never invokes a semantic renderer, source-format adapter, or presenter;
-- `--private` keeps the selected rendering policy but selects `NoopCache` for the invocation.
+- `--private` keeps the selected rendering policy but selects `NoopCache` for the invocation;
+- `--allow-nested` is a development/debug escape hatch that permits a session to start when its parent already has `PTYMARK_ACTIVE=1`.
 
 `--source` and `--safe` are mutually exclusive. `--private` can accompany either mode. All options are
 resolved before configuration is loaded, the child is spawned, or parent terminal raw mode is entered.
@@ -62,6 +64,61 @@ The current runtime has only process-local memory caching and no persistent sour
 sink. `--private` disables that cache now and owns the forward-compatible contract for suppressing any
 future persistent diagnostics without changing the CLI.
 
+## Session visibility and nesting
+
+Every interactive child receives one stable public marker:
+
+```text
+PTYMARK_ACTIVE=1
+```
+
+Ptymark deliberately does not expose a public nesting depth, parent PID, or other unstable process
+metadata. A command can determine whether it is inside Ptymark by reading `PTYMARK_ACTIVE`; no process-tree inspection is required.
+
+Starting another interactive Ptymark session while that marker is already `1` is rejected before
+configuration loading or child launch:
+
+```text
+ptymark: already running inside Ptymark.
+Exit the current session first, or pass `--allow-nested` for development and debugging.
+```
+
+Intentional nesting remains available through `--allow-nested`, but each nested launch must opt in
+explicitly. This keeps accidental chains of PTY proxies out of the normal user path.
+
+Ptymark never edits `.bashrc`, `.zshrc`, Fish configuration, Nushell configuration, a PowerShell
+profile, or a prompt-framework configuration. A concise prompt marker is opt-in. For Bash:
+
+```bash
+if [[ ${PTYMARK_ACTIVE:-0} == 1 ]]; then
+  PS1="[ptymark] $PS1"
+fi
+```
+
+For Zsh:
+
+```zsh
+if [[ ${PTYMARK_ACTIVE:-0} == 1 ]]; then
+  PROMPT="[ptymark] $PROMPT"
+fi
+```
+
+For PowerShell profiles that use the built-in `prompt` function:
+
+```powershell
+if ($env:PTYMARK_ACTIVE -eq '1') {
+    $script:PtymarkBasePrompt = $function:prompt
+    function global:prompt {
+        '[ptymark] ' + (& $script:PtymarkBasePrompt)
+    }
+}
+```
+
+Fish, Nushell, Starship, Oh My Posh, and other prompt frameworks can use the same marker in their own
+conditional syntax. The relevant predicates are `test "$PTYMARK_ACTIVE" = 1` in Fish,
+`$env.PTYMARK_ACTIVE -eq '1'` in PowerShell, and the framework's environment-variable condition for
+`PTYMARK_ACTIVE=1` elsewhere.
+
 ## Responsibility split
 
 The runtime is intentionally split at stable ownership boundaries:
@@ -69,10 +126,12 @@ The runtime is intentionally split at stable ownership boundaries:
 ```text
 interactive.rs
     command-level orchestration and failure precedence
+    active-session and nesting policy
 
 native_session.rs
     parent terminal state
     native PTY / ConPTY child lifecycle
+    child environment marker
     input forwarding
     resize observation
 
@@ -121,6 +180,16 @@ PTY line endings commonly arrive as CRLF. An exact CRLF pair is treated as a log
 while preserving both bytes. A bare carriage return remains a redraw control and puts the rest of the
 line on the raw bypass path.
 
+The interactive display path converts lone LF bytes produced by a successful renderer or presenter to
+CRLF before writing them to the parent terminal. Existing CRLF pairs are retained. Child passthrough,
+raw terminal-control bytes, and exact-source fallback remain byte-for-byte unchanged. This prevents a
+raw parent terminal from advancing to the next row while retaining the previous cursor column.
+
+An eligible semantic block must begin on a clean logical line. If a prompt or shell integration emits
+control bytes on the same logical line, the safety gate preserves that line as raw terminal output.
+Emit a leading newline before the opening delimiter when producing a block directly from an
+interactive prompt.
+
 Full-screen Codex, fuzzy finders, editors, pagers, and other alternate-screen or cursor-addressed
 interfaces are intentionally preserved rather than rewritten. Line-oriented semantic blocks emitted outside
 those protected regions can be rendered.
@@ -150,7 +219,9 @@ Generation-based cancellation of an in-flight stale render remains follow-up wor
 `tests/interactive_pty_contract.rs` launches real operating-system children and verifies:
 
 - Unix PTY or Windows ConPTY allocation is visible to the child as a terminal;
-- real child Markdown reaches the rendering pipeline;
+- real child Markdown reaches the rendering pipeline and rendered rows use terminal-safe CRLF;
+- `PTYMARK_ACTIVE=1` reaches the child on Unix and Windows;
+- accidental nesting is rejected before launch and `--allow-nested` is an explicit escape hatch;
 - alternate-screen bytes remain unrendered;
 - exit status is preserved;
 - on Unix, a Ctrl+C byte reaches the foreground process group;
