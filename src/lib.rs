@@ -3,6 +3,7 @@ pub mod cli;
 mod cli_args;
 mod command;
 pub mod config;
+mod config_ext;
 pub mod detector;
 pub mod diagnostics;
 pub mod doctor;
