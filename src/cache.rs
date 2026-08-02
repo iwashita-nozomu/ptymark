@@ -1,5 +1,6 @@
 use crate::model::{BlockKind, SemanticFormat};
-use std::collections::{HashMap, VecDeque};
+use lru::LruCache;
+use std::num::NonZeroUsize;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CacheKey {
@@ -55,6 +56,9 @@ impl CacheKey {
         }
     }
 
+    /// Logical bytes owned by one cache entry. Container allocator overhead is
+    /// intentionally excluded; unlike the alpha.3 implementation, the key is
+    /// stored exactly once and is not cloned into a second recency queue.
     fn weight(&self) -> usize {
         self.renderer_id
             .len()
@@ -91,7 +95,6 @@ pub struct NoopCache {
 
 impl ArtifactCache for NoopCache {
     fn get(&mut self, _key: &CacheKey) -> Option<Vec<u8>> {
-        self.stats.misses = self.stats.misses.saturating_add(1);
         None
     }
 
@@ -116,35 +119,25 @@ struct CacheEntry {
 pub struct MemoryCache {
     max_entries: usize,
     max_bytes: usize,
-    entries: HashMap<CacheKey, CacheEntry>,
-    order: VecDeque<CacheKey>,
+    entries: LruCache<CacheKey, CacheEntry>,
     bytes: usize,
     stats: CacheStats,
 }
 
 impl MemoryCache {
     pub fn new(max_entries: usize, max_bytes: usize) -> Self {
+        let capacity = NonZeroUsize::new(max_entries.max(1)).expect("capacity is non-zero");
         Self {
             max_entries,
             max_bytes,
-            entries: HashMap::new(),
-            order: VecDeque::new(),
+            entries: LruCache::new(capacity),
             bytes: 0,
             stats: CacheStats::default(),
         }
     }
 
-    fn touch(&mut self, key: &CacheKey) {
-        if let Some(index) = self.order.iter().position(|candidate| candidate == key) {
-            self.order.remove(index);
-        }
-        self.order.push_back(key.clone());
-    }
-
     fn evict_oldest(&mut self) {
-        if let Some(key) = self.order.pop_front()
-            && let Some(entry) = self.entries.remove(&key)
-        {
+        if let Some((_key, entry)) = self.entries.pop_lru() {
             self.bytes = self.bytes.saturating_sub(entry.weight);
             self.stats.evictions = self.stats.evictions.saturating_add(1);
         }
@@ -161,7 +154,6 @@ impl ArtifactCache for MemoryCache {
         let value = self.entries.get(key).map(|entry| entry.bytes.clone());
         if value.is_some() {
             self.stats.hits = self.stats.hits.saturating_add(1);
-            self.touch(key);
         } else {
             self.stats.misses = self.stats.misses.saturating_add(1);
         }
@@ -175,29 +167,26 @@ impl ArtifactCache for MemoryCache {
             return false;
         }
 
-        if let Some(previous) = self.entries.remove(&key) {
+        if let Some(previous) = self.entries.pop(&key) {
             self.bytes = self.bytes.saturating_sub(previous.weight);
-            if let Some(index) = self.order.iter().position(|candidate| candidate == &key) {
-                self.order.remove(index);
-            }
         }
 
         self.bytes = self.bytes.saturating_add(weight);
-        self.entries
-            .insert(key.clone(), CacheEntry { bytes, weight });
-        self.order.push_back(key.clone());
+        if let Some((_evicted_key, evicted)) = self.entries.push(key.clone(), CacheEntry { bytes, weight }) {
+            self.bytes = self.bytes.saturating_sub(evicted.weight);
+            self.stats.evictions = self.stats.evictions.saturating_add(1);
+        }
         self.stats.insertions = self.stats.insertions.saturating_add(1);
 
         while self.entries.len() > self.max_entries || self.bytes > self.max_bytes {
             self.evict_oldest();
         }
         self.refresh_stats();
-        self.entries.contains_key(&key)
+        self.entries.contains(&key)
     }
 
     fn clear(&mut self) {
         self.entries.clear();
-        self.order.clear();
         self.bytes = 0;
         self.refresh_stats();
     }
@@ -262,10 +251,22 @@ mod tests {
     }
 
     #[test]
-    fn noop_cache_never_stores() {
+    fn replacement_updates_logical_bytes_without_an_eviction() {
+        let mut cache = MemoryCache::new(2, 256);
+        let first = key(1);
+        assert!(cache.put(first.clone(), b"one".to_vec()));
+        let before = cache.stats();
+        assert!(cache.put(first.clone(), b"replacement".to_vec()));
+        assert_eq!(cache.get(&first), Some(b"replacement".to_vec()));
+        assert_eq!(cache.stats().evictions, before.evictions);
+    }
+
+    #[test]
+    fn noop_cache_never_stores_or_reports_policy_misses() {
         let mut cache = NoopCache::default();
         let key = key(1);
         assert!(!cache.put(key.clone(), b"value".to_vec()));
         assert_eq!(cache.get(&key), None);
+        assert_eq!(cache.stats().misses, 0);
     }
 }
