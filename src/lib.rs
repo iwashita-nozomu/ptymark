@@ -26,9 +26,11 @@ pub mod terminal;
 
 pub use cache::{ArtifactCache, CacheKey, CacheStats, MemoryCache, NoopCache};
 pub use config::{
-    CONFIG_SCHEMA_VERSION, CacheConfig, Config, ConfigError, DetectionConfig, EnginesConfig,
-    MathEngine, MathEngineConfig, MermaidEngine, MermaidEngineConfig, PresenterConfig, RenderMode,
-    RenderingConfig,
+    CONFIG_SCHEMA_VERSION, CacheBackend, CacheConfig, ColorPolicy, Config, ConfigError,
+    DetectionConfig, EngineProvider, EngineSelection, EnginesConfig, MathEngine, MathEngineConfig,
+    MermaidEngine, MermaidEngineConfig, PresentationMode, PresenterConfig, PresenterProvider,
+    PresenterSelection, ProfileConfig, RenderMode, RenderingConfig, SessionConfig, SessionMode,
+    UserCacheConfig, UserConfig, UserDetectionConfig, UserEnginesConfig, UserPresentationConfig,
 };
 pub use detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 pub use diagnostics::{
@@ -44,8 +46,8 @@ pub use install::{
     ProgramResolver, ResolutionOrigin, default_install_state_path,
 };
 pub use managed_launcher::{
-    MANAGED_BUNDLE_SCHEMA_VERSION, ManagedBundleInspection, inspect_managed_alias,
-    run_if_managed_alias,
+    MANAGED_BUNDLE_SCHEMA_VERSION, ManagedBundleInspection, ManagedBundleStatus,
+    inspect_managed_alias, run_if_managed_alias,
 };
 pub use model::{BlockKind, SemanticBlock, SemanticFormat, StreamItem};
 pub use openmath::{
