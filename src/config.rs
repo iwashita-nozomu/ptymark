@@ -1,7 +1,6 @@
 use crate::install::{InstallState, default_install_state_path};
 use crate::limits::{
-    MAX_FALLBACK_COLUMNS, MAX_SEMANTIC_BLOCK_BYTES, MAX_USER_CACHE_BYTES,
-    MAX_USER_CACHE_ENTRIES,
+    MAX_FALLBACK_COLUMNS, MAX_SEMANTIC_BLOCK_BYTES, MAX_USER_CACHE_BYTES, MAX_USER_CACHE_ENTRIES,
 };
 use crate::managed_launcher::inspect_managed_alias;
 use crate::platform::PlatformPaths;
@@ -548,10 +547,7 @@ impl ProfileConfig {
             &format!("profiles.{name}.engines.mermaid"),
             &self.engines.mermaid,
         )?;
-        validate_engine_selection(
-            &format!("profiles.{name}.engines.math"),
-            &self.engines.math,
-        )?;
+        validate_engine_selection(&format!("profiles.{name}.engines.math"), &self.engines.math)?;
         validate_presenter_selection(
             &format!("profiles.{name}.engines.presenter"),
             &self.engines.presenter,
@@ -745,10 +741,7 @@ fn state_program(state: Option<&InstallState>, role: &str) -> Option<PathBuf> {
         .and_then(|component| component.resolved_path.clone())
 }
 
-fn managed_state_program(
-    state: Option<&InstallState>,
-    role: &str,
-) -> Result<PathBuf, ConfigError> {
+fn managed_state_program(state: Option<&InstallState>, role: &str) -> Result<PathBuf, ConfigError> {
     let path = state_program(state, role).ok_or_else(|| {
         ConfigError::new(format!(
             "profile requires the managed {role} role, but no matching installation state is available"
@@ -765,7 +758,9 @@ fn managed_state_program(
 
 fn validate_engine_selection(label: &str, selection: &EngineSelection) -> Result<(), ConfigError> {
     match (selection.provider, selection.program.as_deref()) {
-        (EngineProvider::External, Some(path)) => validate_program_path(&format!("{label}.program"), path),
+        (EngineProvider::External, Some(path)) => {
+            validate_program_path(&format!("{label}.program"), path)
+        }
         (EngineProvider::External, None) => Err(ConfigError::new(format!(
             "{label}.program is required when provider is external"
         ))),
@@ -987,8 +982,13 @@ impl LegacyConfig {
             },
             LegacyMathEngine::MathjaxCli => legacy_external_selection(self.engines.math.path),
         };
-        let external_selected = matches!(mermaid.provider, EngineProvider::External | EngineProvider::Managed)
-            || matches!(math.provider, EngineProvider::External | EngineProvider::Managed);
+        let external_selected = matches!(
+            mermaid.provider,
+            EngineProvider::External | EngineProvider::Managed
+        ) || matches!(
+            math.provider,
+            EngineProvider::External | EngineProvider::Managed
+        );
         let presenter = if external_selected {
             if inspect_managed_alias(&self.engines.presenter.path).is_some() {
                 PresenterSelection {
@@ -1086,9 +1086,7 @@ impl Error for ConfigError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CONFIG_SCHEMA_VERSION, Config, EngineProvider, PresentationMode, UserConfig,
-    };
+    use super::{CONFIG_SCHEMA_VERSION, Config, EngineProvider, PresentationMode, UserConfig};
     use std::fs;
 
     #[test]
@@ -1137,7 +1135,12 @@ mod tests {
         assert_eq!(profile.presentation.mode, PresentationMode::Source);
         assert!(profile.session.strict);
         assert_eq!(profile.engines.mermaid.provider, EngineProvider::Preview);
-        assert!(!user.to_toml().expect("normalized").contains("max_block_bytes"));
+        assert!(
+            !user
+                .to_toml()
+                .expect("normalized")
+                .contains("max_block_bytes")
+        );
     }
 
     #[test]
