@@ -124,9 +124,7 @@ impl InstallState {
             return false;
         }
         match self.config_digest.as_deref() {
-            Some(expected) => user
-                .fingerprint()
-                .is_ok_and(|actual| actual == expected),
+            Some(expected) => user.fingerprint().is_ok_and(|actual| actual == expected),
             None => self.schema_version == LEGACY_INSTALL_STATE_SCHEMA_VERSION,
         }
     }
@@ -370,15 +368,10 @@ impl<R: ProgramResolver> Installer<R> {
         warnings: &mut Vec<String>,
     ) -> Result<SlotPlan, InstallError> {
         match preference {
-            EnginePreference::Keep if existing_config => self.plan_existing_slot(
-                spec,
-                existing_selection,
-                existing_state,
-                warnings,
-            ),
-            EnginePreference::Keep | EnginePreference::Auto => {
-                self.plan_auto_slot(spec, warnings)
+            EnginePreference::Keep if existing_config => {
+                self.plan_existing_slot(spec, existing_selection, existing_state, warnings)
             }
+            EnginePreference::Keep | EnginePreference::Auto => self.plan_auto_slot(spec, warnings),
             EnginePreference::Preview => Ok(SlotPlan::builtin(
                 spec,
                 SlotRoute::Preview,
@@ -471,7 +464,12 @@ impl<R: ProgramResolver> Installer<R> {
                     "{} external engine was not selected: {error}; using preview",
                     spec.role
                 ));
-                Ok(SlotPlan::fallback(spec, candidate, error.to_string(), selection))
+                Ok(SlotPlan::fallback(
+                    spec,
+                    candidate,
+                    error.to_string(),
+                    selection,
+                ))
             }
         }
     }
@@ -624,10 +622,7 @@ impl<R: ProgramResolver> Installer<R> {
 
         match self.resolver.resolve(&candidate) {
             Ok(resolved) => Ok(PresenterPlan::resolved(
-                candidate,
-                resolved,
-                origin,
-                selection,
+                candidate, resolved, origin, selection,
             )),
             Err(error) if must_resolve => Err(InstallError::new(format!(
                 "cannot select Chafa presenter from `{}`: {error}",
