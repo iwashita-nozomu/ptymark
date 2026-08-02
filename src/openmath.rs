@@ -1,13 +1,10 @@
-use std::collections::BTreeMap;
+use crate::limits::{MAX_OPENMATH_DEPTH, MAX_OPENMATH_INPUT_BYTES, MAX_OPENMATH_NODES};
+use roxmltree::{Document, Node, ParsingOptions};
 use std::error::Error;
 use std::fmt;
 
 pub const OPENMATH_NAMESPACE: &str = "http://www.openmath.org/OpenMath";
-pub const OPENMATH_TO_TEX_ID: &str = "builtin/openmath-to-tex-v1";
-
-const MAX_INPUT_BYTES: usize = 1024 * 1024;
-const MAX_XML_DEPTH: usize = 128;
-const MAX_XML_NODES: usize = 8192;
+pub const OPENMATH_TO_TEX_ID: &str = "builtin/openmath-to-tex-v2-roxmltree";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OpenMathError {
@@ -32,23 +29,37 @@ impl Error for OpenMathError {}
 
 /// Convert one XML-encoded OpenMath object into deterministic TeX.
 ///
-/// The converter is deliberately local and bounded. It performs no Content
-/// Dictionary lookup, entity resolution, file access, or network access.
-/// Unknown symbols remain representable through a generic `cd.name` operator.
+/// XML tokenization, namespace handling, duplicate-attribute checks, entity
+/// decoding, and well-formedness are delegated to `roxmltree`. Ptymark owns
+/// only the bounded OpenMath object model and Content Dictionary mapping.
+/// DTDs and external entity resolution are disabled.
 pub fn to_tex(input: &[u8]) -> Result<String, OpenMathError> {
-    if input.len() > MAX_INPUT_BYTES {
+    if input.len() > MAX_OPENMATH_INPUT_BYTES {
         return Err(OpenMathError::new(format!(
-            "input exceeds the {MAX_INPUT_BYTES} byte OpenMath limit"
+            "input exceeds the {MAX_OPENMATH_INPUT_BYTES} byte OpenMath limit"
         )));
     }
     let source = std::str::from_utf8(input)
         .map_err(|error| OpenMathError::new(format!("input is not valid UTF-8: {error}")))?;
-    let root = XmlParser::new(source).parse_document()?;
-    if local_name(&root.name) != "OMOBJ" {
+    if contains_doctype(source) {
+        return Err(OpenMathError::new("DOCTYPE is not permitted"));
+    }
+
+    let document = Document::parse_with_options(
+        source,
+        ParsingOptions {
+            allow_dtd: false,
+            nodes_limit: MAX_OPENMATH_NODES,
+            entity_resolver: None,
+        },
+    )
+    .map_err(|error| OpenMathError::new(format!("invalid OpenMath XML: {error}")))?;
+    let root = document.root_element();
+    if root.tag_name().name() != "OMOBJ" {
         return Err(OpenMathError::new("root element must be OMOBJ"));
     }
-    validate_openmath_namespace(&root)?;
-    let children = object_children(&root)?;
+    validate_openmath_namespace(root)?;
+    let children = object_children(root)?;
     if children.len() != 1 {
         return Err(OpenMathError::new(
             "OMOBJ must contain exactly one OpenMath object",
@@ -58,12 +69,18 @@ pub fn to_tex(input: &[u8]) -> Result<String, OpenMathError> {
     Ok(render_object(&object))
 }
 
-fn validate_openmath_namespace(root: &XmlElement) -> Result<(), OpenMathError> {
-    let namespace_key = root.name.split_once(':').map_or_else(
-        || "xmlns".to_owned(),
-        |(prefix, _)| format!("xmlns:{prefix}"),
-    );
-    match root.attributes.get(&namespace_key).map(String::as_str) {
+fn contains_doctype(source: &str) -> bool {
+    const NEEDLE: &[u8] = b"<!doctype";
+    source.as_bytes().windows(NEEDLE.len()).any(|window| {
+        window
+            .iter()
+            .zip(NEEDLE)
+            .all(|(left, right)| left.to_ascii_lowercase() == *right)
+    })
+}
+
+fn validate_openmath_namespace(root: Node<'_, '_>) -> Result<(), OpenMathError> {
+    match root.tag_name().namespace() {
         Some(OPENMATH_NAMESPACE) => Ok(()),
         Some(namespace) => Err(OpenMathError::new(format!(
             "OMOBJ namespace `{namespace}` is not the OpenMath namespace"
@@ -107,14 +124,14 @@ enum OpenMathObject {
     },
 }
 
-fn parse_object(element: &XmlElement, depth: usize) -> Result<OpenMathObject, OpenMathError> {
-    if depth >= MAX_XML_DEPTH {
+fn parse_object(element: Node<'_, '_>, depth: usize) -> Result<OpenMathObject, OpenMathError> {
+    if depth >= MAX_OPENMATH_DEPTH {
         return Err(OpenMathError::new(format!(
-            "OpenMath object nesting exceeds {MAX_XML_DEPTH} levels"
+            "OpenMath object nesting exceeds {MAX_OPENMATH_DEPTH} levels"
         )));
     }
 
-    match local_name(&element.name) {
+    match element.tag_name().name() {
         "OMS" => {
             require_empty(element)?;
             Ok(OpenMathObject::Symbol(Symbol {
@@ -158,10 +175,10 @@ fn parse_object(element: &XmlElement, depth: usize) -> Result<OpenMathObject, Op
             let (operator, arguments) = children
                 .split_first()
                 .ok_or_else(|| OpenMathError::new("OMA requires an operator"))?;
-            let operator = parse_object(operator, depth + 1)?;
+            let operator = parse_object(*operator, depth + 1)?;
             let arguments = arguments
                 .iter()
-                .map(|argument| parse_object(argument, depth + 1))
+                .map(|argument| parse_object(*argument, depth + 1))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(OpenMathObject::Application {
                 operator: Box::new(operator),
@@ -174,13 +191,13 @@ fn parse_object(element: &XmlElement, depth: usize) -> Result<OpenMathObject, Op
             let (symbol, arguments) = children
                 .split_first()
                 .ok_or_else(|| OpenMathError::new("OME requires an error symbol"))?;
-            let symbol = parse_object(symbol, depth + 1)?;
+            let symbol = parse_object(*symbol, depth + 1)?;
             if !matches!(symbol, OpenMathObject::Symbol(_)) {
                 return Err(OpenMathError::new("OME must start with OMS"));
             }
             let arguments = arguments
                 .iter()
-                .map(|argument| parse_object(argument, depth + 1))
+                .map(|argument| parse_object(*argument, depth + 1))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(OpenMathObject::Error {
                 symbol: Box::new(symbol),
@@ -206,11 +223,11 @@ fn parse_object(element: &XmlElement, depth: usize) -> Result<OpenMathObject, Op
     }
 }
 
-fn parse_float(element: &XmlElement) -> Result<OpenMathObject, OpenMathError> {
+fn parse_float(element: Node<'_, '_>) -> Result<OpenMathObject, OpenMathError> {
     require_empty(element)?;
-    match (element.attributes.get("dec"), element.attributes.get("hex")) {
+    match (element.attribute("dec"), element.attribute("hex")) {
         (Some(decimal), None) if valid_decimal(decimal) => {
-            Ok(OpenMathObject::Float(decimal.clone()))
+            Ok(OpenMathObject::Float(decimal.to_owned()))
         }
         (None, Some(hexadecimal))
             if !hexadecimal.is_empty()
@@ -228,9 +245,9 @@ fn parse_float(element: &XmlElement) -> Result<OpenMathObject, OpenMathError> {
     }
 }
 
-fn parse_binding(element: &XmlElement, depth: usize) -> Result<OpenMathObject, OpenMathError> {
+fn parse_binding(element: Node<'_, '_>, depth: usize) -> Result<OpenMathObject, OpenMathError> {
     let children = object_children(element)?;
-    if children.len() != 3 || local_name(&children[1].name) != "OMBVAR" {
+    if children.len() != 3 || children[1].tag_name().name() != "OMBVAR" {
         return Err(OpenMathError::new(
             "OMBIND requires binder, OMBVAR, and body children",
         ));
@@ -261,9 +278,12 @@ fn parse_binding(element: &XmlElement, depth: usize) -> Result<OpenMathObject, O
     })
 }
 
-fn parse_attributed(element: &XmlElement, depth: usize) -> Result<OpenMathObject, OpenMathError> {
+fn parse_attributed(
+    element: Node<'_, '_>,
+    depth: usize,
+) -> Result<OpenMathObject, OpenMathError> {
     let children = object_children(element)?;
-    if children.len() != 2 || local_name(&children[0].name) != "OMATP" {
+    if children.len() != 2 || children[0].tag_name().name() != "OMATP" {
         return Err(OpenMathError::new(
             "OMATTR requires OMATP followed by one object",
         ));
@@ -306,59 +326,60 @@ fn valid_decimal(value: &str) -> bool {
         })
 }
 
-fn required_attribute<'a>(element: &'a XmlElement, name: &str) -> Result<&'a str, OpenMathError> {
+fn required_attribute<'a, 'input>(
+    element: Node<'a, 'input>,
+    name: &str,
+) -> Result<&'input str, OpenMathError> {
     element
-        .attributes
-        .get(name)
-        .map(String::as_str)
+        .attribute(name)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| {
             OpenMathError::new(format!(
                 "{} requires a non-empty {name} attribute",
-                local_name(&element.name)
+                element.tag_name().name()
             ))
         })
 }
 
-fn require_empty(element: &XmlElement) -> Result<(), OpenMathError> {
+fn require_empty(element: Node<'_, '_>) -> Result<(), OpenMathError> {
     if leaf_text(element)?.trim().is_empty() {
         Ok(())
     } else {
         Err(OpenMathError::new(format!(
             "{} must not contain text",
-            local_name(&element.name)
+            element.tag_name().name()
         )))
     }
 }
 
-fn leaf_text(element: &XmlElement) -> Result<String, OpenMathError> {
+fn leaf_text(element: Node<'_, '_>) -> Result<String, OpenMathError> {
     let mut text = String::new();
-    for child in &element.children {
-        match child {
-            XmlChild::Text(value) => text.push_str(value),
-            XmlChild::Element(_) => {
-                return Err(OpenMathError::new(format!(
-                    "{} must not contain child elements",
-                    local_name(&element.name)
-                )));
-            }
+    for child in element.children() {
+        if child.is_element() {
+            return Err(OpenMathError::new(format!(
+                "{} must not contain child elements",
+                element.tag_name().name()
+            )));
+        }
+        if child.is_text() {
+            text.push_str(child.text().unwrap_or_default());
         }
     }
     Ok(text)
 }
 
-fn object_children(element: &XmlElement) -> Result<Vec<&XmlElement>, OpenMathError> {
+fn object_children<'a, 'input>(
+    element: Node<'a, 'input>,
+) -> Result<Vec<Node<'a, 'input>>, OpenMathError> {
     let mut children = Vec::new();
-    for child in &element.children {
-        match child {
-            XmlChild::Element(element) => children.push(element),
-            XmlChild::Text(text) if text.trim().is_empty() => {}
-            XmlChild::Text(_) => {
-                return Err(OpenMathError::new(format!(
-                    "{} contains unexpected text",
-                    local_name(&element.name)
-                )));
-            }
+    for child in element.children() {
+        if child.is_element() {
+            children.push(child);
+        } else if child.is_text() && !child.text().unwrap_or_default().trim().is_empty() {
+            return Err(OpenMathError::new(format!(
+                "{} contains unexpected text",
+                element.tag_name().name()
+            )));
         }
     }
     Ok(children)
@@ -661,331 +682,6 @@ fn tex_escape_text(value: &str) -> String {
     escaped
 }
 
-#[derive(Clone, Debug)]
-struct XmlElement {
-    name: String,
-    attributes: BTreeMap<String, String>,
-    children: Vec<XmlChild>,
-}
-
-#[derive(Clone, Debug)]
-enum XmlChild {
-    Element(XmlElement),
-    Text(String),
-}
-
-struct XmlParser<'a> {
-    source: &'a str,
-    offset: usize,
-    nodes: usize,
-}
-
-impl<'a> XmlParser<'a> {
-    fn new(source: &'a str) -> Self {
-        Self {
-            source,
-            offset: 0,
-            nodes: 0,
-        }
-    }
-
-    fn parse_document(mut self) -> Result<XmlElement, OpenMathError> {
-        if self.source.starts_with('\u{feff}') {
-            self.offset = '\u{feff}'.len_utf8();
-        }
-        self.skip_misc()?;
-        if self.starts_with_ascii_case_insensitive("<!DOCTYPE") {
-            return Err(OpenMathError::new("DOCTYPE is not permitted"));
-        }
-        let root = self.parse_element(0)?;
-        self.skip_misc()?;
-        if self.offset != self.source.len() {
-            return Err(self.error("unexpected data after the root element"));
-        }
-        Ok(root)
-    }
-
-    fn parse_element(&mut self, depth: usize) -> Result<XmlElement, OpenMathError> {
-        if depth >= MAX_XML_DEPTH {
-            return Err(self.error(format!("XML nesting exceeds {MAX_XML_DEPTH} levels")));
-        }
-        self.expect("<")?;
-        if self.starts_with("/") || self.starts_with("!") || self.starts_with("?") {
-            return Err(self.error("expected an element name"));
-        }
-        let name = self.parse_name()?;
-        let mut attributes = BTreeMap::new();
-        let self_closing = loop {
-            self.skip_whitespace();
-            if self.consume("/>") {
-                break true;
-            }
-            if self.consume(">") {
-                break false;
-            }
-            let attribute_name = self.parse_name()?;
-            self.skip_whitespace();
-            self.expect("=")?;
-            self.skip_whitespace();
-            let attribute_value = self.parse_attribute_value()?;
-            if attributes
-                .insert(attribute_name.clone(), attribute_value)
-                .is_some()
-            {
-                return Err(self.error(format!("duplicate XML attribute `{attribute_name}`")));
-            }
-        };
-
-        self.nodes = self.nodes.saturating_add(1);
-        if self.nodes > MAX_XML_NODES {
-            return Err(self.error(format!("XML element count exceeds {MAX_XML_NODES}")));
-        }
-        if self_closing {
-            return Ok(XmlElement {
-                name,
-                attributes,
-                children: Vec::new(),
-            });
-        }
-
-        let mut children = Vec::new();
-        loop {
-            if self.offset >= self.source.len() {
-                return Err(self.error(format!("unclosed XML element `{name}`")));
-            }
-            if self.consume("</") {
-                let closing = self.parse_name()?;
-                if closing != name {
-                    return Err(self.error(format!(
-                        "closing element `{closing}` does not match `{name}`"
-                    )));
-                }
-                self.skip_whitespace();
-                self.expect(">")?;
-                break;
-            }
-            if self.starts_with("<!--") {
-                self.skip_comment()?;
-            } else if self.starts_with("<![CDATA[") {
-                children.push(XmlChild::Text(self.parse_cdata()?));
-            } else if self.starts_with("<?") {
-                self.skip_processing_instruction()?;
-            } else if self.starts_with_ascii_case_insensitive("<!DOCTYPE") {
-                return Err(self.error("DOCTYPE is not permitted"));
-            } else if self.starts_with("<!") {
-                return Err(
-                    self.error("XML declarations other than comments and CDATA are not permitted")
-                );
-            } else if self.starts_with("<") {
-                children.push(XmlChild::Element(self.parse_element(depth + 1)?));
-            } else {
-                let text = self.parse_text()?;
-                if !text.is_empty() {
-                    children.push(XmlChild::Text(text));
-                }
-            }
-        }
-
-        Ok(XmlElement {
-            name,
-            attributes,
-            children,
-        })
-    }
-
-    fn skip_misc(&mut self) -> Result<(), OpenMathError> {
-        loop {
-            self.skip_whitespace();
-            if self.starts_with("<!--") {
-                self.skip_comment()?;
-            } else if self.starts_with("<?") {
-                self.skip_processing_instruction()?;
-            } else {
-                return Ok(());
-            }
-        }
-    }
-
-    fn skip_comment(&mut self) -> Result<(), OpenMathError> {
-        self.expect("<!--")?;
-        let end = self
-            .rest()
-            .find("-->")
-            .ok_or_else(|| self.error("unclosed XML comment"))?;
-        self.offset += end + 3;
-        Ok(())
-    }
-
-    fn skip_processing_instruction(&mut self) -> Result<(), OpenMathError> {
-        self.expect("<?")?;
-        let end = self
-            .rest()
-            .find("?>")
-            .ok_or_else(|| self.error("unclosed processing instruction"))?;
-        self.offset += end + 2;
-        Ok(())
-    }
-
-    fn parse_cdata(&mut self) -> Result<String, OpenMathError> {
-        self.expect("<![CDATA[")?;
-        let end = self
-            .rest()
-            .find("]]>")
-            .ok_or_else(|| self.error("unclosed CDATA section"))?;
-        let value = self.rest()[..end].to_owned();
-        self.offset += end + 3;
-        Ok(value)
-    }
-
-    fn parse_attribute_value(&mut self) -> Result<String, OpenMathError> {
-        let quote = self
-            .bump()
-            .ok_or_else(|| self.error("missing XML attribute value"))?;
-        if quote != '"' && quote != '\'' {
-            return Err(self.error("XML attribute values must be quoted"));
-        }
-        let mut raw = String::new();
-        loop {
-            let character = self
-                .bump()
-                .ok_or_else(|| self.error("unclosed XML attribute value"))?;
-            if character == quote {
-                break;
-            }
-            if character == '<' {
-                return Err(self.error("XML attribute values must not contain `<`"));
-            }
-            raw.push(character);
-        }
-        decode_entities(&raw).map_err(|message| self.error(message))
-    }
-
-    fn parse_text(&mut self) -> Result<String, OpenMathError> {
-        let start = self.offset;
-        while self.offset < self.source.len() && !self.starts_with("<") {
-            self.bump();
-        }
-        decode_entities(&self.source[start..self.offset]).map_err(|message| self.error(message))
-    }
-
-    fn parse_name(&mut self) -> Result<String, OpenMathError> {
-        let start = self.offset;
-        while let Some(character) = self.peek() {
-            if character.is_ascii_alphanumeric() || matches!(character, '_' | ':' | '-' | '.') {
-                self.bump();
-            } else {
-                break;
-            }
-        }
-        if self.offset == start {
-            return Err(self.error("expected an XML name"));
-        }
-        Ok(self.source[start..self.offset].to_owned())
-    }
-
-    fn skip_whitespace(&mut self) {
-        while self.peek().is_some_and(char::is_whitespace) {
-            self.bump();
-        }
-    }
-
-    fn peek(&self) -> Option<char> {
-        self.rest().chars().next()
-    }
-
-    fn bump(&mut self) -> Option<char> {
-        let character = self.peek()?;
-        self.offset += character.len_utf8();
-        Some(character)
-    }
-
-    fn starts_with(&self, pattern: &str) -> bool {
-        self.rest().starts_with(pattern)
-    }
-
-    fn starts_with_ascii_case_insensitive(&self, pattern: &str) -> bool {
-        self.rest()
-            .get(..pattern.len())
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(pattern))
-    }
-
-    fn consume(&mut self, pattern: &str) -> bool {
-        if self.starts_with(pattern) {
-            self.offset += pattern.len();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn expect(&mut self, pattern: &str) -> Result<(), OpenMathError> {
-        if self.consume(pattern) {
-            Ok(())
-        } else {
-            Err(self.error(format!("expected `{pattern}`")))
-        }
-    }
-
-    fn rest(&self) -> &'a str {
-        &self.source[self.offset..]
-    }
-
-    fn error(&self, message: impl Into<String>) -> OpenMathError {
-        OpenMathError::new(format!("{} at byte {}", message.into(), self.offset))
-    }
-}
-
-fn decode_entities(value: &str) -> Result<String, String> {
-    let mut decoded = String::new();
-    let mut remaining = value;
-    while let Some(index) = remaining.find('&') {
-        decoded.push_str(&remaining[..index]);
-        remaining = &remaining[index + 1..];
-        let end = remaining
-            .find(';')
-            .ok_or_else(|| "unclosed XML entity".to_owned())?;
-        let entity = &remaining[..end];
-        let replacement = match entity {
-            "amp" => '&',
-            "lt" => '<',
-            "gt" => '>',
-            "quot" => '"',
-            "apos" => '\'',
-            numeric if numeric.starts_with("#x") || numeric.starts_with("#X") => {
-                let value = u32::from_str_radix(&numeric[2..], 16)
-                    .map_err(|_| format!("invalid hexadecimal entity `&{entity};`"))?;
-                valid_xml_character(value)
-                    .ok_or_else(|| format!("invalid XML character `&{entity};`"))?
-            }
-            numeric if numeric.starts_with('#') => {
-                let value = numeric[1..]
-                    .parse::<u32>()
-                    .map_err(|_| format!("invalid decimal entity `&{entity};`"))?;
-                valid_xml_character(value)
-                    .ok_or_else(|| format!("invalid XML character `&{entity};`"))?
-            }
-            _ => return Err(format!("unsupported XML entity `&{entity};`")),
-        };
-        decoded.push(replacement);
-        remaining = &remaining[end + 1..];
-    }
-    decoded.push_str(remaining);
-    Ok(decoded)
-}
-
-fn valid_xml_character(value: u32) -> Option<char> {
-    let character = char::from_u32(value)?;
-    ((value == 0x9 || value == 0xa || value == 0xd)
-        || (0x20..=0xd7ff).contains(&value)
-        || (0xe000..=0xfffd).contains(&value)
-        || (0x10000..=0x10ffff).contains(&value))
-    .then_some(character)
-}
-
-fn local_name(name: &str) -> &str {
-    name.rsplit(':').next().unwrap_or(name)
-}
-
 #[cfg(test)]
 mod tests {
     use super::to_tex;
@@ -1024,6 +720,14 @@ mod tests {
             to_tex(source).expect("convert"),
             "\\forall x.\\; x \\in \\mathbb{R}"
         );
+    }
+
+    #[test]
+    fn accepts_an_equivalent_namespace_prefix() {
+        let source = br#"<om:OMOBJ xmlns:om="http://www.openmath.org/OpenMath">
+  <om:OMI>1</om:OMI>
+</om:OMOBJ>"#;
+        assert_eq!(to_tex(source).expect("convert"), "1");
     }
 
     #[test]
@@ -1080,5 +784,17 @@ mod tests {
                 .to_string()
                 .contains("declare")
         );
+    }
+
+    #[test]
+    fn rejects_documents_above_the_node_limit() {
+        let mut source = String::from(
+            "<OMOBJ xmlns=\"http://www.openmath.org/OpenMath\"><OMA><OMS cd=\"list1\" name=\"list\"/>",
+        );
+        for index in 0..9000 {
+            source.push_str(&format!("<OMI>{index}</OMI>"));
+        }
+        source.push_str("</OMA></OMOBJ>");
+        assert!(to_tex(source.as_bytes()).is_err());
     }
 }
