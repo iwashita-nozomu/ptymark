@@ -1,5 +1,5 @@
 use crate::config::DetectionConfig;
-use crate::model::{BlockKind, SemanticBlock, StreamItem, push_passthrough};
+use crate::model::{BlockKind, SemanticBlock, SemanticFormat, StreamItem, push_passthrough};
 use std::mem;
 
 pub trait SemanticDetector: Send {
@@ -11,6 +11,7 @@ pub trait SemanticDetector: Send {
 struct OpenRule {
     pattern: Vec<u8>,
     kind: BlockKind,
+    format: SemanticFormat,
     closing: Vec<u8>,
 }
 
@@ -20,6 +21,7 @@ enum State {
     PassthroughLine,
     Block {
         kind: BlockKind,
+        format: SemanticFormat,
         closing: Vec<u8>,
         source: Vec<u8>,
         body: Vec<u8>,
@@ -69,6 +71,7 @@ impl SemanticDetector for FencedDetector {
                     if let Some(rule) = self.exact_opener(&candidate) {
                         State::Block {
                             kind: rule.kind,
+                            format: rule.format,
                             closing: rule.closing,
                             source: candidate,
                             body: Vec::new(),
@@ -95,6 +98,7 @@ impl SemanticDetector for FencedDetector {
                 }
                 State::Block {
                     kind,
+                    format,
                     closing,
                     mut source,
                     mut body,
@@ -112,14 +116,16 @@ impl SemanticDetector for FencedDetector {
                         }
                     } else if byte == b'\n' {
                         if strip_eol(&line) == closing {
-                            items
-                                .push(StreamItem::Semantic(SemanticBlock::new(kind, source, body)));
+                            items.push(StreamItem::Semantic(SemanticBlock::with_format(
+                                kind, format, source, body,
+                            )));
                             State::LineStart(Vec::new())
                         } else {
                             body.extend_from_slice(&line);
                             line.clear();
                             State::Block {
                                 kind,
+                                format,
                                 closing,
                                 source,
                                 body,
@@ -129,6 +135,7 @@ impl SemanticDetector for FencedDetector {
                     } else {
                         State::Block {
                             kind,
+                            format,
                             closing,
                             source,
                             body,
@@ -176,11 +183,18 @@ fn strip_eol(line: &[u8]) -> &[u8] {
     line.strip_suffix(b"\r").unwrap_or(line)
 }
 
-fn add_rule(openers: &mut Vec<OpenRule>, opening: &str, kind: BlockKind, closing: &str) {
+fn add_rule(
+    openers: &mut Vec<OpenRule>,
+    opening: &str,
+    kind: BlockKind,
+    format: SemanticFormat,
+    closing: &str,
+) {
     for ending in ["\n", "\r\n"] {
         openers.push(OpenRule {
             pattern: format!("{opening}{ending}").into_bytes(),
             kind,
+            format,
             closing: closing.as_bytes().to_vec(),
         });
     }
@@ -189,13 +203,38 @@ fn add_rule(openers: &mut Vec<OpenRule>, opening: &str, kind: BlockKind, closing
 fn build_openers(config: &DetectionConfig) -> Vec<OpenRule> {
     let mut openers = Vec::new();
     if config.math {
-        add_rule(&mut openers, "$$", BlockKind::Math, "$$");
+        add_rule(
+            &mut openers,
+            "$$",
+            BlockKind::Math,
+            SemanticFormat::Tex,
+            "$$",
+        );
         for name in ["math", "latex", "tex"] {
-            add_rule(&mut openers, &format!("```{name}"), BlockKind::Math, "```");
+            add_rule(
+                &mut openers,
+                &format!("```{name}"),
+                BlockKind::Math,
+                SemanticFormat::Tex,
+                "```",
+            );
         }
+        add_rule(
+            &mut openers,
+            "```openmath",
+            BlockKind::Math,
+            SemanticFormat::OpenMath,
+            "```",
+        );
     }
     if config.mermaid {
-        add_rule(&mut openers, "```mermaid", BlockKind::Mermaid, "```");
+        add_rule(
+            &mut openers,
+            "```mermaid",
+            BlockKind::Mermaid,
+            SemanticFormat::Mermaid,
+            "```",
+        );
     }
     openers
 }
@@ -204,7 +243,7 @@ fn build_openers(config: &DetectionConfig) -> Vec<OpenRule> {
 mod tests {
     use super::{FencedDetector, SemanticDetector};
     use crate::config::DetectionConfig;
-    use crate::model::{BlockKind, StreamItem};
+    use crate::model::{BlockKind, SemanticFormat, StreamItem};
 
     fn flatten(items: Vec<StreamItem>) -> Vec<u8> {
         items
@@ -236,7 +275,45 @@ mod tests {
             .collect();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].kind(), BlockKind::Mermaid);
+        assert_eq!(blocks[0].format(), SemanticFormat::Mermaid);
         assert_eq!(blocks[0].body(), b"A --> B\n");
+    }
+
+    #[test]
+    fn detects_openmath_across_single_byte_chunks() {
+        let source = b"before\n```openmath\n<OMOBJ xmlns=\"http://www.openmath.org/OpenMath\"><OMI>1</OMI></OMOBJ>\n```\nafter\n";
+        let mut detector = FencedDetector::new(&DetectionConfig::default());
+        let mut items = Vec::new();
+        for byte in source {
+            items.extend(detector.feed(&[*byte]));
+        }
+        items.extend(detector.finish());
+
+        assert_eq!(flatten(items.clone()), source);
+        let blocks: Vec<_> = items
+            .into_iter()
+            .filter_map(|item| match item {
+                StreamItem::Semantic(block) => Some(block),
+                StreamItem::Passthrough(_) => None,
+            })
+            .collect();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].kind(), BlockKind::Math);
+        assert_eq!(blocks[0].format(), SemanticFormat::OpenMath);
+        assert!(blocks[0].body().starts_with(b"<OMOBJ"));
+    }
+
+    #[test]
+    fn disabling_math_also_disables_openmath_detection() {
+        let config = DetectionConfig {
+            math: false,
+            ..DetectionConfig::default()
+        };
+        let source = b"```openmath\n<OMOBJ xmlns=\"http://www.openmath.org/OpenMath\"><OMI>1</OMI></OMOBJ>\n```\n";
+        let mut detector = FencedDetector::new(&config);
+        let mut items = detector.feed(source);
+        items.extend(detector.finish());
+        assert_eq!(flatten(items), source);
     }
 
     #[test]

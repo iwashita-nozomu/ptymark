@@ -167,7 +167,7 @@ impl Renderer for PreviewRenderer {
         let body = std::str::from_utf8(block.body()).map_err(|error| {
             RenderError::new(format!(
                 "{} block is not valid UTF-8: {error}",
-                block.kind()
+                block.format()
             ))
         })?;
 
@@ -232,9 +232,10 @@ impl RenderService {
         block: &SemanticBlock,
         context: RenderContext,
     ) -> Result<RenderOutput, RenderError> {
-        let key = CacheKey::new(
+        let key = CacheKey::new_with_format(
             self.renderer.id(),
             block.kind(),
+            block.format(),
             block.source(),
             context.columns,
             context.color,
@@ -270,7 +271,7 @@ impl RenderService {
 mod tests {
     use super::{PreviewRenderer, RenderContext, RenderService, Renderer, SourceRenderer};
     use crate::cache::{MemoryCache, NoopCache};
-    use crate::model::{BlockKind, SemanticBlock};
+    use crate::model::{BlockKind, SemanticBlock, SemanticFormat};
 
     fn block() -> SemanticBlock {
         SemanticBlock::new(
@@ -299,6 +300,24 @@ mod tests {
             .expect("second");
         assert!(!first.cache_hit);
         assert!(second.cache_hit);
+    }
+
+    #[test]
+    fn preview_keeps_the_stable_semantic_role() {
+        let block = SemanticBlock::with_format(
+            BlockKind::Math,
+            SemanticFormat::OpenMath,
+            b"```openmath\n...\n```\n".to_vec(),
+            b"x + 1".to_vec(),
+        );
+        let artifact = PreviewRenderer
+            .render(&block, RenderContext::default())
+            .expect("preview");
+        assert!(
+            String::from_utf8(artifact.bytes)
+                .expect("UTF-8")
+                .contains("ptymark math")
+        );
     }
 
     #[test]

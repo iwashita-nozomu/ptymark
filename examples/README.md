@@ -1,18 +1,61 @@
-# ptymark examples
+# Ptymark examples
 
 <!--
 @dependency-start
 contract reference
-responsibility Explains supported configuration and WezTerm examples.
+responsibility Routes users to supported configuration, semantic input, and WezTerm examples.
 upstream design ../README.md user-facing surface
+upstream design ../documents/README.md task-oriented documentation map
 upstream design ../documents/ptymark-design.md architecture contract
-downstream implementation ../tests/plugin_smoke.lua executable examples
+upstream design ../documents/openmath.md structured math input contract
+downstream implementation ../tests/plugin_smoke.lua executable WezTerm example
+downstream implementation ../tests/openmath_contract.rs executable OpenMath behavior
 @dependency-end
 -->
 
+## Choose an example
+
+| Goal | Example |
+| --- | --- |
+| Start from a validated runtime configuration | [`ptymark.toml`](./ptymark.toml) |
+| Select explicit renderer executables | [`external-engines.toml`](./external-engines.toml) |
+| Preview structured mathematical input | [`openmath.md`](./openmath.md) |
+| Add an append-only WezTerm launcher | [`wezterm.lua`](./wezterm.lua) |
+
+## Semantic input samples
+
+Run the OpenMath sample through the same preview path used for files and streams:
+
+```bash
+ptymark preview examples/openmath.md
+```
+
+Verify exact source recovery without invoking conversion or an external math engine:
+
+```bash
+ptymark preview --source examples/openmath.md
+```
+
+The sample includes both standard OpenMath Content Dictionary symbols and a project-specific symbol. The complete parsing, conversion, safety, and non-goal contract is in [`../documents/openmath.md`](../documents/openmath.md).
+
+Mermaid and TeX do not need separate files. Their supported explicit forms are shown in the root [preview guide](../README.md#use-preview).
+
+## Configuration
+
+[`ptymark.toml`](./ptymark.toml) uses the strict schema accepted by `ptymark config check`. [`external-engines.toml`](./external-engines.toml) shows role-by-role executable selection without arbitrary command strings or argument templates.
+
+Validate either file before use:
+
+```bash
+ptymark --config examples/ptymark.toml config check
+ptymark --config examples/external-engines.toml config check
+```
+
+OpenMath shares `[detection].math` and `[engines.math]`; it does not require another configuration section or executable role.
+
 ## WezTerm
 
-[`wezterm.lua`](./wezterm.lua) is a complete minimal `~/.wezterm.lua` for the ptymark launcher plugin on Linux, macOS, WSL, and Windows.
+[`wezterm.lua`](./wezterm.lua) is a complete minimal `~/.wezterm.lua` for the Ptymark launcher plugin on Linux, macOS, WSL, and Windows.
 
 Run the platform installer first.
 
@@ -52,8 +95,7 @@ cp examples/wezterm.lua ~/.wezterm.lua
 Copy-Item examples/wezterm.lua $HOME/.wezterm.lua
 ```
 
-When `~/.wezterm.lua` already exists, copy the `wezterm.plugin.require(...)` and
-`ptymark.apply_to_config(...)` blocks into the existing file rather than replacing it.
+When `~/.wezterm.lua` already exists, copy the `wezterm.plugin.require(...)` and `ptymark.apply_to_config(...)` blocks into the existing file rather than replacing it.
 
 The example chooses platform defaults:
 
@@ -94,6 +136,4 @@ ptymark.apply_to_config(config, {
 })
 ```
 
-`source` keeps semantic detection but displays exact source, `safe` bypasses detection and external
-renderers, and `private` keeps rendering while disabling the process-local cache. The plugin only
-constructs argv; validation and behavior remain in the native ptymark process.
+`source` keeps semantic detection but displays exact source, `safe` bypasses detection and external renderers, and `private` keeps rendering while disabling the process-local cache. The plugin only constructs argv; validation and behavior remain in the native Ptymark process.

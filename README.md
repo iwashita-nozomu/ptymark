@@ -3,8 +3,10 @@
 <!--
 @dependency-start
 contract design
-responsibility Provides the user-facing installation, configuration, safety, and usage entrypoint.
+responsibility Provides the task-oriented product entrypoint for installation, usage, safety, and recovery.
+upstream design documents/README.md documentation map
 upstream design documents/ptymark-design.md architecture contract
+upstream design documents/openmath.md structured math input contract
 upstream design documents/ptymark-installer.md installation contract
 upstream design documents/shell-plugin-compatibility.md coexistence evidence
 downstream implementation src/cli.rs command surface
@@ -15,24 +17,35 @@ downstream environment .github/workflows/ptymark-ci.yml acceptance matrix
 @dependency-end
 -->
 
-`ptymark` is an alpha-stage **pre-display renderer** for terminal output. It recognizes complete,
-explicitly delimited Markdown blocks and replaces only those blocks immediately before bytes are
-committed to the terminal display.
+`ptymark` is an alpha-stage **pre-display renderer** for terminal output. It recognizes only complete, explicitly delimited semantic blocks and may replace those blocks immediately before bytes are committed to the terminal display.
 
 ```text
 child output
   -> terminal safety gate
   -> explicit semantic detector
-  -> render decision
-  -> engine handoff
+  -> source-format adapter when required
+  -> render decision and engine handoff
   -> independent cache
   -> terminal-safe display bytes
 ```
 
-The rendering pipeline never interprets keyboard input, signals, shell hooks, prompt definitions,
-completion bindings, mouse reports, or bracketed paste. In interactive mode, the native PTY/ConPTY
-host transports those bytes and terminal-size changes without giving them to semantic rendering, and
-restores the parent terminal mode before exit.
+Keyboard input, signals, shell hooks, prompts, completion, mouse reports, bracketed paste, cursor-addressed interfaces, and alternate-screen applications remain outside semantic rendering. The native PTY/ConPTY host transports interactive bytes and terminal-size changes and restores the parent terminal mode before exit.
+
+## Choose a route
+
+| Goal | Start here | Detailed contract |
+| --- | --- | --- |
+| Install from source | [Build and install](#build-and-install-from-a-source-checkout) | [Installer design](documents/ptymark-installer.md) |
+| Verify or recover | [Verify installation](#verify-installation) and [doctor](#diagnose-and-recover-safely) | [Troubleshooting](documents/troubleshooting.md) |
+| Run an interactive command | [Interactive use](#interactive-use) | [PTY/ConPTY session](documents/interactive-session.md) |
+| Preview a file or stream | [Use `preview`](#use-preview) | [Architecture](documents/ptymark-design.md) |
+| Render OpenMath | [OpenMath example](#openmath) | [OpenMath input contract](documents/openmath.md) |
+| Filter a batch command | [Pipe-oriented execution](#pipe-oriented-execution) | [Filtered command contract](documents/filtered-command.md) |
+| Configure engines and cache | [Configuration](#configuration) | [Examples](examples/README.md) |
+| Integrate with WezTerm | [WezTerm](#wezterm) | [Runnable configuration](examples/wezterm.lua) |
+| Develop or review a change | [Development and CI](#development-and-ci) | [Documentation map](documents/README.md) |
+
+The complete reader map, including maintainer ownership and shared AgentCanon references, is [`documents/README.md`](documents/README.md).
 
 ## Current status
 
@@ -40,13 +53,14 @@ Implemented:
 
 - stream and file rendering through `ptymark preview`;
 - native Unix PTY and Windows ConPTY sessions through `ptymark -- COMMAND`;
-- keyboard-byte forwarding, terminal resize propagation, and child exit-status preservation;
-- complete Mermaid fences and block-math fences;
-- byte-exact bypass for ANSI, OSC, DCS-style controls, carriage-return updates, completion redraws,
-  right prompts, and alternate-screen applications;
+- pipe-oriented command filtering through `ptymark run -- COMMAND`;
+- keyboard forwarding, resize propagation, and child exit-status preservation;
+- complete Mermaid, TeX block-math, and explicit OpenMath fences;
+- bounded local OpenMath XML-to-TeX conversion with generic custom-CD presentation;
+- byte-exact bypass for ANSI, OSC, DCS-style controls, carriage-return updates, completion redraws, right prompts, and alternate-screen applications;
 - built-in preview and exact-source routes;
 - installed Mermaid CLI and MathJax-compatible engines;
-- an isolated, versioned default renderer bundle;
+- an isolated, versioned managed renderer bundle;
 - terminal-safe ANSI/Unicode presentation;
 - platform-specific installers for POSIX shells, Windows PowerShell, cmd.exe, and Windows Bash;
 - installation-time path normalization and absolute-path configuration;
@@ -55,7 +69,6 @@ Implemented:
 - `ptymark doctor`, versioned redacted JSON/support reports, and stable ready/degraded/unusable status;
 - bounded external-renderer deadlines, output limits, ordered exact-source recovery, and process cleanup;
 - a thin WezTerm launcher plugin and portable example;
-- cross-platform local executable/package smoke tests whose outputs are discarded rather than distributed;
 - shell coexistence contracts for Bash, Zsh, Fish, PowerShell, and Nushell;
 - Docker plus Ubuntu, macOS, and Windows GitHub Actions validation.
 
@@ -66,22 +79,16 @@ Not implemented yet:
 - complete CJK/grapheme-width and screen-reader-oriented presentation;
 - persistent renderer workers;
 - resize-generation cancellation and persistent cache;
-- supported upgrade, rollback, uninstall, purge, and any approved signed binary/package-manager channel.
-
-`ptymark -- COMMAND` is the practical interactive path. It starts the child in a native Unix PTY or
-Windows ConPTY, forwards input, propagates size changes, filters only safe child-output regions, and
-returns the child exit status. `ptymark run -- COMMAND` remains the pipe-oriented path for batch and
-log-producing commands.
+- supported upgrade, rollback, uninstall, purge, or an approved signed binary/package-manager channel;
+- OpenMath JSON, `OMR` reference graphs, remote Content Dictionary lookup, or semantic CD validation.
 
 ## Distribution policy: source-only
 
 Ptymark does **not** publish project-built native executables, installer archives, renderer bundles, or executable-bearing GitHub Actions artifacts for end-user installation. GitHub Releases retain an immutable tag, release notes, and GitHub-generated source-code archives only.
 
-The GitHub `Source code (zip)` and `Source code (tar.gz)` links are source snapshots, not prebuilt executables. Build locally from a reviewed tag or commit. This avoids presenting unsigned and unnotarized native downloads as an operating-system-trusted channel; it does not make a local build automatically safe.
+The GitHub `Source code (zip)` and `Source code (tar.gz)` links are source snapshots, not prebuilt executables. Build locally from a reviewed tag or commit. This avoids presenting unsigned and unnotarized downloads as an operating-system-trusted channel; it does not make a local build automatically safe.
 
-The executable assets originally uploaded for `v0.1.0-alpha.1` and `v0.1.0-alpha.2` have been withdrawn. Their tags, release notes, and source history remain.
-
-The complete policy and requirements for any future signed binary channel are documented in [`documents/release.md`](documents/release.md).
+Executable assets originally uploaded for `v0.1.0-alpha.1` and `v0.1.0-alpha.2` have been withdrawn. Their tags, release notes, and source history remain. See [`documents/release.md`](documents/release.md) for the complete policy and requirements for any future signed channel.
 
 ## Build and install from a source checkout
 
@@ -95,10 +102,11 @@ cd ptymark
 bash scripts/installer.sh
 ```
 
-WSL is treated as Linux. It installs the Linux binary and Linux renderer bundle inside the WSL
-distribution; it does not reuse Windows `.exe` renderers implicitly.
+WSL is treated as Linux. It installs the Linux binary and renderer bundle inside the WSL distribution; it does not reuse Windows `.exe` renderers implicitly.
 
-### Windows PowerShell 7+
+### Windows PowerShell
+
+PowerShell 7+:
 
 ```powershell
 git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
@@ -106,7 +114,7 @@ Set-Location ptymark
 pwsh -File scripts/installer.ps1
 ```
 
-Windows PowerShell 5.1 is also supported:
+Windows PowerShell 5.1:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/installer.ps1
@@ -120,7 +128,7 @@ cd ptymark
 scripts\installer.cmd
 ```
 
-`installer.cmd` only selects `pwsh.exe` or `powershell.exe` and delegates to `installer.ps1`.
+`installer.cmd` selects `pwsh.exe` or `powershell.exe` and delegates to the shared PowerShell frontend.
 
 ### Git Bash, MSYS2, or Cygwin
 
@@ -130,218 +138,7 @@ cd ptymark
 bash scripts/installer.sh
 ```
 
-The Bash frontend detects a Windows Bash environment, converts path-valued options with `cygpath`,
-disables MSYS argument rewriting for the final call, and delegates to `installer.ps1`. Generated TOML
-therefore contains native paths such as `C:\Users\...`, not `/c/Users/...`.
-
-The former `scripts/install.sh` and `scripts/install.ps1` names remain compatibility wrappers.
-
-## What one setup command does
-
-```text
-place or select the ptymark native executable
-    -> inspect explicit and already-installed renderer commands
-    -> install missing default roles in an isolated managed bundle
-    -> normalize selected executables to native absolute paths
-    -> call the shared Rust `ptymark install resolve` command
-    -> atomically write config.toml and install.toml
-    -> run installation and engine status checks
-```
-
-Installer frontends own only platform and shell concerns: core placement, standard user directories,
-bundle installation, and path conversion. Rust owns engine-selection semantics, configuration merge,
-validation, installation-state serialization, and status reporting.
-
-The installer does **not** edit `.bashrc`, `.zshrc`, Fish configuration, Nushell configuration, or a
-PowerShell profile. It also does not add managed renderer aliases to the global `PATH`.
-
-## Does ptymark require JavaScript?
-
-The Rust core, detector, cache, source fallback, and terminal-safety gate do **not** require
-JavaScript. The selected default Mermaid and MathJax engines are JavaScript projects, so the optional
-managed renderer bundle contains a private Node runtime and lockfile-pinned packages.
-
-Users do not need to:
-
-- install Node globally;
-- run `npm install -g`;
-- add an npm prefix to `PATH`;
-- manage Mermaid or MathJax package paths;
-- expose the managed runtime to other applications.
-
-The bundle is an implementation detail behind `EngineHandoff`. A later native or non-JavaScript
-engine can replace one role without changing the detector, cache, display pipeline, or configuration
-contract.
-
-## Default renderer selection
-
-On first install, each role is selected in this order:
-
-```text
-1. explicit installer option
-2. compatible command already available to the installer shell
-3. an existing complete ptymark-managed bundle
-4. install the pinned ptymark-managed bundle
-5. built-in textual preview only when managed installation is disabled
-```
-
-On an ordinary rerun, valid existing selections are preserved. `--reprobe`/`-Reprobe` deliberately
-searches the current environment again.
-
-The managed set is pinned and tested together:
-
-| Role | Managed default |
-| --- | --- |
-| Mermaid layout | `@mermaid-js/mermaid-cli` 11.16.0 |
-| TeX block math | MathJax 4.1.3 |
-| JavaScript runtime | Node.js 24.18.0 |
-| Browser bridge | Puppeteer 25.2.1 |
-| Terminal presentation | ptymark ANSI/Unicode presenter |
-
-The installer prefers an already-installed Chromium-compatible browser. On Windows this normally
-means Microsoft Edge. If none is selected and downloads are allowed, Puppeteer may install a private
-compatible browser inside the bundle cache.
-
-## Managed bundle isolation
-
-The fallback bundle is versioned and private to ptymark. It does not modify a global npm prefix and
-does not add anything to `PATH`.
-
-```text
-Linux
-  ${XDG_DATA_HOME:-~/.local/share}/ptymark/renderer-bundles/<bundle-id>/
-
-macOS
-  ~/Library/Application Support/ptymark/renderer-bundles/<bundle-id>/
-
-Windows
-  %LOCALAPPDATA%\ptymark\renderer-bundles\<bundle-id>\
-```
-
-Each bundle contains:
-
-```text
-bundle.toml                 validated launcher manifest
-bundle.stamp                lock/runtime/launcher identity
-puppeteer-config.json       fixed browser launch policy
-app/                        lockfile-resolved packages and fixed entrypoints
-runtime/                    private Node runtime when exact system Node is unavailable
-cache/                      private npm and browser cache
-bin/mmdc[.exe]              native ptymark alias for Mermaid
-bin/tex2svg[.exe]           native ptymark alias for MathJax
-bin/chafa[.exe]             native ptymark alias for ANSI presentation
-```
-
-The aliases are copies or hard links of the native `ptymark` binary. They inspect their executable
-name, validate `bundle.toml`, and invoke Node directly with one fixed role-specific entrypoint. User
-source and renderer arguments are not forwarded through a generated shell or batch wrapper.
-
-The official Node archive is checked against the release SHA-256 list. JavaScript packages are
-installed with `npm ci` from the committed lockfile. No package manager, browser downloader, or
-network request runs during normal rendering.
-
-## Control installation behavior
-
-Use installed commands first and fill missing roles from the managed bundle; this is the default:
-
-```bash
-bash scripts/installer.sh --managed auto
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 -Managed auto
-```
-
-Force every role to the isolated bundle:
-
-```bash
-bash scripts/installer.sh --managed always
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 -Managed always
-```
-
-Disable managed installation and use built-in preview for unresolved roles:
-
-```bash
-bash scripts/installer.sh --managed never
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 -Managed never
-```
-
-Use an existing browser and prohibit a private browser download:
-
-```bash
-bash scripts/installer.sh \
-  --browser /usr/bin/chromium \
-  --skip-browser-download
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 `
-  -Browser 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe' `
-  -SkipBrowserDownload
-```
-
-Re-probe commands after an upgrade:
-
-```bash
-bash scripts/installer.sh --reprobe
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 -Reprobe
-```
-
-Use only existing core and bundle files, making no download attempt:
-
-```bash
-bash scripts/installer.sh --offline
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 -Offline
-```
-
-Replace one role while preserving unrelated settings:
-
-```bash
-bash scripts/installer.sh --mermaid /opt/homebrew/bin/mmdc
-bash scripts/installer.sh --math /absolute/path/to/tex2svg
-bash scripts/installer.sh --presenter /usr/local/bin/chafa
-bash scripts/installer.sh --math source
-```
-
-```powershell
-pwsh -File scripts/installer.ps1 -Mermaid 'C:\Tools\mmdc.exe'
-pwsh -File scripts/installer.ps1 -Math source
-```
-
-Explicit paths must resolve successfully. `preview` and `source` do not require an external
-executable.
-
-## Installer destinations
-
-Default runtime configuration:
-
-```text
-Linux/macOS/WSL  ~/.config/ptymark/config.toml
-Windows          %APPDATA%\ptymark\config.toml
-```
-
-Default installation state:
-
-```text
-Linux        ${XDG_STATE_HOME:-~/.local/state}/ptymark/install.toml
-macOS        ~/.local/state/ptymark/install.toml
-Windows      %LOCALAPPDATA%\ptymark\state\install.toml
-```
-
-The configuration is user-owned runtime policy. The state file records the selected backend,
-resolution origin, requested path, resolved native path, and readiness.
+The Bash frontend detects Windows Bash, converts path-valued options with `cygpath`, disables MSYS argument rewriting for the final call, and delegates to PowerShell. Generated TOML contains native paths such as `C:\Users\...`, not `/c/Users/...`. The former `scripts/install.sh` and `scripts/install.ps1` names remain compatibility wrappers.
 
 ## Verify installation
 
@@ -357,46 +154,46 @@ ptymark doctor --json
 
 On Windows, use `ptymark.exe` when the executable directory is not already on `PATH`.
 
-A managed installation reports absolute paths, for example:
+A managed installation reports resolved native paths for the Mermaid, math, and presenter roles. Built-in `preview` and `source` roles report no external executable.
+
+## Interactive use
 
 ```text
-mermaid    mermaid-cli    ready    C:\Users\name\AppData\Local\ptymark\...\mmdc.exe
-math       mathjax-cli    ready    C:\Users\name\AppData\Local\ptymark\...\tex2svg.exe
-presenter  chafa-symbols  ready    C:\Users\name\AppData\Local\ptymark\...\chafa.exe
+ptymark [--config PATH] [--source|--safe] [--private] -- COMMAND [ARG...]
 ```
 
-## Diagnose and recover safely
+Examples:
 
-Use one side-effect-free command to inspect the selected configuration, installation state, native host, terminal context, engine/browser/presenter resolution, and effective source/safe/private mode:
-
-```text
-ptymark doctor
-ptymark doctor --json
-ptymark doctor --support-report ./ptymark-support.json
-ptymark doctor --config /absolute/path/config.toml
+```bash
+ptymark -- bash
+ptymark -- python
+ptymark -- cargo test
+ptymark --source -- bash
+ptymark --safe -- bash
+ptymark --private -- bash
 ```
 
-The JSON schema is `ptymark.doctor.v1`. Status and exit codes are:
+The command runs in a native Unix PTY or Windows ConPTY. Ptymark forwards input, propagates size changes, filters only safe child-output regions, and returns the child exit status.
 
-| Status | Exit code | Meaning |
-| --- | ---: | --- |
-| `ready` | `0` | selected configuration is usable |
-| `degraded` | `10` | usable through a documented fallback or without an optional capability |
-| `unusable` | `20` | selected config, required host, or strict path cannot operate |
+Session modes change only pre-display policy:
 
-Default doctor performs no installation, download, network request, renderer/browser execution, PTY/ConPTY child launch, or mutation. Human, JSON, and support-report output exclude semantic source, child environment, credentials, raw source-bearing renderer stderr, sensitive path prefixes, and terminal-control bytes by default. Support-report files are created atomically and existing paths are not overwritten.
+- `--source` keeps explicit block detection but emits each complete block's exact source;
+- `--safe` bypasses semantic detection, source-format conversion, engines, presentation, and cache;
+- `--private` keeps rendering but disables the process-local artifact cache.
 
-Immediate per-session recovery keeps the native host:
+`--source` and `--safe` are mutually exclusive. See [`documents/interactive-session.md`](documents/interactive-session.md).
 
-```text
-ptymark --source -- COMMAND
-ptymark --safe -- COMMAND
-ptymark --private -- COMMAND
+## Pipe-oriented execution
+
+```bash
+ptymark run -- COMMAND [ARG...]
 ```
 
-See [the troubleshooting contract](documents/troubleshooting.md) for finding categories, ordering guarantees, redaction, and public issue-report guidance.
+This path filters child stdout for batch and log-producing commands while preserving the documented stdin, stderr, and exit-status behavior. It is not a PTY replacement. See [`documents/filtered-command.md`](documents/filtered-command.md).
 
 ## Use `preview`
+
+The detector accepts only complete, line-bounded forms. The following example contains Mermaid, TeX, and OpenMath:
 
 ````bash
 cat <<'EOF' | ptymark preview
@@ -410,12 +207,27 @@ flowchart LR
 $$
 E = mc^2
 $$
+
+```openmath
+<OMOBJ xmlns="http://www.openmath.org/OpenMath" version="2.0">
+  <OMA>
+    <OMS cd="relation1" name="eq"/>
+    <OMA>
+      <OMS cd="arith1" name="plus"/>
+      <OMV name="x"/>
+      <OMI>1</OMI>
+    </OMA>
+    <OMI>2</OMI>
+  </OMA>
+</OMOBJ>
+```
 EOF
 ````
 
 Common options:
 
 ```bash
+ptymark preview README.md
 ptymark preview --source README.md
 ptymark preview --no-cache README.md
 ptymark preview --columns 100 README.md
@@ -423,8 +235,49 @@ ptymark preview --strict README.md
 ptymark --config /absolute/path/config.toml preview README.md
 ```
 
-The detector recognizes only complete, line-bounded Mermaid and block-math forms. Inline `$...$`,
-headings, lists, and other ambiguous Markdown are intentionally not detected in interactive output.
+Inline `$...$`, headings, lists, raw `OMOBJ` XML, and other ambiguous Markdown are intentionally not detected in interactive output.
+
+### OpenMath
+
+OpenMath is a source format for the existing `math` role. An explicit `openmath` fence is parsed locally with fixed byte, depth, and node limits, converted to deterministic TeX, and sent through the configured math route.
+
+```bash
+ptymark preview examples/openmath.md
+ptymark preview --source examples/openmath.md
+```
+
+Common official Content Dictionary symbols receive readable presentation. Unknown research symbols remain visible as a generic `cd.name` operator; Ptymark never downloads a CD. Malformed or unsupported objects restore exact source in normal mode and fail before replacement in strict mode. `DOCTYPE`, external/custom entities, and `OMR` references are rejected. See [`documents/openmath.md`](documents/openmath.md).
+
+## Diagnose and recover safely
+
+Use one side-effect-free command to inspect configuration, installation state, native host, terminal context, engine/browser/presenter resolution, and effective source/safe/private mode:
+
+```text
+ptymark doctor
+ptymark doctor --json
+ptymark doctor --support-report ./ptymark-support.json
+ptymark doctor --config /absolute/path/config.toml
+```
+
+Status and exit codes:
+
+| Status | Exit code | Meaning |
+| --- | ---: | --- |
+| `ready` | `0` | selected configuration is usable |
+| `degraded` | `10` | usable through a documented fallback or without an optional capability |
+| `unusable` | `20` | selected config, required host, or strict path cannot operate |
+
+Default doctor performs no installation, download, network request, renderer/browser execution, child launch, or mutation. Human, JSON, and support-report output exclude semantic source, child environment, credentials, source-bearing renderer stderr, sensitive path prefixes, and terminal-control bytes by default. Support reports are written atomically and do not overwrite existing files.
+
+Immediate per-session recovery:
+
+```text
+ptymark --source -- COMMAND
+ptymark --safe -- COMMAND
+ptymark --private -- COMMAND
+```
+
+See [`documents/troubleshooting.md`](documents/troubleshooting.md).
 
 ## Configuration
 
@@ -435,7 +288,7 @@ schema_version = 1
 
 [detection]
 mermaid = true
-math = true
+math = true                 # TeX and OpenMath
 max_block_bytes = 1048576
 
 [rendering]
@@ -460,21 +313,114 @@ path = "/absolute/path/to/tex2svg"
 path = "/absolute/path/to/chafa-compatible-presenter"
 ```
 
-Manually written bare executable names are supported and resolved through the runtime `PATH`.
-Working-directory-relative paths such as `tools/mmdc` are rejected.
+`[detection].math` governs dollar-sign block math, `math|latex|tex` fences, and `openmath` fences. OpenMath does not add another engine or installer role.
+
+Manually written bare executable names are supported and resolved through runtime `PATH`. Working-directory-relative paths such as `tools/mmdc` are rejected. See [`examples/README.md`](examples/README.md) for validated examples.
+
+## Renderer installation and isolation
+
+One setup command:
+
+```text
+places or selects the native ptymark executable
+  -> inspects explicit and installed renderer commands
+  -> installs missing default roles in an isolated managed bundle
+  -> normalizes selected executables to native absolute paths
+  -> writes config.toml and install.toml atomically
+  -> runs installation and engine checks
+```
+
+Installer frontends own platform and shell concerns. Rust owns engine-selection semantics, configuration merge, validation, state serialization, and status reporting. The installer does not edit `.bashrc`, `.zshrc`, Fish or Nushell configuration, or PowerShell profiles, and it does not add managed aliases to global `PATH`.
+
+Selection order:
+
+```text
+1. explicit installer option
+2. compatible command visible to the installer shell
+3. existing complete ptymark-managed bundle
+4. install the pinned managed bundle
+5. built-in preview when managed installation is disabled
+```
+
+The managed set is pinned and tested together:
+
+| Role | Managed default |
+| --- | --- |
+| Mermaid layout | `@mermaid-js/mermaid-cli` 11.16.0 |
+| TeX and OpenMath layout | MathJax 4.1.3 after local OpenMath-to-TeX conversion |
+| JavaScript runtime | Node.js 24.18.0 |
+| Browser bridge | Puppeteer 25.2.1 |
+| Terminal presentation | Ptymark ANSI/Unicode presenter |
+
+The Rust detector, OpenMath converter, cache, fallback, and terminal-safety gate do not require JavaScript. The optional managed Mermaid and MathJax engines do, so their bundle contains a private Node runtime and lockfile-pinned packages. Users do not need global Node, global npm packages, or renderer aliases on `PATH`.
+
+Normal rendering performs no installation, browser download, package-manager operation, or network request.
+
+Common installer controls:
+
+```bash
+bash scripts/installer.sh --managed auto
+bash scripts/installer.sh --managed always
+bash scripts/installer.sh --managed never
+bash scripts/installer.sh --offline
+bash scripts/installer.sh --reprobe
+bash scripts/installer.sh --math source
+```
+
+```powershell
+pwsh -File scripts/installer.ps1 -Managed auto
+pwsh -File scripts/installer.ps1 -Managed always
+pwsh -File scripts/installer.ps1 -Managed never
+pwsh -File scripts/installer.ps1 -Offline
+pwsh -File scripts/installer.ps1 -Reprobe
+pwsh -File scripts/installer.ps1 -Math source
+```
+
+Use explicit `--mermaid`, `--math`, and `--presenter` paths to replace one role while preserving unrelated settings. See [`documents/ptymark-installer.md`](documents/ptymark-installer.md) for destinations, browser selection, offline behavior, and replacement semantics.
+
+## Safety and failure behavior
+
+The renderer may change only a complete recognized semantic block found in safe text:
+
+```text
+keyboard input ------------------------------> child process
+signals / terminal mode / resize ------------> child process
+child output:
+  safe text ---------------------------------> explicit detector
+  ANSI / OSC / DCS / CR / alternate screen -> byte-exact passthrough
+```
+
+For each block, the display pipeline commits exactly one result:
+
+1. cached final display bytes;
+2. newly converted/rendered/presented bytes;
+3. exact original source after a non-strict failure;
+4. an error before replacement bytes in strict mode.
+
+External processes use fixed argument protocols. Configuration cannot contain an arbitrary shell command, pipe, redirect, or argument template. OpenMath conversion runs in-process but has no file, network, external-entity, or remote-CD surface.
+
+Initial bounds:
+
+```text
+semantic source       1 MiB
+OpenMath nesting      128 levels
+OpenMath elements     8192
+render attempt        10 seconds across engine and presentation
+layout artifact        8 MiB
+terminal output        8 MiB
+pending later output   1 MiB per unresolved semantic block
+diagnostic output     64 KiB, sanitized and source-redacted
+```
+
+The architecture and extension rules are in [`documents/ptymark-design.md`](documents/ptymark-design.md).
+
+## Cache
+
+`ArtifactCache` is independent from detection, conversion, routing, engine execution, and display commit. Current implementations are `MemoryCache` and `NoopCache`. The key includes the complete renderer/adapter identity, semantic kind, exact source bytes, terminal columns, color permission, and theme fingerprint. Only successful final display bytes are cached.
 
 ## Shell and rich-plugin coexistence
 
-The installer and launcher do not source, replace, or reorder shell plugins. The compatibility suite
-tracks twenty widely used integrations for each of five shells—Bash, Zsh, Fish, PowerShell, and
-Nushell—for a total of 100 reviewed entries.
-
-The matrix includes prompt frameworks, autosuggestions, syntax highlighting, completion menus,
-history search, fuzzy selectors, directory hooks, environment managers, and Nushell plugins.
-Representative names include Oh My Zsh, Powerlevel10k, zsh-autosuggestions, Tide, Fisher, PSReadLine,
-Terminal-Icons, Atuin, Starship, Oh My Posh, fzf, zoxide, Carapace, and official Nushell plugins.
-
-Compatibility is checked by behavior rather than brand-specific code:
+The installer and launcher do not source, replace, or reorder shell plugins. Compatibility is checked by emitted terminal behavior rather than brand-specific code. The inventory tracks twenty integrations for each of Bash, Zsh, Fish, PowerShell, and Nushell.
 
 | Behavior | Verification |
 | --- | --- |
@@ -487,55 +433,11 @@ Compatibility is checked by behavior rather than brand-specific code:
 | fzf/history/file-browser alternate screen | full bypass until exit |
 | environment and directory hooks | profile files unchanged; environment preserved |
 
-`contract-verified` means an integration is mapped to one of these terminal behavior profiles and the
-profile is exercised with arbitrary chunk boundaries. It does not claim that ptymark redistributes or
-pins every third-party project. The complete 100-entry list, evidence levels, and limitations are in
-[the shell compatibility matrix](documents/shell-plugin-compatibility.md).
-
-The live suite covers package installers, native Unix PTY and Windows ConPTY sessions, pipe-oriented runs, managed renderers, profile preservation, and the reusable pre-display pipeline.
-
-## Safety and failure behavior
-
-The renderer may change only a complete recognized semantic block.
-
-```text
-keyboard input ------------------------------> child process
-signals / termios / resize ------------------> child process
-child output:
-  safe text ---------------------------------> detector
-  ANSI / OSC / DCS / CR / alternate screen -> byte-exact passthrough
-```
-
-For each semantic block, the display pipeline commits exactly one result:
-
-1. cached final display bytes;
-2. newly rendered and presented bytes;
-3. exact original source after a non-strict failure;
-4. an error before replacement bytes in strict mode.
-
-External processes use fixed argument protocols. Configuration cannot contain an arbitrary shell
-command, pipe, redirect, or argument template.
-
-Initial bounds:
-
-```text
-render attempt       10 seconds across engine and presentation
-layout artifact        8 MiB
-terminal output        8 MiB
-pending later output   1 MiB per unresolved semantic block
-diagnostic output     64 KiB, sanitized and source-redacted
-```
-
-## Cache
-
-`ArtifactCache` is independent from detection, routing, engine execution, and display commit. Current
-implementations are `MemoryCache` and `NoopCache`. The complete key includes renderer identity,
-semantic kind, exact source bytes, terminal columns, color permission, and theme fingerprint. Only
-successful final display bytes are cached.
+The full inventory, evidence levels, and limitations are in [`documents/shell-plugin-compatibility.md`](documents/shell-plugin-compatibility.md).
 
 ## WezTerm
 
-Run the appropriate installer, then copy [`examples/wezterm.lua`](examples/wezterm.lua):
+Run the platform installer, then copy the complete minimal example:
 
 ```bash
 cp examples/wezterm.lua ~/.wezterm.lua
@@ -545,25 +447,15 @@ cp examples/wezterm.lua ~/.wezterm.lua
 Copy-Item examples/wezterm.lua $HOME/.wezterm.lua
 ```
 
-The example uses `wezterm.target_triple` to select Unix or Windows defaults. `PTYMARK_BINARY` and
-`PTYMARK_CONFIG` override those paths. The plugin appends one launch-menu entry and one
-`CTRL|SHIFT+P` binding; it does not replace existing entries.
+For an existing configuration, copy the `wezterm.plugin.require(...)` and `ptymark.apply_to_config(...)` blocks rather than replacing the file. The plugin appends one launch-menu entry and one `CTRL|SHIFT+P` binding. It remains a thin launcher; the spawned native process owns PTY/ConPTY hosting, validation, detection, conversion, rendering, fallback, and session modes.
 
-The plugin remains a thin launcher, while the spawned ptymark process owns the active native PTY/ConPTY host, validation, detection, rendering, fallback, and session-mode policy.
+`PTYMARK_BINARY` and `PTYMARK_CONFIG` override platform defaults. See [`examples/README.md`](examples/README.md#wezterm).
 
 ## Extension boundaries
 
-Installation-time executable lookup is behind `ProgramResolver`. OS/shell frontends normalize paths
-before calling the shared Rust resolver. Managed launchers are versioned by `bundle.toml`. Render
-selection and execution remain behind `RenderDecider` and `EngineHandoff`.
+Installation-time lookup is behind `ProgramResolver`. Render selection and execution remain behind `RenderDecider` and `EngineHandoff`. Structured source conversion is a separate renderer adapter with its own identity.
 
-A new resolver, engine, or handoff must not change the terminal safety gate, semantic detector, cache,
-or display-commit contract. A new engine role requires a concrete protocol, install route, integrity
-policy, exact-source fallback, dependency owner, and Ubuntu/macOS/Windows tests.
-
-A new shell integration does not receive special-case code merely because it has a new name. A new
-terminal behavior profile is added only when the tool emits an interaction not represented by the
-existing prompt, line-editor, completion, progress, OSC, or alternate-screen profiles.
+A new source format, resolver, decision rule, engine, handoff, or presenter must not weaken terminal classification, explicit detection, exact-source fallback, cache identity, or one-time display commit. A new source format requires a bounded parser, no hidden I/O, deterministic adapter ID, normal/strict/source/safe evidence, documentation, and a runnable example. A new engine role additionally requires installation, integrity, dependency ownership, and Ubuntu/macOS/Windows tests.
 
 ## Development and CI
 
@@ -589,22 +481,27 @@ cargo build --release --locked
 
 GitHub Actions is the formal pull-request evidence. It runs:
 
-- Rust formatting, Clippy, and all tests on Ubuntu, macOS, and Windows;
-- all 100 shell-integration inventory contracts and terminal behavior profiles;
-- unchanged Unix and Windows shell-profile checks;
-- shell-hook environment propagation checks;
-- PowerShell, cmd.exe, and Git Bash installer entrypoint checks;
-- a real managed-bundle install on Windows using installed Edge;
-- direct and strict Mermaid, MathJax, and presenter rendering;
-- canonical Docker checks, ShellCheck, and isolated managed-engine smoke;
-- WezTerm plugin and platform example checks;
-- Linux, macOS, and Windows local package assembly, package-local installation, configuration
-  validation, and preview smoke; executable outputs are discarded and never uploaded;
+- Rust formatting, Clippy with warnings denied, and all tests on Ubuntu, macOS, and Windows;
+- terminal safety, detector, OpenMath parser/adapter, pipeline, routing, cache, configuration, and installer contracts;
+- real Unix PTY and Windows ConPTY tests;
+- shell-integration inventories and terminal behavior profiles;
+- unchanged Unix and Windows shell-profile checks and hook environment propagation;
+- PowerShell, cmd.exe, and Git Bash installer entrypoints;
+- managed Mermaid, MathJax, presenter, and strict end-to-end smoke;
+- canonical Docker, ShellCheck, WezTerm, and package-local verification;
+- Linux, macOS, and Windows local package assembly whose executable outputs are deleted rather than uploaded;
 - inherited repository and Docker-pack checks.
 
-## Design documents
+## Documentation
 
+- [task-oriented documentation map](documents/README.md)
 - [pre-display architecture](documents/ptymark-design.md)
+- [OpenMath input and safety contract](documents/openmath.md)
+- [interactive PTY and ConPTY session](documents/interactive-session.md)
+- [filtered command execution](documents/filtered-command.md)
+- [troubleshooting and support reports](documents/troubleshooting.md)
 - [installer and managed engine resolution](documents/ptymark-installer.md)
+- [release and recovery contract](documents/release.md)
 - [shell and rich-plugin compatibility](documents/shell-plugin-compatibility.md)
-- [example configurations](examples/README.md)
+- [verification catalog](verification/README.md)
+- [examples](examples/README.md)
