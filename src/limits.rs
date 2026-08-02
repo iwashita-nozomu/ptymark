@@ -12,6 +12,7 @@ pub(crate) const MAX_PRESENTATION_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) const MAX_RENDERER_DIAGNOSTIC_BYTES: usize = 64 * 1024;
 pub(crate) const MAX_MATH_ARGUMENT_BYTES: usize = 32 * 1024;
 pub(crate) const MAX_PENDING_TERMINAL_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_SEMANTIC_BLOCK_BYTES: usize = 1024 * 1024;
 
 pub(crate) const MAX_OPENMATH_INPUT_BYTES: usize = 1024 * 1024;
 pub(crate) const MAX_OPENMATH_DEPTH: usize = 128;
@@ -24,3 +25,10 @@ pub(crate) const RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);
 pub(crate) const DEFAULT_PTY_ROWS: u16 = 24;
 #[cfg(windows)]
 pub(crate) const CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);
+
+// User-authored resource preferences are bounded independently from the hard
+// renderer/process floor. They are configurable because they affect local
+// performance, but cannot request unbounded memory or nonsensical dimensions.
+pub(crate) const MAX_USER_CACHE_ENTRIES: usize = 4096;
+pub(crate) const MAX_USER_CACHE_BYTES: usize = 512 * 1024 * 1024;
+pub(crate) const MAX_FALLBACK_COLUMNS: u16 = 1000;
