@@ -10,6 +10,7 @@ pub struct CacheKey {
     source: Vec<u8>,
     columns: u16,
     color: bool,
+    plain: bool,
     theme_fingerprint: u64,
 }
 
@@ -45,6 +46,29 @@ impl CacheKey {
         color: bool,
         theme_fingerprint: u64,
     ) -> Self {
+        Self::new_with_presentation(
+            renderer_id,
+            kind,
+            format,
+            source,
+            columns,
+            color,
+            false,
+            theme_fingerprint,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_presentation(
+        renderer_id: impl Into<String>,
+        kind: BlockKind,
+        format: SemanticFormat,
+        source: &[u8],
+        columns: u16,
+        color: bool,
+        plain: bool,
+        theme_fingerprint: u64,
+    ) -> Self {
         Self {
             renderer_id: renderer_id.into(),
             kind,
@@ -52,6 +76,7 @@ impl CacheKey {
             source: source.to_vec(),
             columns,
             color,
+            plain,
             theme_fingerprint,
         }
     }
@@ -66,7 +91,7 @@ impl CacheKey {
             .saturating_add(std::mem::size_of::<BlockKind>())
             .saturating_add(std::mem::size_of::<SemanticFormat>())
             .saturating_add(std::mem::size_of::<u16>())
-            .saturating_add(std::mem::size_of::<bool>())
+            .saturating_add(std::mem::size_of::<bool>() * 2)
             .saturating_add(std::mem::size_of::<u64>())
     }
 }
@@ -223,26 +248,39 @@ mod tests {
     }
 
     #[test]
-    fn source_format_participates_in_cache_identity() {
-        let tex = CacheKey::new_with_format(
+    fn source_format_and_presentation_participate_in_cache_identity() {
+        let tex = CacheKey::new_with_presentation(
             "test/renderer-v1",
             BlockKind::Math,
             SemanticFormat::Tex,
             b"same source",
             80,
             false,
+            false,
             0,
         );
-        let openmath = CacheKey::new_with_format(
+        let openmath = CacheKey::new_with_presentation(
             "test/renderer-v1",
             BlockKind::Math,
             SemanticFormat::OpenMath,
             b"same source",
             80,
             false,
+            false,
+            0,
+        );
+        let plain = CacheKey::new_with_presentation(
+            "test/renderer-v1",
+            BlockKind::Math,
+            SemanticFormat::Tex,
+            b"same source",
+            80,
+            false,
+            true,
             0,
         );
         assert_ne!(tex, openmath);
+        assert_ne!(tex, plain);
     }
 
     #[test]
