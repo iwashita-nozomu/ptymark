@@ -147,6 +147,34 @@ jobs:
           }'''
               return text.replace(old, new)
 
+          def unix_installer_transform(text):
+              text = text.replace(
+                  'elif [[ -n "$system_mermaid" ]]; then mermaid_value="$system_mermaid"',
+                  'elif [[ -n "$system_mermaid" ]]; then mermaid_value=auto',
+              )
+              text = text.replace(
+                  'elif [[ -n "$system_math" ]]; then math_value="$system_math"',
+                  'elif [[ -n "$system_math" ]]; then math_value=auto',
+              )
+              return text.replace(
+                  'elif [[ -n "$system_presenter" ]]; then presenter_value="$system_presenter"',
+                  'elif [[ -n "$system_presenter" ]]; then presenter_value=auto',
+              )
+
+          def windows_installer_transform(text):
+              text = text.replace(
+                  'elseif ($SystemMermaid) { $Mermaid = $SystemMermaid }',
+                  "elseif ($SystemMermaid) { $Mermaid = 'auto' }",
+              )
+              text = text.replace(
+                  'elseif ($SystemMath) { $Math = $SystemMath }',
+                  "elseif ($SystemMath) { $Math = 'auto' }",
+              )
+              return text.replace(
+                  'elseif ($SystemPresenter) { $Presenter = $SystemPresenter }',
+                  "elseif ($SystemPresenter) { $Presenter = 'auto' }",
+              )
+
           rewrite('src/config.rs', config_transform)
           rewrite('src/install.rs', install_transform)
           rewrite('src/routing.rs', routing_transform)
@@ -154,6 +182,8 @@ jobs:
           rewrite('src/native_session.rs', native_transform)
           rewrite('src/doctor.rs', doctor_transform)
           rewrite('src/cli.rs', cli_transform)
+          rewrite('scripts/installer.sh', unix_installer_transform)
+          rewrite('scripts/installer.ps1', windows_installer_transform)
           PY
       - name: Generate lockfile and format Rust
         run: |
@@ -169,7 +199,7 @@ jobs:
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Cargo.lock src
+          git add Cargo.lock src scripts
           git commit -m 'chore: normalize alpha4 generated and Rust sources'
           git push origin "HEAD:${GITHUB_HEAD_REF}"
       - name: Check compilation
