@@ -58,6 +58,7 @@ pub struct DisplayPipeline {
     cancellation: RenderCancellation,
     context: RenderContext,
     strict: bool,
+    terminal_line_endings: bool,
     report: PipelineReport,
 }
 
@@ -91,6 +92,7 @@ impl DisplayPipeline {
             cancellation,
             context,
             strict,
+            terminal_line_endings: false,
             report: PipelineReport::default(),
         }
     }
@@ -124,6 +126,10 @@ impl DisplayPipeline {
 
     pub fn set_columns(&mut self, columns: u16) {
         self.context.columns = columns.max(1);
+    }
+
+    pub fn set_terminal_line_endings(&mut self, enabled: bool) {
+        self.terminal_line_endings = enabled;
     }
 
     fn emit_segments(
@@ -205,7 +211,11 @@ impl DisplayPipeline {
                     }
                     match self.renderer.render(&block, self.context) {
                         Ok(output) => {
-                            display.write_all(&output.bytes)?;
+                            write_rendered_output(
+                                &output.bytes,
+                                self.terminal_line_endings,
+                                display,
+                            )?;
                             self.report.rendered_blocks =
                                 self.report.rendered_blocks.saturating_add(1);
                             if output.cache_hit {
@@ -244,6 +254,27 @@ impl DisplayPipeline {
     }
 }
 
+fn write_rendered_output(
+    bytes: &[u8],
+    terminal_line_endings: bool,
+    display: &mut dyn Write,
+) -> io::Result<()> {
+    if !terminal_line_endings {
+        return display.write_all(bytes);
+    }
+
+    let mut start = 0_usize;
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte != b'\n' || (index > 0 && bytes[index - 1] == b'\r') {
+            continue;
+        }
+        display.write_all(&bytes[start..index])?;
+        display.write_all(b"\r\n")?;
+        start = index + 1;
+    }
+    display.write_all(&bytes[start..])
+}
+
 fn stream_item_bytes(item: &StreamItem) -> usize {
     match item {
         StreamItem::Passthrough(bytes) => bytes.len(),
@@ -280,11 +311,42 @@ mod tests {
             .expect("feed");
         pipeline.finish(&mut output).expect("finish");
 
+        assert!(!output.contains(&b'\r'));
         let text = String::from_utf8(output).expect("UTF-8");
         assert!(text.starts_with("before\n"));
         assert!(text.contains("ptymark math"));
         assert!(text.ends_with("after\n"));
         assert!(!text.contains("$$"));
+    }
+
+    #[test]
+    fn terminal_line_endings_apply_only_to_rendered_output() {
+        let mut pipeline = preview_pipeline();
+        pipeline.set_terminal_line_endings(true);
+        let mut output = Vec::new();
+
+        pipeline
+            .feed(b"before\n$$\nE = mc^2\n$$\nafter\n", &mut output)
+            .expect("feed");
+        pipeline.finish(&mut output).expect("finish");
+
+        let text = String::from_utf8(output).expect("UTF-8");
+        assert!(text.starts_with("before\n"));
+        assert!(text.ends_with("after\n"));
+        let rendered = text
+            .strip_prefix("before\n")
+            .and_then(|value| value.strip_suffix("after\n"))
+            .expect("rendered middle");
+        assert!(rendered.contains("ptymark math"));
+        assert!(rendered.contains("\r\n"));
+        assert!(
+            !rendered
+                .as_bytes()
+                .iter()
+                .enumerate()
+                .any(|(index, byte)| *byte == b'\n'
+                    && (index == 0 || rendered.as_bytes()[index - 1] != b'\r'))
+        );
     }
 
     #[test]
