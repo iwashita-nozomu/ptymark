@@ -1,6 +1,5 @@
 pub mod cache;
 pub mod cli;
-mod cli_args;
 mod command;
 pub mod config;
 mod config_ext;
