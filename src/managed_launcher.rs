@@ -48,43 +48,127 @@ struct ManagedBundleManifest {
     browser_no_sandbox: bool,
 }
 
-impl ManagedBundleManifest {
-    fn load(path: &Path) -> Result<Self, String> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ManagedBundleStatus {
+    Compatible,
+    IncompatibleSchema { found: u32, expected: u32 },
+    InvalidPath { field: &'static str, reason: String },
+}
+
+impl ManagedBundleStatus {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Compatible => "compatible",
+            Self::IncompatibleSchema { .. } => "incompatible-schema",
+            Self::InvalidPath { .. } => "invalid-path",
+        }
+    }
+
+    pub const fn is_compatible(&self) -> bool {
+        matches!(self, Self::Compatible)
+    }
+
+    fn execution_error(&self) -> Option<String> {
+        match self {
+            Self::Compatible => None,
+            Self::IncompatibleSchema { found, expected } => Some(format!(
+                "unsupported managed bundle schema {found}; expected {expected}"
+            )),
+            Self::InvalidPath { field, reason } => {
+                Some(format!("managed bundle {field} is invalid: {reason}"))
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct LoadedManifest {
+    manifest: ManagedBundleManifest,
+    status: ManagedBundleStatus,
+}
+
+impl LoadedManifest {
+    fn read(path: &Path) -> Result<Self, String> {
         let source = fs::read_to_string(path).map_err(|error| {
             format!(
                 "cannot read managed bundle manifest `{}`: {error}",
                 path.display()
             )
         })?;
-        let manifest: Self = toml::from_str(&source).map_err(|error| {
+        let manifest: ManagedBundleManifest = toml::from_str(&source).map_err(|error| {
             format!(
                 "cannot parse managed bundle manifest `{}`: {error}",
                 path.display()
             )
         })?;
-        manifest.validate()?;
-        Ok(manifest)
+        let status = validate_manifest(&manifest);
+        Ok(Self { manifest, status })
     }
 
-    fn validate(&self) -> Result<(), String> {
-        if self.schema_version != MANAGED_BUNDLE_SCHEMA_VERSION {
-            return Err(format!(
-                "unsupported managed bundle schema {}; expected {}",
-                self.schema_version, MANAGED_BUNDLE_SCHEMA_VERSION
-            ));
+    fn into_execution_manifest(self) -> Result<ManagedBundleManifest, String> {
+        if let Some(error) = self.status.execution_error() {
+            return Err(error);
         }
-        validate_absolute_file("node_path", &self.node_path)?;
-        validate_absolute_directory("app_root", &self.app_root)?;
-        if !self.cache_root.is_absolute() {
-            return Err("managed bundle cache_root must be absolute".to_owned());
+        Ok(self.manifest)
+    }
+}
+
+fn validate_manifest(manifest: &ManagedBundleManifest) -> ManagedBundleStatus {
+    if manifest.schema_version != MANAGED_BUNDLE_SCHEMA_VERSION {
+        return ManagedBundleStatus::IncompatibleSchema {
+            found: manifest.schema_version,
+            expected: MANAGED_BUNDLE_SCHEMA_VERSION,
+        };
+    }
+    for (field, path, kind) in [
+        ("node_path", manifest.node_path.as_path(), PathKind::File),
+        ("app_root", manifest.app_root.as_path(), PathKind::Directory),
+        ("cache_root", manifest.cache_root.as_path(), PathKind::Absolute),
+    ] {
+        if let Some(reason) = invalid_path_reason(path, kind) {
+            return ManagedBundleStatus::InvalidPath { field, reason };
         }
-        if let Some(path) = self.browser_path.as_deref() {
-            validate_absolute_file("browser_path", path)?;
+    }
+    if let Some(path) = manifest.browser_path.as_deref()
+        && let Some(reason) = invalid_path_reason(path, PathKind::File)
+    {
+        return ManagedBundleStatus::InvalidPath {
+            field: "browser_path",
+            reason,
+        };
+    }
+    if let Some(path) = manifest.puppeteer_config_path.as_deref()
+        && let Some(reason) = invalid_path_reason(path, PathKind::File)
+    {
+        return ManagedBundleStatus::InvalidPath {
+            field: "puppeteer_config_path",
+            reason,
+        };
+    }
+    ManagedBundleStatus::Compatible
+}
+
+#[derive(Clone, Copy)]
+enum PathKind {
+    Absolute,
+    File,
+    Directory,
+}
+
+fn invalid_path_reason(path: &Path, kind: PathKind) -> Option<String> {
+    if !path.is_absolute() {
+        return Some("path must be absolute".to_owned());
+    }
+    match kind {
+        PathKind::Absolute => None,
+        PathKind::File if !path.is_file() => {
+            Some(format!("path does not name a file: `{}`", path.display()))
         }
-        if let Some(path) = self.puppeteer_config_path.as_deref() {
-            validate_absolute_file("puppeteer_config_path", path)?;
-        }
-        Ok(())
+        PathKind::Directory if !path.is_dir() => Some(format!(
+            "path does not name a directory: `{}`",
+            path.display()
+        )),
+        PathKind::File | PathKind::Directory => None,
     }
 }
 
@@ -95,6 +179,8 @@ pub struct ManagedBundleInspection {
     pub node_path: PathBuf,
     pub browser_path: Option<PathBuf>,
     pub browser_available: Option<bool>,
+    pub status: ManagedBundleStatus,
+    /// Alpha.3 compatibility field. New consumers should use `status`.
     pub complete: bool,
 }
 
@@ -109,60 +195,23 @@ pub fn inspect_managed_alias(executable: &Path) -> Option<Result<ManagedBundleIn
     if !manifest_path.is_file() {
         return None;
     }
-    let source = match fs::read_to_string(&manifest_path) {
-        Ok(source) => source,
-        Err(error) => {
-            return Some(Err(format!(
-                "cannot read managed bundle manifest `{}`: {error}",
-                manifest_path.display()
-            )));
+    Some(LoadedManifest::read(&manifest_path).map(|loaded| {
+        let complete = loaded.status.is_compatible();
+        ManagedBundleInspection {
+            manifest_path,
+            schema_version: loaded.manifest.schema_version,
+            node_path: loaded.manifest.node_path,
+            browser_path: loaded.manifest.browser_path.clone(),
+            browser_available: loaded.manifest.browser_path.as_deref().map(Path::is_file),
+            status: loaded.status,
+            complete,
         }
-    };
-    let manifest: ManagedBundleManifest = match toml::from_str(&source) {
-        Ok(manifest) => manifest,
-        Err(error) => {
-            return Some(Err(format!(
-                "cannot parse managed bundle manifest `{}`: {error}",
-                manifest_path.display()
-            )));
-        }
-    };
-    let browser_available = manifest.browser_path.as_deref().map(Path::is_file);
-    let complete = manifest.validate().is_ok();
-    Some(Ok(ManagedBundleInspection {
-        manifest_path,
-        schema_version: manifest.schema_version,
-        node_path: manifest.node_path,
-        browser_path: manifest.browser_path,
-        browser_available,
-        complete,
     }))
 }
 
 fn validate_absolute_file(label: &str, path: &Path) -> Result<(), String> {
-    if !path.is_absolute() {
-        return Err(format!("managed bundle {label} must be absolute"));
-    }
-    if !path.is_file() {
-        return Err(format!(
-            "managed bundle {label} does not name a file: `{}`",
-            path.display()
-        ));
-    }
-    Ok(())
-}
-
-fn validate_absolute_directory(label: &str, path: &Path) -> Result<(), String> {
-    if !path.is_absolute() {
-        return Err(format!("managed bundle {label} must be absolute"));
-    }
-    if !path.is_dir() {
-        return Err(format!(
-            "managed bundle {label} does not name a directory: `{}`",
-            path.display()
-        ));
-    }
-    Ok(())
+    invalid_path_reason(path, PathKind::File)
+        .map_or(Ok(()), |reason| Err(format!("managed bundle {label} is invalid: {reason}")))
 }
 
 /// Run a managed renderer alias when the current executable is named `mmdc`,
@@ -192,7 +241,7 @@ fn run_managed_role(role: ManagedRole, executable: &Path) -> Result<i32, String>
         .parent()
         .ok_or_else(|| "managed launcher has no bundle root".to_owned())?;
     let manifest_path = bundle_root.join("bundle.toml");
-    let manifest = ManagedBundleManifest::load(&manifest_path)?;
+    let manifest = LoadedManifest::read(&manifest_path)?.into_execution_manifest()?;
     let script = manifest.app_root.join(role.script_suffix());
     validate_absolute_file("renderer entrypoint", &script)?;
 
@@ -232,7 +281,10 @@ fn run_managed_role(role: ManagedRole, executable: &Path) -> Result<i32, String>
 
 #[cfg(test)]
 mod tests {
-    use super::{MANAGED_BUNDLE_SCHEMA_VERSION, ManagedRole};
+    use super::{
+        MANAGED_BUNDLE_SCHEMA_VERSION, ManagedBundleStatus, ManagedRole, inspect_managed_alias,
+    };
+    use std::fs;
     use std::path::Path;
 
     #[test]
@@ -255,5 +307,37 @@ mod tests {
     #[test]
     fn managed_schema_is_explicit() {
         assert_eq!(MANAGED_BUNDLE_SCHEMA_VERSION, 1);
+    }
+
+    #[test]
+    fn inspection_and_execution_share_typed_validation() {
+        let root = tempfile::tempdir().expect("temp root");
+        let bin = root.path().join("bin");
+        fs::create_dir_all(&bin).expect("bin");
+        let alias = bin.join("mmdc");
+        fs::write(&alias, b"alias").expect("alias");
+        let manifest = root.path().join("bundle.toml");
+        fs::write(
+            &manifest,
+            format!(
+                "schema_version = 99\nnode_path = {:?}\napp_root = {:?}\ncache_root = {:?}\n",
+                root.path().join("node"),
+                root.path().join("app"),
+                root.path().join("cache")
+            ),
+        )
+        .expect("manifest");
+
+        let inspection = inspect_managed_alias(&alias)
+            .expect("managed alias")
+            .expect("parsed manifest");
+        assert!(matches!(
+            inspection.status,
+            ManagedBundleStatus::IncompatibleSchema {
+                found: 99,
+                expected: MANAGED_BUNDLE_SCHEMA_VERSION
+            }
+        ));
+        assert!(!inspection.complete);
     }
 }
