@@ -1,11 +1,11 @@
 use ptymark::{
-    Config, EnginePreference, InstallError, InstallRequest, InstallState, Installer, MathEngine,
-    MermaidEngine, PresenterPreference, ProgramResolver,
+    EnginePreference, EngineProvider, EngineSelection, InstallError, InstallRequest, InstallState,
+    Installer, MathEngine, MermaidEngine, PresenterPreference, PresenterProvider,
+    PresenterSelection, ProgramResolver, UserConfig,
 };
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Default)]
 struct FakeResolver {
@@ -28,16 +28,6 @@ impl ProgramResolver for FakeResolver {
     }
 }
 
-fn temp_root(label: &str) -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!("ptymark-install-{label}-{nonce}"));
-    fs::create_dir_all(&path).expect("temp root");
-    path
-}
-
 fn program_path(root: &Path, group: &str, name: &str) -> PathBuf {
     let executable = if cfg!(windows) {
         format!("{name}.exe")
@@ -48,12 +38,12 @@ fn program_path(root: &Path, group: &str, name: &str) -> PathBuf {
 }
 
 #[test]
-fn first_install_resolves_available_engines_and_records_absolute_paths() {
-    let root = temp_root("initial");
-    let config_path = root.join("config/ptymark.toml");
-    let state_path = root.join("state/install.toml");
-    let mmdc = program_path(&root, "resolved", "mmdc");
-    let chafa = program_path(&root, "resolved", "chafa");
+fn first_install_separates_portable_intent_from_resolved_paths() {
+    let root = tempfile::tempdir().expect("temp root");
+    let config_path = root.path().join("config/ptymark.toml");
+    let state_path = root.path().join("state/install.toml");
+    let mmdc = program_path(root.path(), "resolved", "mmdc");
+    let chafa = program_path(root.path(), "resolved", "chafa");
     let resolver = FakeResolver::default()
         .with("mmdc", &mmdc)
         .with("chafa", &chafa);
@@ -69,24 +59,33 @@ fn first_install_resolves_available_engines_and_records_absolute_paths() {
     assert_eq!(plan.config.engines.math.backend, MathEngine::Preview);
     assert_eq!(plan.config.engines.presenter.path, chafa);
 
+    let user_toml = plan.user_config.to_toml().expect("user TOML");
+    assert!(user_toml.contains("provider = \"auto\""));
+    assert!(!user_toml.contains("resolved"));
+    assert!(!user_toml.contains("max_block_bytes"));
+
     plan.apply().expect("apply");
     assert_eq!(
-        Config::load_exact(&config_path).expect("config"),
+        ptymark::Config::load_exact(&config_path).expect("config"),
         plan.config
     );
     let state = InstallState::load(&state_path).expect("state");
     assert_eq!(state.components.len(), 3);
     assert_eq!(state.config_path, config_path);
-    let _ = fs::remove_dir_all(root);
+    assert!(state.config_digest.is_some());
+    assert!(state.matches_user_config(&config_path, &plan.user_config));
 }
 
 #[test]
 fn automatic_external_selection_falls_back_when_presenter_is_missing() {
-    let root = temp_root("fallback");
-    let mmdc = program_path(&root, "resolved", "mmdc");
+    let root = tempfile::tempdir().expect("temp root");
+    let mmdc = program_path(root.path(), "resolved", "mmdc");
     let resolver = FakeResolver::default().with("mmdc", mmdc);
     let installer = Installer::new(resolver);
-    let request = InstallRequest::new(root.join("config.toml"), root.join("state.toml"));
+    let request = InstallRequest::new(
+        root.path().join("config.toml"),
+        root.path().join("state.toml"),
+    );
 
     let plan = installer.plan(&request).expect("plan");
     assert_eq!(plan.config.engines.mermaid.backend, MermaidEngine::Preview);
@@ -95,38 +94,51 @@ fn automatic_external_selection_falls_back_when_presenter_is_missing() {
             .iter()
             .any(|warning| warning.contains("presenter"))
     );
-    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn explicitly_requested_missing_engine_is_an_error() {
-    let root = temp_root("missing");
+    let root = tempfile::tempdir().expect("temp root");
     let installer = Installer::new(FakeResolver::default());
-    let mut request = InstallRequest::new(root.join("config.toml"), root.join("state.toml"));
-    request.mermaid = EnginePreference::External(program_path(&root, "missing", "mmdc"));
-    request.presenter = PresenterPreference::Program(program_path(&root, "missing", "chafa"));
+    let mut request = InstallRequest::new(
+        root.path().join("config.toml"),
+        root.path().join("state.toml"),
+    );
+    request.mermaid =
+        EnginePreference::External(program_path(root.path(), "missing", "mmdc"));
+    request.presenter =
+        PresenterPreference::Program(program_path(root.path(), "missing", "chafa"));
 
     let error = installer
         .plan(&request)
         .expect_err("missing explicit engine");
     assert!(error.to_string().contains("cannot select mermaid"));
-    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn rerun_replaces_one_engine_without_resetting_other_user_settings() {
-    let root = temp_root("replace");
-    let config_path = root.join("config.toml");
-    let state_path = root.join("state.toml");
-    let old_mmdc = program_path(&root, "old", "mmdc");
-    let old_chafa = program_path(&root, "old", "chafa");
-    let new_mmdc = program_path(&root, "new", "mmdc");
-    let mut existing = Config::default();
-    existing.detection.math = false;
-    existing.engines.mermaid.backend = MermaidEngine::MermaidCli;
-    existing.engines.mermaid.path = old_mmdc;
-    existing.engines.math.backend = MathEngine::Source;
-    existing.engines.presenter.path = old_chafa.clone();
+    let root = tempfile::tempdir().expect("temp root");
+    let config_path = root.path().join("config.toml");
+    let state_path = root.path().join("state.toml");
+    let old_mmdc = program_path(root.path(), "old", "mmdc");
+    let old_chafa = program_path(root.path(), "old", "chafa");
+    let new_mmdc = program_path(root.path(), "new", "mmdc");
+
+    let mut existing = UserConfig::default();
+    let profile = existing.profile_mut("default").expect("profile");
+    profile.detection.math = false;
+    profile.engines.mermaid = EngineSelection {
+        provider: EngineProvider::External,
+        program: Some(old_mmdc),
+    };
+    profile.engines.math = EngineSelection {
+        provider: EngineProvider::Source,
+        program: None,
+    };
+    profile.engines.presenter = PresenterSelection {
+        provider: PresenterProvider::External,
+        program: Some(old_chafa.clone()),
+    };
     fs::write(&config_path, existing.to_toml().expect("serialize")).expect("write config");
 
     let resolver = FakeResolver::default()
@@ -145,25 +157,40 @@ fn rerun_replaces_one_engine_without_resetting_other_user_settings() {
     );
     assert_eq!(plan.config.engines.mermaid.path, new_mmdc);
     assert_eq!(plan.config.engines.presenter.path, old_chafa);
-    let _ = fs::remove_dir_all(root);
+    assert_eq!(
+        plan.user_config.profiles["default"]
+            .engines
+            .math
+            .provider,
+        EngineProvider::Source
+    );
 }
 
 #[test]
 fn reset_discards_existing_engine_choices_but_keeps_resolution_extensible() {
-    let root = temp_root("reset");
-    let config_path = root.join("config.toml");
-    let mut existing = Config::default();
-    existing.engines.math.backend = MathEngine::Source;
+    let root = tempfile::tempdir().expect("temp root");
+    let config_path = root.path().join("config.toml");
+    let mut existing = UserConfig::default();
+    existing.profile_mut("default").expect("profile").engines.math = EngineSelection {
+        provider: EngineProvider::Source,
+        program: None,
+    };
     fs::write(&config_path, existing.to_toml().expect("serialize")).expect("write config");
 
     let resolver = FakeResolver::default();
     let installer = Installer::new(resolver);
-    let mut request = InstallRequest::new(config_path, root.join("state.toml"));
+    let mut request = InstallRequest::new(config_path, root.path().join("state.toml"));
     request.reset = true;
     request.mermaid = EnginePreference::Preview;
     request.math = EnginePreference::Preview;
 
     let plan = installer.plan(&request).expect("reset plan");
     assert_eq!(plan.config.engines.math.backend, MathEngine::Preview);
-    let _ = fs::remove_dir_all(root);
+    assert_eq!(
+        plan.user_config.profiles["default"]
+            .engines
+            .math
+            .provider,
+        EngineProvider::Preview
+    );
 }
