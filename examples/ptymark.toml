@@ -1,37 +1,44 @@
 # @dependency-start
 # contract configuration
-# responsibility Provides a minimal portable configuration fixture.
-# upstream design ../README.md documented configuration
-# downstream implementation ../src/config.rs configuration parser
+# responsibility Provides a minimal portable schema-v2 user configuration fixture.
+# upstream design ../documents/alpha4-design.md configuration ownership
+# downstream implementation ../src/config.rs configuration parser and resolver
 # downstream implementation ../tests/cli_contract.rs fixture validation
 # @dependency-end
 
-schema_version = 1
+schema_version = 2
+default_profile = "default"
 
-[detection]
+[profiles.default.session]
+mode = "render" # render | source
+strict = false
+
+[profiles.default.detection]
 mermaid = true
 math = true
-max_block_bytes = 1048576
 
-[rendering]
-mode = "preview"
-strict = false
-columns = 80
+[profiles.default.presentation]
+mode = "auto" # auto | symbols | plain | source
+color = "auto" # auto | always | never
+fallback_columns = 80
 
-[cache]
-enabled = true
+[profiles.default.cache]
+backend = "memory" # none | memory
 max_entries = 128
 max_bytes = 33554432
 
-# Built-in preview remains dependency-free. Change a backend only after
-# installing the corresponding command and the Chafa presenter.
-[engines.mermaid]
-backend = "preview" # preview | source | mermaid-cli
-path = "mmdc"
+# `auto` keeps the user's portable intent in this file. Executable paths found
+# by the installer are recorded in installation state, not copied into TOML.
+[profiles.default.engines.mermaid]
+provider = "auto" # auto | preview | source | managed | external
 
-[engines.math]
-backend = "preview" # preview | source | mathjax-cli
-path = "tex2svg"
+[profiles.default.engines.math]
+provider = "auto" # auto | preview | source | managed | external
 
-[engines.presenter]
-path = "chafa"
+[profiles.default.engines.presenter]
+provider = "auto" # auto | managed | external
+
+# An explicit external program is written only by direct user choice:
+# [profiles.default.engines.math]
+# provider = "external"
+# program = "/opt/tools/tex2svg"
