@@ -1,15 +1,20 @@
-use crate::config::{Config, MathEngine, MermaidEngine};
+use crate::config::{
+    Config, EngineProvider, EngineSelection, MathEngine, MermaidEngine, PresenterProvider,
+    PresenterSelection, UserConfig,
+};
 use crate::engine::resolve_executable;
+use crate::managed_launcher::inspect_managed_alias;
+use crate::platform::PlatformPaths;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::error::Error;
 use std::fmt;
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const INSTALL_STATE_SCHEMA_VERSION: u32 = 1;
+pub const INSTALL_STATE_SCHEMA_VERSION: u32 = 2;
+pub const LEGACY_INSTALL_STATE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EnginePreference {
@@ -64,10 +69,13 @@ impl ProgramResolver for PathProgramResolver {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InstallState {
     pub schema_version: u32,
     pub ptymark_version: String,
     pub config_path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_digest: Option<String>,
     #[serde(default)]
     pub components: Vec<InstalledComponent>,
 }
@@ -86,11 +94,21 @@ impl InstallState {
                 path.display()
             ))
         })?;
-        if state.schema_version != INSTALL_STATE_SCHEMA_VERSION {
+        if !matches!(
+            state.schema_version,
+            LEGACY_INSTALL_STATE_SCHEMA_VERSION | INSTALL_STATE_SCHEMA_VERSION
+        ) {
             return Err(InstallError::new(format!(
-                "unsupported installation state schema {}; expected {}",
-                state.schema_version, INSTALL_STATE_SCHEMA_VERSION
+                "unsupported installation state schema {}; expected {} or {}",
+                state.schema_version,
+                LEGACY_INSTALL_STATE_SCHEMA_VERSION,
+                INSTALL_STATE_SCHEMA_VERSION
             )));
+        }
+        if state.schema_version == INSTALL_STATE_SCHEMA_VERSION && state.config_digest.is_none() {
+            return Err(InstallError::new(
+                "installation state schema 2 requires config_digest",
+            ));
         }
         Ok(state)
     }
@@ -99,6 +117,18 @@ impl InstallState {
         toml::to_string_pretty(self).map_err(|error| {
             InstallError::new(format!("cannot serialize installation state: {error}"))
         })
+    }
+
+    pub fn matches_user_config(&self, config_path: &Path, user: &UserConfig) -> bool {
+        if self.config_path != config_path {
+            return false;
+        }
+        match self.config_digest.as_deref() {
+            Some(expected) => user
+                .fingerprint()
+                .is_ok_and(|actual| actual == expected),
+            None => self.schema_version == LEGACY_INSTALL_STATE_SCHEMA_VERSION,
+        }
     }
 
     pub fn status_lines(&self, resolver: &dyn ProgramResolver) -> Vec<String> {
@@ -144,6 +174,7 @@ pub enum ResolutionOrigin {
     Existing,
     PathSearch,
     Explicit,
+    Managed,
     AutoFallback,
 }
 
@@ -151,15 +182,41 @@ pub enum ResolutionOrigin {
 pub struct InstallPlan {
     pub config_path: PathBuf,
     pub state_path: PathBuf,
+    /// Resolved runtime view for inspection and tests. This is never serialized
+    /// into the user configuration file.
     pub config: Config,
+    pub user_config: UserConfig,
     pub state: InstallState,
     pub warnings: Vec<String>,
 }
 
 impl InstallPlan {
     pub fn apply(&self) -> Result<(), InstallError> {
-        atomic_write(&self.config_path, self.config.to_toml()?.as_bytes())?;
-        atomic_write(&self.state_path, self.state.to_toml()?.as_bytes())?;
+        let user_toml = self.user_config.to_toml()?;
+        let expected_digest = self.user_config.fingerprint()?;
+        if self.state.config_digest.as_deref() != Some(expected_digest.as_str()) {
+            return Err(InstallError::new(
+                "installation plan state does not match the user configuration digest",
+            ));
+        }
+        let state_toml = self.state.to_toml()?;
+        let previous_state = fs::read(&self.state_path).ok();
+
+        // Commit state first. If the process stops before the config commit,
+        // runtime resolution rejects the state because its digest does not
+        // match the still-active configuration.
+        atomic_replace(&self.state_path, state_toml.as_bytes())?;
+        if let Err(error) = atomic_replace(&self.config_path, user_toml.as_bytes()) {
+            let rollback = restore_previous(&self.state_path, previous_state.as_deref());
+            return Err(match rollback {
+                Ok(()) => InstallError::new(format!(
+                    "cannot commit user configuration; installation state was rolled back: {error}"
+                )),
+                Err(rollback_error) => InstallError::new(format!(
+                    "cannot commit user configuration: {error}; installation-state rollback also failed: {rollback_error}"
+                )),
+            });
+        }
         Ok(())
     }
 
@@ -167,6 +224,7 @@ impl InstallPlan {
         let mut lines = vec![
             format!("config\t{}", self.config_path.display()),
             format!("state\t{}", self.state_path.display()),
+            format!("profile\t{}", self.config.selected_profile),
         ];
         lines.extend(self.state.components.iter().map(|component| {
             let resolved = component
@@ -216,25 +274,38 @@ impl<R: ProgramResolver> Installer<R> {
         let config_path = absolute_path(&request.config_path)?;
         let state_path = absolute_path(&request.state_path)?;
         let existing = config_path.is_file() && !request.reset;
-        let mut config = if existing {
-            Config::load_exact(&config_path)?
+        let existing_state = state_path
+            .is_file()
+            .then(|| InstallState::load(&state_path))
+            .transpose()?
+            .filter(|state| state.config_path == config_path);
+        let mut user_config = if existing {
+            UserConfig::load_exact(&config_path)?
         } else {
-            Config::default()
+            UserConfig::default()
         };
+        let selected_profile = user_config.default_profile.clone();
+        let existing_profile = user_config
+            .profiles
+            .get(&selected_profile)
+            .cloned()
+            .ok_or_else(|| InstallError::new("selected profile is missing"))?;
         let mut warnings = Vec::new();
 
         let mut mermaid = self.plan_slot(
             MERMAID_SLOT,
             request.mermaid.clone(),
             existing,
-            ExistingSlot::from_mermaid(&config),
+            existing_profile.engines.mermaid,
+            existing_state.as_ref(),
             &mut warnings,
         )?;
         let mut math = self.plan_slot(
             MATH_SLOT,
             request.math.clone(),
             existing,
-            ExistingSlot::from_math(&config),
+            existing_profile.engines.math,
+            existing_state.as_ref(),
             &mut warnings,
         )?;
 
@@ -245,7 +316,8 @@ impl<R: ProgramResolver> Installer<R> {
         let presenter = self.plan_presenter(
             request.presenter.clone(),
             existing,
-            config.engines.presenter.path.clone(),
+            existing_profile.engines.presenter,
+            existing_state.as_ref(),
             any_external,
             required_external,
             &mut warnings,
@@ -256,12 +328,13 @@ impl<R: ProgramResolver> Installer<R> {
             math.fallback_if_optional("Chafa presenter was not found", &mut warnings);
         }
 
-        apply_mermaid(&mut config, &mermaid);
-        apply_math(&mut config, &math);
-        if let Some(path) = presenter.resolved.as_ref() {
-            config.engines.presenter.path = path.clone();
+        {
+            let profile = user_config.profile_mut(&selected_profile)?;
+            profile.engines.mermaid = mermaid.selection.clone();
+            profile.engines.math = math.selection.clone();
+            profile.engines.presenter = presenter.selection.clone();
         }
-        config.validate()?;
+        user_config.validate()?;
 
         let components = vec![
             mermaid.into_component(),
@@ -272,13 +345,16 @@ impl<R: ProgramResolver> Installer<R> {
             schema_version: INSTALL_STATE_SCHEMA_VERSION,
             ptymark_version: env!("CARGO_PKG_VERSION").to_owned(),
             config_path: config_path.clone(),
+            config_digest: Some(user_config.fingerprint()?),
             components,
         };
+        let config = user_config.resolve(None, Some(&state))?;
 
         Ok(InstallPlan {
             config_path,
             state_path,
             config,
+            user_config,
             state,
             warnings,
         })
@@ -289,147 +365,270 @@ impl<R: ProgramResolver> Installer<R> {
         spec: SlotSpec,
         preference: EnginePreference,
         existing_config: bool,
-        existing: ExistingSlot,
+        existing_selection: EngineSelection,
+        existing_state: Option<&InstallState>,
         warnings: &mut Vec<String>,
     ) -> Result<SlotPlan, InstallError> {
-        let role = spec.role;
-        let external_backend = spec.external_backend;
-        let default_program = PathBuf::from(spec.default_program);
         match preference {
-            EnginePreference::Keep if existing_config => match existing.route {
-                SlotRoute::Preview => Ok(SlotPlan::builtin(
-                    role,
-                    external_backend,
-                    SlotRoute::Preview,
-                    ResolutionOrigin::Existing,
-                )),
-                SlotRoute::Source => Ok(SlotPlan::builtin(
-                    role,
-                    external_backend,
-                    SlotRoute::Source,
-                    ResolutionOrigin::Existing,
-                )),
-                SlotRoute::External => {
-                    self.required_external(role, external_backend, existing.path, false)
-                }
-            },
+            EnginePreference::Keep if existing_config => self.plan_existing_slot(
+                spec,
+                existing_selection,
+                existing_state,
+                warnings,
+            ),
             EnginePreference::Keep | EnginePreference::Auto => {
-                let candidate = default_program;
-                match self.resolver.resolve(&candidate) {
-                    Ok(resolved) => Ok(SlotPlan::external(
-                        role,
-                        external_backend,
-                        candidate,
-                        resolved,
-                        false,
-                        ResolutionOrigin::PathSearch,
-                    )),
-                    Err(error) => {
-                        warnings.push(format!(
-                            "{role} external engine was not selected: {error}; using preview"
-                        ));
-                        Ok(SlotPlan::fallback(
-                            role,
-                            external_backend,
-                            candidate,
-                            error.to_string(),
-                        ))
-                    }
-                }
+                self.plan_auto_slot(spec, warnings)
             }
             EnginePreference::Preview => Ok(SlotPlan::builtin(
-                role,
-                external_backend,
+                spec,
                 SlotRoute::Preview,
                 ResolutionOrigin::Explicit,
+                EngineSelection {
+                    provider: EngineProvider::Preview,
+                    program: None,
+                },
             )),
             EnginePreference::Source => Ok(SlotPlan::builtin(
-                role,
-                external_backend,
+                spec,
                 SlotRoute::Source,
                 ResolutionOrigin::Explicit,
+                EngineSelection {
+                    provider: EngineProvider::Source,
+                    program: None,
+                },
             )),
-            EnginePreference::External(path) => {
-                self.required_external(role, external_backend, path, true)
+            EnginePreference::External(path) => self.required_external(spec, path, true),
+        }
+    }
+
+    fn plan_existing_slot(
+        &self,
+        spec: SlotSpec,
+        selection: EngineSelection,
+        state: Option<&InstallState>,
+        warnings: &mut Vec<String>,
+    ) -> Result<SlotPlan, InstallError> {
+        match selection.provider {
+            EngineProvider::Auto => self.plan_auto_slot(spec, warnings),
+            EngineProvider::Preview => Ok(SlotPlan::builtin(
+                spec,
+                SlotRoute::Preview,
+                ResolutionOrigin::Existing,
+                selection,
+            )),
+            EngineProvider::Source => Ok(SlotPlan::builtin(
+                spec,
+                SlotRoute::Source,
+                ResolutionOrigin::Existing,
+                selection,
+            )),
+            EngineProvider::External => self.required_external(
+                spec,
+                selection
+                    .program
+                    .clone()
+                    .ok_or_else(|| InstallError::new("external provider has no program"))?,
+                false,
+            ),
+            EngineProvider::Managed => {
+                let path = state_program(state, spec.role).ok_or_else(|| {
+                    InstallError::new(format!(
+                        "existing profile requires managed {}, but matching installation state is unavailable",
+                        spec.role
+                    ))
+                })?;
+                let resolved = self.resolver.resolve(&path)?;
+                Ok(SlotPlan::external(
+                    spec,
+                    path,
+                    resolved,
+                    true,
+                    ResolutionOrigin::Managed,
+                    selection,
+                ))
+            }
+        }
+    }
+
+    fn plan_auto_slot(
+        &self,
+        spec: SlotSpec,
+        warnings: &mut Vec<String>,
+    ) -> Result<SlotPlan, InstallError> {
+        let candidate = PathBuf::from(spec.default_program);
+        let selection = EngineSelection::default();
+        match self.resolver.resolve(&candidate) {
+            Ok(resolved) => Ok(SlotPlan::external(
+                spec,
+                candidate,
+                resolved,
+                false,
+                ResolutionOrigin::PathSearch,
+                selection,
+            )),
+            Err(error) => {
+                warnings.push(format!(
+                    "{} external engine was not selected: {error}; using preview",
+                    spec.role
+                ));
+                Ok(SlotPlan::fallback(spec, candidate, error.to_string(), selection))
             }
         }
     }
 
     fn required_external(
         &self,
-        role: &'static str,
-        backend: &'static str,
+        spec: SlotSpec,
         configured: PathBuf,
         explicit: bool,
     ) -> Result<SlotPlan, InstallError> {
         let resolved = self.resolver.resolve(&configured).map_err(|error| {
             InstallError::new(format!(
-                "cannot select {role} backend `{backend}` from `{}`: {error}",
+                "cannot select {} backend `{}` from `{}`: {error}",
+                spec.role,
+                spec.external_backend,
                 configured.display()
             ))
         })?;
+        let managed = inspect_managed_alias(&resolved).is_some();
+        let selection = if managed {
+            EngineSelection {
+                provider: EngineProvider::Managed,
+                program: None,
+            }
+        } else {
+            EngineSelection {
+                provider: EngineProvider::External,
+                program: Some(configured.clone()),
+            }
+        };
         Ok(SlotPlan::external(
-            role,
-            backend,
+            spec,
             configured,
             resolved,
             true,
-            if explicit {
+            if managed {
+                ResolutionOrigin::Managed
+            } else if explicit {
                 ResolutionOrigin::Explicit
             } else {
                 ResolutionOrigin::Existing
             },
+            selection,
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn plan_presenter(
         &self,
         preference: PresenterPreference,
         existing_config: bool,
-        existing_path: PathBuf,
+        existing_selection: PresenterSelection,
+        existing_state: Option<&InstallState>,
         required: bool,
         required_external: bool,
         warnings: &mut Vec<String>,
     ) -> Result<PresenterPlan, InstallError> {
-        if !required {
-            return match preference {
-                PresenterPreference::Program(path) => {
-                    let resolved = self.resolver.resolve(&path).map_err(|error| {
-                        InstallError::new(format!(
-                            "cannot select presenter from `{}`: {error}",
-                            path.display()
-                        ))
-                    })?;
-                    Ok(PresenterPlan::resolved(
-                        path,
-                        resolved,
-                        ResolutionOrigin::Explicit,
+        let selection = match preference {
+            PresenterPreference::Keep if existing_config => existing_selection,
+            PresenterPreference::Keep | PresenterPreference::Auto => PresenterSelection::default(),
+            PresenterPreference::Program(path) => {
+                let resolved = self.resolver.resolve(&path).map_err(|error| {
+                    InstallError::new(format!(
+                        "cannot select presenter from `{}`: {error}",
+                        path.display()
                     ))
-                }
-                PresenterPreference::Keep if existing_config => Ok(PresenterPlan::inactive(
-                    existing_path,
-                    ResolutionOrigin::Existing,
-                )),
-                PresenterPreference::Keep | PresenterPreference::Auto => Ok(
-                    PresenterPlan::inactive(PathBuf::from("chafa"), ResolutionOrigin::BuiltIn),
-                ),
-            };
+                })?;
+                let managed = inspect_managed_alias(&resolved).is_some();
+                return Ok(if required {
+                    PresenterPlan::resolved(
+                        path.clone(),
+                        resolved,
+                        if managed {
+                            ResolutionOrigin::Managed
+                        } else {
+                            ResolutionOrigin::Explicit
+                        },
+                        if managed {
+                            PresenterSelection {
+                                provider: PresenterProvider::Managed,
+                                program: None,
+                            }
+                        } else {
+                            PresenterSelection {
+                                provider: PresenterProvider::External,
+                                program: Some(path),
+                            }
+                        },
+                    )
+                } else {
+                    PresenterPlan::inactive(
+                        path.clone(),
+                        if managed {
+                            ResolutionOrigin::Managed
+                        } else {
+                            ResolutionOrigin::Explicit
+                        },
+                        if managed {
+                            PresenterSelection {
+                                provider: PresenterProvider::Managed,
+                                program: None,
+                            }
+                        } else {
+                            PresenterSelection {
+                                provider: PresenterProvider::External,
+                                program: Some(path),
+                            }
+                        },
+                    )
+                });
+            }
+        };
+
+        if !required {
+            return Ok(PresenterPlan::inactive(
+                PathBuf::from("chafa"),
+                if existing_config {
+                    ResolutionOrigin::Existing
+                } else {
+                    ResolutionOrigin::BuiltIn
+                },
+                selection,
+            ));
         }
 
-        let (candidate, must_resolve, origin) = match preference {
-            PresenterPreference::Keep if existing_config => {
-                (existing_path, true, ResolutionOrigin::Existing)
-            }
-            PresenterPreference::Keep | PresenterPreference::Auto => (
+        let (candidate, must_resolve, origin) = match selection.provider {
+            PresenterProvider::Auto => (
                 PathBuf::from("chafa"),
                 required_external,
                 ResolutionOrigin::PathSearch,
             ),
-            PresenterPreference::Program(path) => (path, true, ResolutionOrigin::Explicit),
+            PresenterProvider::External => (
+                selection
+                    .program
+                    .clone()
+                    .ok_or_else(|| InstallError::new("external presenter has no program"))?,
+                true,
+                ResolutionOrigin::Existing,
+            ),
+            PresenterProvider::Managed => (
+                state_program(existing_state, "presenter").ok_or_else(|| {
+                    InstallError::new(
+                        "existing profile requires a managed presenter, but matching installation state is unavailable",
+                    )
+                })?,
+                true,
+                ResolutionOrigin::Managed,
+            ),
         };
 
         match self.resolver.resolve(&candidate) {
-            Ok(resolved) => Ok(PresenterPlan::resolved(candidate, resolved, origin)),
+            Ok(resolved) => Ok(PresenterPlan::resolved(
+                candidate,
+                resolved,
+                origin,
+                selection,
+            )),
             Err(error) if must_resolve => Err(InstallError::new(format!(
                 "cannot select Chafa presenter from `{}`: {error}",
                 candidate.display()
@@ -438,7 +637,11 @@ impl<R: ProgramResolver> Installer<R> {
                 warnings.push(format!(
                     "external engines were not activated because the presenter could not be resolved: {error}"
                 ));
-                Ok(PresenterPlan::missing(candidate, error.to_string()))
+                Ok(PresenterPlan::missing(
+                    candidate,
+                    error.to_string(),
+                    selection,
+                ))
             }
         }
     }
@@ -452,103 +655,72 @@ enum SlotRoute {
 }
 
 #[derive(Clone, Debug)]
-struct ExistingSlot {
-    route: SlotRoute,
-    path: PathBuf,
-}
-
-impl ExistingSlot {
-    fn from_mermaid(config: &Config) -> Self {
-        let route = match config.engines.mermaid.backend {
-            MermaidEngine::Preview => SlotRoute::Preview,
-            MermaidEngine::Source => SlotRoute::Source,
-            MermaidEngine::MermaidCli => SlotRoute::External,
-        };
-        Self {
-            route,
-            path: config.engines.mermaid.path.clone(),
-        }
-    }
-
-    fn from_math(config: &Config) -> Self {
-        let route = match config.engines.math.backend {
-            MathEngine::Preview => SlotRoute::Preview,
-            MathEngine::Source => SlotRoute::Source,
-            MathEngine::MathjaxCli => SlotRoute::External,
-        };
-        Self {
-            route,
-            path: config.engines.math.path.clone(),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
 struct SlotPlan {
-    role: &'static str,
-    external_backend: &'static str,
+    spec: SlotSpec,
     route: SlotRoute,
     requested: Option<PathBuf>,
     resolved: Option<PathBuf>,
     required: bool,
     origin: ResolutionOrigin,
     note: Option<String>,
+    selection: EngineSelection,
 }
 
 impl SlotPlan {
     fn builtin(
-        role: &'static str,
-        external_backend: &'static str,
+        spec: SlotSpec,
         route: SlotRoute,
         origin: ResolutionOrigin,
+        selection: EngineSelection,
     ) -> Self {
         Self {
-            role,
-            external_backend,
+            spec,
             route,
             requested: None,
             resolved: None,
             required: false,
             origin,
             note: None,
+            selection,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn external(
-        role: &'static str,
-        external_backend: &'static str,
+        spec: SlotSpec,
         requested: PathBuf,
         resolved: PathBuf,
         required: bool,
         origin: ResolutionOrigin,
+        selection: EngineSelection,
     ) -> Self {
         Self {
-            role,
-            external_backend,
+            spec,
             route: SlotRoute::External,
             requested: Some(requested),
             resolved: Some(resolved),
             required,
             origin,
             note: None,
+            selection,
         }
     }
 
     fn fallback(
-        role: &'static str,
-        external_backend: &'static str,
+        spec: SlotSpec,
         requested: PathBuf,
         reason: String,
+        selection: EngineSelection,
     ) -> Self {
         Self {
-            role,
-            external_backend,
+            spec,
             route: SlotRoute::Preview,
             requested: Some(requested),
             resolved: None,
             required: false,
             origin: ResolutionOrigin::AutoFallback,
             note: Some(reason),
+            selection,
         }
     }
 
@@ -556,7 +728,7 @@ impl SlotPlan {
         if self.route == SlotRoute::External && !self.required {
             warnings.push(format!(
                 "{} external engine was resolved but not activated: {reason}; using preview",
-                self.role
+                self.spec.role
             ));
             self.route = SlotRoute::Preview;
             self.origin = ResolutionOrigin::AutoFallback;
@@ -569,13 +741,13 @@ impl SlotPlan {
         match self.route {
             SlotRoute::Preview => "preview",
             SlotRoute::Source => "source",
-            SlotRoute::External => self.external_backend,
+            SlotRoute::External => self.spec.external_backend,
         }
     }
 
     fn into_component(self) -> InstalledComponent {
         InstalledComponent {
-            role: self.role.to_owned(),
+            role: self.spec.role.to_owned(),
             backend: self.backend().to_owned(),
             active: true,
             origin: self.origin,
@@ -593,36 +765,49 @@ struct PresenterPlan {
     active: bool,
     origin: ResolutionOrigin,
     note: Option<String>,
+    selection: PresenterSelection,
 }
 
 impl PresenterPlan {
-    fn resolved(requested: PathBuf, resolved: PathBuf, origin: ResolutionOrigin) -> Self {
+    fn resolved(
+        requested: PathBuf,
+        resolved: PathBuf,
+        origin: ResolutionOrigin,
+        selection: PresenterSelection,
+    ) -> Self {
         Self {
             requested,
             resolved: Some(resolved),
             active: true,
             origin,
             note: None,
+            selection,
         }
     }
 
-    fn inactive(requested: PathBuf, origin: ResolutionOrigin) -> Self {
+    fn inactive(
+        requested: PathBuf,
+        origin: ResolutionOrigin,
+        selection: PresenterSelection,
+    ) -> Self {
         Self {
             requested,
             resolved: None,
             active: false,
             origin,
             note: None,
+            selection,
         }
     }
 
-    fn missing(requested: PathBuf, reason: String) -> Self {
+    fn missing(requested: PathBuf, reason: String, selection: PresenterSelection) -> Self {
         Self {
             requested,
             resolved: None,
             active: false,
             origin: ResolutionOrigin::AutoFallback,
             note: Some(reason),
+            selection,
         }
     }
 
@@ -643,51 +828,18 @@ impl PresenterPlan {
     }
 }
 
-fn apply_mermaid(config: &mut Config, plan: &SlotPlan) {
-    config.engines.mermaid.backend = match plan.route {
-        SlotRoute::Preview => MermaidEngine::Preview,
-        SlotRoute::Source => MermaidEngine::Source,
-        SlotRoute::External => MermaidEngine::MermaidCli,
-    };
-    if let Some(path) = plan.resolved.as_ref() {
-        config.engines.mermaid.path = path.clone();
-    }
-}
-
-fn apply_math(config: &mut Config, plan: &SlotPlan) {
-    config.engines.math.backend = match plan.route {
-        SlotRoute::Preview => MathEngine::Preview,
-        SlotRoute::Source => MathEngine::Source,
-        SlotRoute::External => MathEngine::MathjaxCli,
-    };
-    if let Some(path) = plan.resolved.as_ref() {
-        config.engines.math.path = path.clone();
-    }
-}
-
 pub fn default_install_state_path() -> Result<PathBuf, InstallError> {
-    if let Some(path) = env::var_os("PTYMARK_INSTALL_STATE") {
-        return Ok(PathBuf::from(path));
-    }
-    #[cfg(windows)]
-    if let Some(path) = env::var_os("LOCALAPPDATA") {
-        return Ok(PathBuf::from(path).join("ptymark/state/install.toml"));
-    }
-    if let Some(path) = env::var_os("XDG_STATE_HOME") {
-        return Ok(PathBuf::from(path).join("ptymark/install.toml"));
-    }
-    let home = home_dir().ok_or_else(|| {
-        InstallError::new(
-            "cannot determine installation state path; set HOME, XDG_STATE_HOME, or PTYMARK_INSTALL_STATE",
-        )
-    })?;
-    Ok(home.join(".local/state/ptymark/install.toml"))
+    PlatformPaths::discover()
+        .map(|paths| paths.install_state_file)
+        .map_err(InstallError::new)
 }
 
-fn home_dir() -> Option<PathBuf> {
-    env::var_os("HOME")
-        .or_else(|| env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
+fn state_program(state: Option<&InstallState>, role: &str) -> Option<PathBuf> {
+    state?
+        .components
+        .iter()
+        .find(|component| component.role == role && component.active)
+        .and_then(|component| component.resolved_path.clone())
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf, InstallError> {
@@ -699,7 +851,7 @@ fn absolute_path(path: &Path) -> Result<PathBuf, InstallError> {
         .map_err(|error| InstallError::new(format!("cannot resolve current directory: {error}")))
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), InstallError> {
+fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), InstallError> {
     let parent = path.parent().ok_or_else(|| {
         InstallError::new(format!("path `{}` has no parent directory", path.display()))
     })?;
@@ -709,57 +861,44 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), InstallError> {
             parent.display()
         ))
     })?;
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".ptymark-install-")
+        .tempfile_in(parent)
+        .map_err(|error| {
+            InstallError::new(format!(
+                "cannot create temporary installation file in `{}`: {error}",
+                parent.display()
+            ))
+        })?;
+    temporary
+        .write_all(bytes)
+        .and_then(|()| temporary.as_file().sync_all())
+        .map_err(|error| InstallError::new(format!("cannot stage installation file: {error}")))?;
+    temporary.persist(path).map_err(|error| {
+        InstallError::new(format!(
+            "cannot replace installation file `{}`: {}",
+            path.display(),
+            error.error
+        ))
+    })?;
+    Ok(())
+}
 
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("ptymark");
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-
-    for attempt in 0..32_u32 {
-        let temporary = parent.join(format!(
-            ".{file_name}.tmp-{}-{timestamp}-{attempt}",
-            std::process::id()
-        ));
-        let mut file = match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)
-        {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => {
-                return Err(InstallError::new(format!(
-                    "cannot create temporary installation file `{}`: {error}",
-                    temporary.display()
-                )));
+fn restore_previous(path: &Path, previous: Option<&[u8]>) -> Result<(), InstallError> {
+    match previous {
+        Some(bytes) => atomic_replace(path, bytes),
+        None => {
+            if path.exists() {
+                fs::remove_file(path).map_err(|error| {
+                    InstallError::new(format!(
+                        "cannot remove newly written installation state `{}`: {error}",
+                        path.display()
+                    ))
+                })?;
             }
-        };
-        if let Err(error) = file.write_all(bytes).and_then(|()| file.sync_all()) {
-            let _ = fs::remove_file(&temporary);
-            return Err(InstallError::new(format!(
-                "cannot write temporary installation file `{}`: {error}",
-                temporary.display()
-            )));
+            Ok(())
         }
-        drop(file);
-        if let Err(error) = fs::rename(&temporary, path) {
-            let _ = fs::remove_file(&temporary);
-            return Err(InstallError::new(format!(
-                "cannot replace installation file `{}`: {error}",
-                path.display()
-            )));
-        }
-        return Ok(());
     }
-
-    Err(InstallError::new(format!(
-        "cannot allocate a temporary file for `{}`",
-        path.display()
-    )))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
