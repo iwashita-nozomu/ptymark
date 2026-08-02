@@ -1,28 +1,30 @@
 use crate::config::{EnginesConfig, MathEngine, MermaidEngine};
 use crate::diagnostics::code;
+use crate::limits::{
+    EXTERNAL_ATTEMPT_TIMEOUT, MAX_MATH_ARGUMENT_BYTES, MAX_PRESENTATION_BYTES,
+    MAX_RENDER_ARTIFACT_BYTES, MAX_RENDERER_DIAGNOSTIC_BYTES, MAX_SVG_NODES,
+    PROCESS_POLL_INTERVAL,
+};
 use crate::model::{BlockKind, SemanticBlock};
+use crate::platform;
 use crate::render::{
     PreviewRenderer, RenderArtifact, RenderCancellation, RenderContext, RenderError, Renderer,
     SourceRenderer,
 };
-use std::env;
+use roxmltree::{Document, ParsingOptions};
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
+use tempfile::TempDir;
 
-pub const ENGINE_TIMEOUT: Duration = Duration::from_secs(10);
-const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
-const MAX_DISPLAY_BYTES: usize = 8 * 1024 * 1024;
-const MAX_DIAGNOSTIC_BYTES: usize = 64 * 1024;
-const MAX_MATH_ARGUMENT_BYTES: usize = 32 * 1024;
-
-static SCRATCH_COUNTER: AtomicU64 = AtomicU64::new(0);
+const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
+pub(crate) const ENGINE_TIMEOUT: Duration = EXTERNAL_ATTEMPT_TIMEOUT;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EngineCheck {
@@ -198,114 +200,8 @@ pub fn check_configured_engines(config: &EnginesConfig) -> Result<Vec<EngineChec
 }
 
 pub fn resolve_executable(path: &Path) -> Result<PathBuf, RenderError> {
-    reject_windows_shell_wrapper(path)?;
-    if path.is_absolute() {
-        for candidate in executable_candidates(path) {
-            if let Some(candidate) = executable_candidate(&candidate) {
-                return Ok(candidate);
-            }
-        }
-        return Err(RenderError::coded(
-            code::ENGINE_MISSING,
-            format!(
-                "configured executable `{}` does not exist or is not executable",
-                path.display()
-            ),
-        ));
-    }
-
-    if path.components().count() != 1 {
-        return Err(RenderError::coded(
-            code::ENGINE_MISSING,
-            format!(
-                "configured executable `{}` must be absolute or a bare name",
-                path.display()
-            ),
-        ));
-    }
-
-    let search_path = env::var_os("PATH").ok_or_else(|| {
-        RenderError::coded(
-            code::ENGINE_MISSING,
-            "PATH is not set; use an absolute engine path",
-        )
-    })?;
-    for directory in env::split_paths(&search_path) {
-        for candidate in executable_candidates(&directory.join(path)) {
-            if let Some(candidate) = executable_candidate(&candidate) {
-                return Ok(candidate);
-            }
-        }
-    }
-
-    Err(RenderError::coded(
-        code::ENGINE_MISSING,
-        format!(
-            "executable `{}` was not found in PATH; set its absolute path in the ptymark configuration",
-            path.display()
-        ),
-    ))
-}
-
-fn executable_candidates(path: &Path) -> Vec<PathBuf> {
-    #[cfg(windows)]
-    {
-        if path.extension().is_some() {
-            return vec![path.to_path_buf()];
-        }
-        let mut candidates = vec![path.to_path_buf()];
-        let extensions = env::var_os("PATHEXT").unwrap_or_else(|| OsString::from(".COM;.EXE"));
-        for extension in extensions.to_string_lossy().split(';') {
-            let extension = extension.trim().trim_start_matches('.');
-            if extension.eq_ignore_ascii_case("com") || extension.eq_ignore_ascii_case("exe") {
-                candidates.push(path.with_extension(extension));
-            }
-        }
-        candidates
-    }
-    #[cfg(not(windows))]
-    {
-        vec![path.to_path_buf()]
-    }
-}
-
-#[cfg(windows)]
-fn reject_windows_shell_wrapper(path: &Path) -> Result<(), RenderError> {
-    let is_batch = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat")
-        });
-    if is_batch {
-        return Err(RenderError::new(format!(
-            "configured renderer `{}` is a shell wrapper; select a native .exe/.com or the ptymark-managed alias",
-            path.display()
-        )));
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn reject_windows_shell_wrapper(_path: &Path) -> Result<(), RenderError> {
-    Ok(())
-}
-
-fn executable_candidate(path: &Path) -> Option<PathBuf> {
-    let metadata = fs::metadata(path).ok()?;
-    if !metadata.is_file() {
-        return None;
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if metadata.permissions().mode() & 0o111 == 0 {
-            return None;
-        }
-    }
-
-    Some(fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
+    platform::resolve_executable(path)
+        .map_err(|message| RenderError::coded(code::ENGINE_MISSING, message))
 }
 
 fn render_mermaid_svg(
@@ -316,7 +212,7 @@ fn render_mermaid_svg(
 ) -> Result<Vec<u8>, RenderError> {
     std::str::from_utf8(body)
         .map_err(|error| RenderError::new(format!("Mermaid input is not valid UTF-8: {error}")))?;
-    let scratch = ScratchDir::create()?;
+    let scratch = renderer_temp_dir()?;
     let output_path = scratch.path().join("diagram.svg");
     let arguments = vec![
         OsString::from("--input"),
@@ -328,11 +224,11 @@ fn render_mermaid_svg(
         program,
         &arguments,
         Some(body),
-        MAX_DIAGNOSTIC_BYTES,
+        MAX_RENDERER_DIAGNOSTIC_BYTES,
         deadline,
         cancellation,
     )?;
-    let svg = read_file_capped(&output_path, MAX_ARTIFACT_BYTES)?;
+    let svg = read_file_capped(&output_path, MAX_RENDER_ARTIFACT_BYTES)?;
     validate_svg(&svg, "Mermaid CLI")?;
     Ok(svg)
 }
@@ -351,8 +247,7 @@ fn render_math_svg(
     }
     if math.len() > MAX_MATH_ARGUMENT_BYTES {
         return Err(RenderError::new(format!(
-            "math input exceeds the {} byte mathjax-cli argument limit",
-            MAX_MATH_ARGUMENT_BYTES
+            "math input exceeds the {MAX_MATH_ARGUMENT_BYTES} byte mathjax-cli argument limit"
         )));
     }
     if math.as_bytes().contains(&0) {
@@ -364,7 +259,7 @@ fn render_math_svg(
         program,
         &arguments,
         None,
-        MAX_ARTIFACT_BYTES,
+        MAX_RENDER_ARTIFACT_BYTES,
         deadline,
         cancellation,
     )?;
@@ -379,7 +274,7 @@ fn present_svg(
     deadline: AttemptDeadline,
     cancellation: &RenderCancellation,
 ) -> Result<Vec<u8>, RenderError> {
-    let scratch = ScratchDir::create()?;
+    let scratch = renderer_temp_dir()?;
     let input_path = scratch.path().join("artifact.svg");
     fs::write(&input_path, svg).map_err(|error| {
         RenderError::new(format!(
@@ -402,7 +297,7 @@ fn present_svg(
         program,
         &arguments,
         None,
-        MAX_DISPLAY_BYTES,
+        MAX_PRESENTATION_BYTES,
         deadline,
         cancellation,
     )?;
@@ -415,64 +310,46 @@ fn present_svg(
     Ok(bytes)
 }
 
+fn renderer_temp_dir() -> Result<TempDir, RenderError> {
+    tempfile::Builder::new()
+        .prefix("ptymark-render-")
+        .tempdir()
+        .map_err(|error| RenderError::new(format!("cannot create renderer temporary directory: {error}")))
+}
+
 fn validate_svg(bytes: &[u8], engine: &str) -> Result<(), RenderError> {
+    if bytes.is_empty() {
+        return Err(invalid_artifact(format!("{engine} produced an empty SVG artifact")));
+    }
     let text = std::str::from_utf8(bytes).map_err(|error| {
-        RenderError::coded(
-            code::RENDER_PROCESS_EXIT,
-            format!("{engine} output is not UTF-8 SVG: {error}"),
-        )
+        invalid_artifact(format!("{engine} output is not UTF-8 SVG: {error}"))
     })?;
-    if !text.contains("<svg") {
-        return Err(RenderError::coded(
-            code::RENDER_PROCESS_EXIT,
-            format!("{engine} output does not contain an SVG element"),
-        ));
+    let document = Document::parse_with_options(
+        text,
+        ParsingOptions {
+            allow_dtd: false,
+            nodes_limit: MAX_SVG_NODES,
+            entity_resolver: None,
+        },
+    )
+    .map_err(|error| invalid_artifact(format!("{engine} output is malformed SVG XML: {error}")))?;
+    let root = document.root_element();
+    if root.tag_name().name() != "svg" {
+        return Err(invalid_artifact(format!(
+            "{engine} output root is `{}`, not `svg`",
+            root.tag_name().name()
+        )));
+    }
+    if root.tag_name().namespace() != Some(SVG_NAMESPACE) {
+        return Err(invalid_artifact(format!(
+            "{engine} output does not use the SVG namespace"
+        )));
     }
     Ok(())
 }
 
-#[derive(Debug)]
-struct ScratchDir {
-    path: PathBuf,
-}
-
-impl ScratchDir {
-    fn create() -> Result<Self, RenderError> {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        for _ in 0..32 {
-            let counter = SCRATCH_COUNTER.fetch_add(1, Ordering::Relaxed);
-            let path = env::temp_dir().join(format!(
-                "ptymark-{}-{timestamp}-{counter}",
-                std::process::id()
-            ));
-            match fs::create_dir(&path) {
-                Ok(()) => return Ok(Self { path }),
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(error) => {
-                    return Err(RenderError::new(format!(
-                        "cannot create temporary renderer directory `{}`: {error}",
-                        path.display()
-                    )));
-                }
-            }
-        }
-        Err(RenderError::new(
-            "cannot allocate a unique temporary renderer directory",
-        ))
-    }
-
-    fn path(&self) -> &Path {
-        &self.path
-    }
-}
-
-impl Drop for ScratchDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+fn invalid_artifact(message: impl Into<String>) -> RenderError {
+    RenderError::coded(code::RENDER_INVALID_ARTIFACT, message)
 }
 
 #[derive(Debug)]
@@ -637,7 +514,8 @@ fn run_process_with_deadline(
     let stdout_overflowed = Arc::clone(&overflowed);
     let stdout_reader =
         thread::spawn(move || read_capped_until_limit(stdout, stdout_limit, &stdout_overflowed));
-    let stderr_reader = thread::spawn(move || read_capped(stderr, MAX_DIAGNOSTIC_BYTES));
+    let stderr_reader =
+        thread::spawn(move || read_capped(stderr, MAX_RENDERER_DIAGNOSTIC_BYTES));
 
     let outcome = wait_with_limits(&mut child, timeout, &overflowed, cancellation);
     if outcome.is_err() {
@@ -794,7 +672,7 @@ fn wait_with_limits(
             terminate_child(child);
             return Ok(ProcessOutcome::TimedOut);
         }
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(PROCESS_POLL_INTERVAL);
     }
 }
 
@@ -835,6 +713,7 @@ fn program_label(program: &Path) -> String {
 mod tests {
     use super::{
         ConfiguredRenderer, check_configured_engines, resolve_executable, run_process_with_timeout,
+        validate_svg,
     };
     use crate::config::{Config, MathEngine, MermaidEngine};
     use crate::diagnostics::code;
@@ -842,17 +721,15 @@ mod tests {
     use crate::render::{RenderContext, Renderer};
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
-    use std::path::{Path, PathBuf};
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use std::path::Path;
+    use std::time::Duration;
+    use tempfile::TempDir;
 
-    fn temp_root(label: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("ptymark-engine-{label}-{nonce}"));
-        fs::create_dir_all(&path).expect("temp root");
-        path
+    fn temp_root() -> TempDir {
+        tempfile::Builder::new()
+            .prefix("ptymark-engine-test-")
+            .tempdir()
+            .expect("temp root")
     }
 
     fn executable(path: &Path, source: &str) {
@@ -871,19 +748,18 @@ mod tests {
 
     #[test]
     fn executable_resolution_accepts_an_absolute_executable() {
-        let root = temp_root("resolve");
-        let path = root.join("engine");
+        let root = temp_root();
+        let path = root.path().join("engine");
         executable(&path, "#!/bin/sh\nexit 0\n");
         let resolved = resolve_executable(&path).expect("resolve");
         assert!(resolved.is_absolute());
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn mermaid_cli_is_presented_through_chafa() {
-        let root = temp_root("mermaid");
-        let mmdc = root.join("mmdc");
-        let chafa = root.join("chafa");
+        let root = temp_root();
+        let mmdc = root.path().join("mmdc");
+        let chafa = root.path().join("chafa");
         executable(
             &mmdc,
             "#!/bin/sh\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --output) out=$2; shift 2 ;;\n    *) shift ;;\n  esac\ndone\ncat >/dev/null\nprintf '<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>' >\"$out\"\n",
@@ -904,14 +780,13 @@ mod tests {
             .render(&block, RenderContext::default())
             .expect("render");
         assert_eq!(artifact.bytes, b"terminal diagram\n");
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn mathjax_cli_is_presented_through_chafa() {
-        let root = temp_root("math");
-        let tex2svg = root.join("tex2svg");
-        let chafa = root.join("chafa");
+        let root = temp_root();
+        let tex2svg = root.path().join("tex2svg");
+        let chafa = root.path().join("chafa");
         executable(
             &tex2svg,
             "#!/bin/sh\nprintf '<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\\n'\n",
@@ -932,24 +807,40 @@ mod tests {
             .render(&block, RenderContext::default())
             .expect("render");
         assert_eq!(artifact.bytes, b"terminal math\n");
-        let _ = fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn structurally_rejects_text_containing_an_svg_substring() {
+        let error = validate_svg(
+            b"not an artifact <svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
+            "test",
+        )
+        .expect_err("unrelated leading text must fail");
+        assert_eq!(error.code(), code::RENDER_INVALID_ARTIFACT);
+    }
+
+    #[test]
+    fn structurally_rejects_a_non_svg_root() {
+        let error = validate_svg(b"<html><svg/></html>", "test")
+            .expect_err("wrong root must fail");
+        assert_eq!(error.code(), code::RENDER_INVALID_ARTIFACT);
+    }
+
     #[test]
     fn renderer_timeout_has_a_stable_code_and_redacted_message() {
-        let root = temp_root("timeout");
-        let renderer = root.join("slow-renderer");
+        let root = temp_root();
+        let renderer = root.path().join("slow-renderer");
         executable(&renderer, "#!/bin/sh\nsleep 5\n");
         let error = run_process_with_timeout(&renderer, &[], None, 1024, Duration::from_millis(50))
             .expect_err("renderer must time out");
         assert_eq!(error.code(), code::RENDER_TIMEOUT);
-        assert!(!error.to_string().contains(root.to_string_lossy().as_ref()));
-        let _ = fs::remove_dir_all(root);
+        assert!(!error.to_string().contains(root.path().to_string_lossy().as_ref()));
     }
 
     #[test]
     fn renderer_output_limit_stops_the_process() {
-        let root = temp_root("output-limit");
-        let renderer = root.join("noisy-renderer");
+        let root = temp_root();
+        let renderer = root.path().join("noisy-renderer");
         executable(
             &renderer,
             "#!/bin/sh\nwhile :; do printf '0123456789abcdef'; done\n",
@@ -957,13 +848,12 @@ mod tests {
         let error = run_process_with_timeout(&renderer, &[], None, 128, Duration::from_secs(2))
             .expect_err("renderer output must be bounded");
         assert_eq!(error.code(), code::RENDER_OUTPUT_LIMIT);
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn renderer_stderr_is_not_copied_into_public_errors() {
-        let root = temp_root("stderr-redaction");
-        let renderer = root.join("failing-renderer");
+        let root = temp_root();
+        let renderer = root.path().join("failing-renderer");
         executable(
             &renderer,
             "#!/bin/sh\nprintf 'PRIVATE SEMANTIC SOURCE token-123\\n' >&2\nexit 7\n",
@@ -973,7 +863,6 @@ mod tests {
         assert_eq!(error.code(), code::RENDER_PROCESS_EXIT);
         assert!(!error.to_string().contains("PRIVATE SEMANTIC SOURCE"));
         assert!(!error.to_string().contains("token-123"));
-        let _ = fs::remove_dir_all(root);
     }
 }
 
