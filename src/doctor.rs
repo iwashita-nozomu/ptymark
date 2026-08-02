@@ -1,14 +1,14 @@
 use crate::config::{Config, RenderMode};
 use crate::diagnostics::{
     DiagnosticComponent, DiagnosticEvidence, DiagnosticFinding, DiagnosticSeverity,
-    DiagnosticStatus, Redactor, code, json_string,
+    DiagnosticStatus, Redactor, code,
 };
 use crate::engine::resolve_executable;
 use crate::install::{InstallState, default_install_state_path};
 use crate::managed_launcher::inspect_managed_alias;
 use crate::runtime::PipelineOptions;
+use serde::Serialize;
 use std::env;
-use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
@@ -20,7 +20,9 @@ pub struct DoctorRequest {
     pub pipeline: PipelineOptions,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Public-safe diagnostic model. Raw semantic source, child environment, and
+/// unrestricted renderer stderr never enter this serializable type.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct DoctorReport {
     pub schema: &'static str,
     pub status: DiagnosticStatus,
@@ -36,7 +38,7 @@ pub struct DoctorReport {
     pub redaction: RedactionReport,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct PtymarkReport {
     pub version: String,
     pub target_os: &'static str,
@@ -44,7 +46,7 @@ pub struct PtymarkReport {
     pub config_schema: u32,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ConfigurationReport {
     pub selection: &'static str,
     pub path: Option<DiagnosticEvidence>,
@@ -55,7 +57,7 @@ pub struct ConfigurationReport {
     pub cache_enabled: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct InstallationReport {
     pub path: Option<DiagnosticEvidence>,
     pub state: &'static str,
@@ -63,7 +65,7 @@ pub struct InstallationReport {
     pub component_count: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct SessionReport {
     pub mode: &'static str,
     pub private: bool,
@@ -71,7 +73,7 @@ pub struct SessionReport {
     pub cache_enabled: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct TerminalReport {
     pub stdin_terminal: bool,
     pub stdout_terminal: bool,
@@ -81,7 +83,7 @@ pub struct TerminalReport {
     pub transport_hints: Vec<&'static str>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct EngineReport {
     pub role: &'static str,
     pub backend: String,
@@ -92,7 +94,7 @@ pub struct EngineReport {
     pub resolved_path: Option<DiagnosticEvidence>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct PresenterReport {
     pub required: bool,
     pub backend: &'static str,
@@ -101,13 +103,13 @@ pub struct PresenterReport {
     pub resolved_path: Option<DiagnosticEvidence>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct RecentRuntimeReport {
     pub state: &'static str,
     pub finding_code: Option<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct RedactionReport {
     pub public_safe_default: bool,
     pub semantic_source: &'static str,
@@ -339,413 +341,9 @@ impl DoctorReport {
     }
 
     pub fn json(&self) -> String {
-        let mut output = String::new();
-        output.push_str("{\n");
-        json_field(&mut output, 1, "schema", json_string(self.schema), true);
-        json_field(
-            &mut output,
-            1,
-            "status",
-            json_string(self.status.as_str()),
-            true,
-        );
-        output.push_str("  \"ptymark\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "version",
-            json_string(&self.ptymark.version),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "target_os",
-            json_string(self.ptymark.target_os),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "target_arch",
-            json_string(self.ptymark.target_arch),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "config_schema",
-            self.ptymark.config_schema.to_string(),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"configuration\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "selection",
-            json_string(self.configuration.selection),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "path",
-            evidence_json(self.configuration.path.as_ref()),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "state",
-            json_string(self.configuration.state),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "schema_version",
-            option_number(self.configuration.schema_version),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "strict",
-            self.configuration.strict.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "rendering_mode",
-            json_string(self.configuration.rendering_mode),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "cache_enabled",
-            self.configuration.cache_enabled.to_string(),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"installation\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "path",
-            evidence_json(self.installation.path.as_ref()),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "state",
-            json_string(self.installation.state),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "installed_version",
-            self.installation
-                .installed_version
-                .as_deref()
-                .map_or_else(|| "null".to_owned(), json_string),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "component_count",
-            self.installation.component_count.to_string(),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"session\": {\n");
-        json_field(&mut output, 2, "mode", json_string(self.session.mode), true);
-        json_field(
-            &mut output,
-            2,
-            "private",
-            self.session.private.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "strict",
-            self.session.strict.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "cache_enabled",
-            self.session.cache_enabled.to_string(),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"terminal\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "stdin_terminal",
-            self.terminal.stdin_terminal.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "stdout_terminal",
-            self.terminal.stdout_terminal.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "columns",
-            option_number(self.terminal.columns),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "rows",
-            option_number(self.terminal.rows),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "host",
-            json_string(self.terminal.host),
-            true,
-        );
-        let hints = self
-            .terminal
-            .transport_hints
-            .iter()
-            .map(|hint| json_string(hint))
-            .collect::<Vec<_>>()
-            .join(", ");
-        json_field(
-            &mut output,
-            2,
-            "transport_hints",
-            format!("[{hints}]"),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"engines\": [\n");
-        for (index, engine) in self.engines.iter().enumerate() {
-            output.push_str("    {\n");
-            json_field(&mut output, 3, "role", json_string(engine.role), true);
-            json_field(
-                &mut output,
-                3,
-                "backend",
-                json_string(&engine.backend),
-                true,
-            );
-            json_field(&mut output, 3, "origin", json_string(engine.origin), true);
-            json_field(&mut output, 3, "state", json_string(engine.state), true);
-            json_field(
-                &mut output,
-                3,
-                "browser_state",
-                engine
-                    .browser_state
-                    .map_or_else(|| "null".to_owned(), json_string),
-                true,
-            );
-            json_field(
-                &mut output,
-                3,
-                "configured_path",
-                evidence_json(engine.configured_path.as_ref()),
-                true,
-            );
-            json_field(
-                &mut output,
-                3,
-                "resolved_path",
-                evidence_json(engine.resolved_path.as_ref()),
-                false,
-            );
-            output.push_str(if index + 1 == self.engines.len() {
-                "    }\n"
-            } else {
-                "    },\n"
-            });
-        }
-        output.push_str("  ],\n");
-
-        output.push_str("  \"presenter\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "required",
-            self.presenter.required.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "backend",
-            json_string(self.presenter.backend),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "state",
-            json_string(self.presenter.state),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "configured_path",
-            evidence_json(self.presenter.configured_path.as_ref()),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "resolved_path",
-            evidence_json(self.presenter.resolved_path.as_ref()),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"recent_runtime\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "state",
-            json_string(self.recent_runtime.state),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "finding_code",
-            self.recent_runtime
-                .finding_code
-                .as_deref()
-                .map_or_else(|| "null".to_owned(), json_string),
-            false,
-        );
-        output.push_str("  },\n");
-
-        output.push_str("  \"findings\": [\n");
-        for (index, finding) in self.findings.iter().enumerate() {
-            output.push_str("    {\n");
-            json_field(&mut output, 3, "code", json_string(&finding.code), true);
-            json_field(
-                &mut output,
-                3,
-                "severity",
-                json_string(finding.severity.as_str()),
-                true,
-            );
-            json_field(
-                &mut output,
-                3,
-                "component",
-                json_string(finding.component.as_str()),
-                true,
-            );
-            json_field(
-                &mut output,
-                3,
-                "summary",
-                json_string(&finding.summary),
-                true,
-            );
-            json_field(
-                &mut output,
-                3,
-                "remedy",
-                finding
-                    .remedy
-                    .as_deref()
-                    .map_or_else(|| "null".to_owned(), json_string),
-                true,
-            );
-            output.push_str("      \"evidence\": {");
-            if finding.evidence.is_empty() {
-                output.push_str("}\n");
-            } else {
-                output.push('\n');
-                for (evidence_index, (key, evidence)) in finding.evidence.iter().enumerate() {
-                    output.push_str(&format!(
-                        "        {}: {{\"value\": {}, \"redacted\": {}}}{}\n",
-                        json_string(key),
-                        json_string(&evidence.value),
-                        evidence.redacted,
-                        if evidence_index + 1 == finding.evidence.len() {
-                            ""
-                        } else {
-                            ","
-                        }
-                    ));
-                }
-                output.push_str("      }\n");
-            }
-            output.push_str(if index + 1 == self.findings.len() {
-                "    }\n"
-            } else {
-                "    },\n"
-            });
-        }
-        output.push_str("  ],\n");
-
-        output.push_str("  \"redaction\": {\n");
-        json_field(
-            &mut output,
-            2,
-            "public_safe_default",
-            self.redaction.public_safe_default.to_string(),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "semantic_source",
-            json_string(self.redaction.semantic_source),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "child_environment",
-            json_string(self.redaction.child_environment),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "renderer_stderr",
-            json_string(self.redaction.renderer_stderr),
-            true,
-        );
-        json_field(
-            &mut output,
-            2,
-            "home_paths",
-            json_string(self.redaction.home_paths),
-            false,
-        );
-        output.push_str("  }\n");
-        output.push_str("}\n");
+        let mut output = serde_json::to_string_pretty(self)
+            .expect("the public-safe doctor report must be serializable");
+        output.push('\n');
         output
     }
 
@@ -758,32 +356,30 @@ impl DoctorReport {
         }
         let parent = path
             .parent()
-            .filter(|parent| !parent.as_os_str().is_empty());
-        if let Some(parent) = parent
-            && !parent.is_dir()
-        {
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        if !parent.is_dir() {
             return Err(format!(
                 "support report directory `{}` does not exist",
                 parent.display()
             ));
         }
-        let file_name = path
-            .file_name()
-            .ok_or_else(|| "support report path has no file name".to_owned())?;
-        let temporary = path.with_file_name(format!(
-            ".{}.tmp-{}",
-            file_name.to_string_lossy(),
-            std::process::id()
-        ));
-        let result = write_private_file(&temporary, self.json().as_bytes())
-            .and_then(|()| fs::rename(&temporary, path));
-        if let Err(error) = result {
-            let _ = fs::remove_file(&temporary);
-            return Err(format!(
-                "cannot write support report `{}`: {error}",
-                path.display()
-            ));
-        }
+
+        let mut temporary = tempfile::Builder::new()
+            .prefix(".ptymark-support-")
+            .tempfile_in(parent)
+            .map_err(|error| format!("cannot create support report temporary file: {error}"))?;
+        temporary
+            .write_all(self.json().as_bytes())
+            .and_then(|()| temporary.as_file().sync_all())
+            .map_err(|error| format!("cannot write support report temporary file: {error}"))?;
+        temporary.persist_noclobber(path).map_err(|error| {
+            format!(
+                "cannot publish support report `{}`: {}",
+                path.display(),
+                error.error
+            )
+        })?;
         Ok(())
     }
 }
@@ -928,7 +524,6 @@ fn inspect_engines(
     findings: &mut Vec<DiagnosticFinding>,
 ) -> (Vec<EngineReport>, PresenterReport) {
     let mut engines = Vec::new();
-    let mut presenter_required = false;
     let mermaid_external = config.engines.mermaid.backend.is_external() && !external_bypassed;
     let math_external = config.engines.math.backend.is_external() && !external_bypassed;
 
@@ -950,8 +545,8 @@ fn inspect_engines(
         redactor,
         findings,
     ));
-    presenter_required |= mermaid_external || math_external;
 
+    let presenter_required = mermaid_external || math_external;
     let presenter = if presenter_required {
         let configured = redactor.public_path(&config.engines.presenter.path);
         match resolve_executable(&config.engines.presenter.path) {
@@ -1218,71 +813,21 @@ fn push_line(output: &mut String, line: String) {
     output.push('\n');
 }
 
-fn json_field(output: &mut String, indent: usize, key: &str, value: String, comma: bool) {
-    output.push_str(&"  ".repeat(indent));
-    output.push_str(&json_string(key));
-    output.push_str(": ");
-    output.push_str(&value);
-    if comma {
-        output.push(',');
-    }
-    output.push('\n');
-}
-
-fn option_number<T: ToString>(value: Option<T>) -> String {
-    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
-}
-
-fn evidence_json(evidence: Option<&DiagnosticEvidence>) -> String {
-    evidence.map_or_else(
-        || "null".to_owned(),
-        |evidence| {
-            format!(
-                "{{\"value\": {}, \"redacted\": {}}}",
-                json_string(&evidence.value),
-                evidence.redacted
-            )
-        },
-    )
-}
-
-fn write_private_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut options = OpenOptions::new();
-    options.create_new(true).write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path)?;
-    file.write_all(bytes)?;
-    file.sync_all()
-}
-
 #[cfg(test)]
 mod tests {
     use super::{DOCTOR_SCHEMA, DoctorReport, DoctorRequest};
     use crate::runtime::PipelineOptions;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temp_path(label: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        std::env::temp_dir().join(format!("ptymark-doctor-{label}-{nonce}.json"))
-    }
 
     #[test]
     fn json_schema_and_status_are_stable() {
         let report = DoctorReport::collect(DoctorRequest::default());
         let json = report.json();
-        assert!(json.contains(&format!("\"schema\": \"{DOCTOR_SCHEMA}\"")));
-        assert!(json.contains("\"status\":"));
-        assert!(json.contains("\"findings\": ["));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(value["schema"], DOCTOR_SCHEMA);
+        assert!(value.get("status").is_some());
+        assert!(value["findings"].is_array());
         assert!(!json.contains("semantic source"));
+        assert!(json.ends_with('\n'));
     }
 
     #[test]
@@ -1315,15 +860,15 @@ mod tests {
 
     #[test]
     fn support_report_is_atomic_and_refuses_overwrite() {
-        let path = temp_path("report");
+        let root = tempfile::tempdir().expect("temp root");
+        let path = root.path().join("report.json");
         let report = DoctorReport::collect(DoctorRequest::default());
         report.write_support_report(&path).expect("write report");
-        let source = fs::read_to_string(&path).expect("read report");
+        let source = std::fs::read_to_string(&path).expect("read report");
         assert!(source.contains(DOCTOR_SCHEMA));
         let error = report
             .write_support_report(&path)
             .expect_err("overwrite must fail");
         assert!(error.contains("already exists"));
-        let _ = fs::remove_file(path);
     }
 }
