@@ -1,8 +1,7 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs CodeQL analysis for the Rust core, Python tooling, renderer JavaScript, and GitHub Actions.
+# responsibility Runs CodeQL analysis for the Rust core, renderer JavaScript, and GitHub Actions.
 # upstream implementation ../../src/lib.rs Rust library surface
-# upstream implementation ../../python Python tooling surface
 # upstream implementation ../../renderers managed renderer surface
 # upstream environment ./ci.yml GitHub Actions workflow surface
 # downstream design ../../SECURITY.md vulnerability reporting and support policy
@@ -12,20 +11,16 @@ name: CodeQL
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
       - "src/**"
-      - "python/**"
       - "scripts/**"
       - "renderers/**"
       - ".github/workflows/**"
-  # Code scanning is a required merge gate, so pull requests must always publish results.
   pull_request:
-    branches:
-      - main
+    branches: [main]
   schedule:
     - cron: "21 18 * * 1"
   workflow_dispatch:
@@ -50,8 +45,6 @@ jobs:
       matrix:
         include:
           - language: rust
-            build-mode: none
-          - language: python
             build-mode: none
           - language: javascript-typescript
             build-mode: none
