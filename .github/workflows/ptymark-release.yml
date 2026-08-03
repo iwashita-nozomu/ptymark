@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: production-release
+
     steps:
       - name: Check out reviewed source commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -33,12 +34,6 @@ jobs:
           fetch-depth: 0
           submodules: false
           persist-credentials: false
-
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ''
-          AGENT_CANON_REPO_SSH_KEY: ''
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Resolve source-only release identity
         id: release
