@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs CodeQL on the immutable GitHub pull-request merge result and on push commits for the Rust core, renderer JavaScript, and GitHub Actions.
+# responsibility Runs CodeQL on the immutable pull-request head and on push commits for the Rust core, renderer JavaScript, and GitHub Actions.
 # upstream implementation ../../src/lib.rs Rust library surface
 # upstream implementation ../../renderers managed renderer surface
 # upstream environment ./ci.yml GitHub Actions workflow surface
@@ -53,17 +53,19 @@ jobs:
             build-mode: none
 
     steps:
-      - name: Check out the immutable GitHub event commit without stored credentials
+      - name: Check out the immutable analyzed source without stored credentials
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          fetch-depth: 2
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
           submodules: false
           persist-credentials: false
 
-      - name: Verify checked-out event identity
+      - name: Verify checked-out source identity
         shell: bash
         env:
-          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
       - name: Initialize CodeQL
@@ -73,7 +75,9 @@ jobs:
           build-mode: ${{ matrix['build-mode'] }}
           queries: security-extended
 
-      - name: Analyze the GitHub pull-request merge result
+      - name: Analyze and register the immutable pull-request head
         uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
         with:
           category: "/language:${{ matrix.language }}"
+          ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
+          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
