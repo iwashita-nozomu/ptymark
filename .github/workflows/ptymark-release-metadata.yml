@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Validates version, packaging, and release metadata on main and release-related pull requests.
+# responsibility Validates version, packaging, and source-only release metadata.
 # upstream design ../../documents/release.md publication contract
 # upstream implementation ../../scripts/check-release-metadata.py tree validator
 # upstream implementation ../../tests/tools/test_release_metadata.py metadata tests
@@ -11,9 +11,7 @@ name: ptymark Release Metadata
 
 on:
   push:
-    branches:
-      - main
-      - "agent/**"
+    branches: [main]
     paths:
       - Cargo.toml
       - Cargo.lock
@@ -22,13 +20,12 @@ on:
       - documents/release.md
       - "release-notes/**"
       - scripts/check-release-metadata.py
-      - scripts/build-release-manifest.py
       - scripts/package-release.sh
       - scripts/package-release.ps1
       - tests/tools/test_release_metadata.py
       - ".github/workflows/ptymark-release*.yml"
-      - .release-candidate-placeholder
   pull_request:
+    branches: [main]
     paths:
       - Cargo.toml
       - Cargo.lock
@@ -37,12 +34,10 @@ on:
       - documents/release.md
       - "release-notes/**"
       - scripts/check-release-metadata.py
-      - scripts/build-release-manifest.py
       - scripts/package-release.sh
       - scripts/package-release.ps1
       - tests/tools/test_release_metadata.py
       - ".github/workflows/ptymark-release*.yml"
-      - .release-candidate-placeholder
   workflow_dispatch:
 
 concurrency:
@@ -57,25 +52,21 @@ jobs:
     name: Validate release metadata
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
 
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
 
       - name: Validate release tree
-        run: python scripts/check-release-metadata.py
+        run: python3 scripts/check-release-metadata.py
 
       - name: Run release metadata contracts
-        run: python -m unittest tests.tools.test_release_metadata -v
+        run: python3 -m unittest tests.tools.test_release_metadata -v
