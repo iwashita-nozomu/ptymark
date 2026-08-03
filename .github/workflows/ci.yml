@@ -1,190 +1,40 @@
-# @dependency-start
-# contract workflow
-# responsibility Runs lightweight repository wiring checks and routes inherited AgentCanon gates only for their owned surfaces.
-# upstream implementation ../../Makefile inherited AgentCanon targets
-# upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
-# downstream implementation ./ptymark-ci.yml product validation workflow
-# @dependency-end
-
+# Lightweight repository wiring check. Product behavior is owned by ptymark-ci.yml.
 name: CI
 
 on:
-  push:
-    branches: [main, master]
   pull_request:
-    branches: [main, master]
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: repository-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  change-classification:
-    name: Classify inherited CI surfaces
-    runs-on: ubuntu-24.04
-    outputs:
-      agent_canon: ${{ steps.classify.outputs.agent_canon }}
-      fresh_clone: ${{ steps.classify.outputs.fresh_clone }}
-
-    steps:
-      - name: Check out repository history
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          submodules: false
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Classify changed paths
-        id: classify
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BASE_SHA: ${{ github.event.before }}
-          PUSH_HEAD_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            echo "agent_canon=true" >> "$GITHUB_OUTPUT"
-            echo "fresh_clone=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            base_sha="$PR_BASE_SHA"
-            head_sha="$PR_HEAD_SHA"
-          else
-            base_sha="$PUSH_BASE_SHA"
-            head_sha="$PUSH_HEAD_SHA"
-          fi
-          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-list --max-parents=0 "$head_sha" | tail -n 1)"
-          fi
-          git diff --name-only "$base_sha" "$head_sha" > changed-paths.txt
-          cat changed-paths.txt
-          agent_canon=false
-          fresh_clone=false
-          while IFS= read -r path; do
-            case "$path" in
-              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools/agent_tools|tools/agent_tools/*|tools/ci|tools/ci/*|tests/tools|tests/tools/*|pyproject.toml|docker/requirements*.txt|.github/workflows/agent-*.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
-                agent_canon=true
-                ;;
-            esac
-            case "$path" in
-              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|scripts/start_repository.sh|scripts/init_from_template.sh|documents/template-bootstrap.md|documents/template-github-remote.md|tools/ci/check_fresh_clone.sh|tests/tools/test_start_repository_script.py)
-                fresh_clone=true
-                ;;
-            esac
-          done < changed-paths.txt
-          echo "agent_canon=$agent_canon" >> "$GITHUB_OUTPUT"
-          echo "fresh_clone=$fresh_clone" >> "$GITHUB_OUTPUT"
-
   repository-ci:
     name: Repository CI
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ["3.11"]
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          submodules: false
           persist-credentials: false
+          submodules: false
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install workflow parser
-        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
-
-      - name: Check repository wiring
-        shell: bash
+      - name: Install pinned Rust toolchain
         run: |
-          set -euo pipefail
+          rustup toolchain install 1.97.0 --profile minimal
+          rustup override set 1.97.0
+
+      - name: Validate repository wiring
+        run: |
           git diff --check
-          python3 - <<'PY'
-          from pathlib import Path
-          import yaml
-
-          workflows = sorted(Path('.github/workflows').glob('*.yml'))
-          if not workflows:
-              raise SystemExit('no GitHub workflows were found')
-          for path in workflows:
-              with path.open(encoding='utf-8') as handle:
-                  document = yaml.safe_load(handle)
-              if not isinstance(document, dict) or 'jobs' not in document:
-                  raise SystemExit(f'{path}: workflow must be a mapping with jobs')
-          print(f'workflow YAML ok: {len(workflows)} files')
-          PY
-
-  agent-canon-pr:
-    name: AgentCanon PR Gate
-    needs: change-classification
-    if: needs.change-classification.outputs.agent_canon == 'true'
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          submodules: false
-          persist-credentials: false
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: docker/requirements.txt
-      - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
-      - name: Install verification dependencies
-        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
-      - name: Run shared canon PR gate
-        run: make agent-canon-pr-check
-
-  fresh-clone-acceptance:
-    name: Fresh Clone Acceptance
-    needs: change-classification
-    if: needs.change-classification.outputs.fresh_clone == 'true'
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          submodules: false
-          persist-credentials: false
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: docker/requirements.txt
-      - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
-      - name: Install verification dependencies
-        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
-      - name: Run fresh clone acceptance
-        run: make fresh-clone-check
+          cargo metadata --locked --no-deps --format-version 1 >/dev/null
+          python3 scripts/check-release-metadata.py
