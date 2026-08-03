@@ -108,6 +108,12 @@ def main() -> None:
 }""",
         "config state digest matching",
     )
+    replace_once(
+        "src/config.rs",
+        "self.rendering.columns.max(1).min(MAX_FALLBACK_COLUMNS)",
+        "self.rendering.columns.clamp(1, MAX_FALLBACK_COLUMNS)",
+        "legacy fallback column clamp",
+    )
 
     replace_once(
         "src/pipeline.rs",
@@ -192,6 +198,19 @@ const CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);
             theme_fingerprint: 0,
         },""",
         "pipeline contract render context",
+    )
+
+    replace_once(
+        "src/cli.rs",
+        "Some(value) if value.is_empty() => return Err(format!(\"`{option}` cannot be empty\")),",
+        "Some(\"\") => return Err(format!(\"`{option}` cannot be empty\")),",
+        "engine preference empty value",
+    )
+    replace_once(
+        "src/cli.rs",
+        "Some(value) if value.is_empty() => return Err(\"`--presenter` cannot be empty\".to_owned()),",
+        "Some(\"\") => return Err(\"`--presenter` cannot be empty\".to_owned()),",
+        "presenter preference empty value",
     )
 
 
