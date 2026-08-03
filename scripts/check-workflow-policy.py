@@ -2,7 +2,7 @@
 
 # @dependency-start
 # contract implementation
-# responsibility Validates immutable GitHub Action references, immutable PR-head CodeQL identity, stable PR gates, and prerelease workflow boundaries.
+# responsibility Validates immutable GitHub Action references, complete immutable-head CodeQL identity, stable PR gates, and prerelease workflow boundaries.
 # upstream environment ../.github/workflows GitHub Actions definitions
 # upstream design ../documents/release.md source-only prerelease contract
 # downstream environment ../.github/workflows/ci.yml repository wiring gate
@@ -82,6 +82,10 @@ def _validate_codeql(root: Path, failures: list[str]) -> None:
         f"repository: {PR_HEAD_REPOSITORY}",
         f"ref: {PR_HEAD_SHA}",
         f"EXPECTED_SHA: {PR_HEAD_SHA}",
+        "- language: rust",
+        "- language: python",
+        "- language: javascript-typescript",
+        "- language: actions",
         "Analyze and register the immutable source head",
         "category: \"/language:${{ matrix.language }}\"",
         f"ref: {PR_HEAD_REF}",
