@@ -1,9 +1,8 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs repository CI and routes inherited gates.
-# upstream implementation ../../tools/ci/run_all_checks.sh repository CI entrypoint
-# upstream implementation ../../Makefile CI target contract
-# upstream environment ../../docker/install_python_dependencies.sh Python dependency installer
+# responsibility Routes lightweight repository checks and inherited AgentCanon gates by changed surface.
+# upstream implementation ../../tools/ci/check_github_workflows.py workflow contract checker
+# upstream implementation ../../Makefile inherited AgentCanon targets
 # upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
 # downstream implementation ./ptymark-ci.yml product validation workflow
 # @dependency-end
@@ -12,17 +11,13 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
   contents: read
-
-env:
-  AGENT_CANON_REPO_TOKEN: ""
-  AGENT_CANON_REPO_SSH_KEY: ""
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -31,13 +26,13 @@ concurrency:
 jobs:
   change-classification:
     name: Classify inherited CI surfaces
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       agent_canon: ${{ steps.classify.outputs.agent_canon }}
       fresh_clone: ${{ steps.classify.outputs.fresh_clone }}
 
     steps:
-      - name: Checkout repository history
+      - name: Check out repository history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
@@ -79,10 +74,9 @@ jobs:
 
           agent_canon=false
           fresh_clone=false
-
           while IFS= read -r path; do
             case "$path" in
-              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools|tools/*|.github/workflows/ci.yml|.github/workflows/agent-coordination.yml|.github/workflows/agent-improvement-guide.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
+              .gitmodules|vendor/agent-canon|vendor/agent-canon/*|AGENTS.md|agents|agents/*|.agents|.agents/*|.codex|.codex/*|tools/agent_tools|tools/agent_tools/*|tools/ci|tools/ci/*|tests/tools|tests/tools/*|pyproject.toml|docker/requirements*.txt|.github/workflows/agent-*.yml|.github/PULL_REQUEST_TEMPLATE/agent_canon.md|.github/scripts/checkout_agent_canon_submodule.sh)
                 agent_canon=true
                 ;;
             esac
@@ -99,56 +93,49 @@ jobs:
 
   repository-ci:
     name: Repository CI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.11"]
+
     steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
-      - name: Checkout AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ""
-          AGENT_CANON_REPO_SSH_KEY: ""
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: docker/requirements.txt
 
-      - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
+      - name: Install workflow parser
+        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
 
-      - name: Install pip dependencies
-        run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
-
-      - name: Run repository CI
-        run: make ci
+      - name: Check repository wiring
+        run: |
+          git diff --check
+          python -m compileall -q tools/ci
+          python tools/ci/check_github_workflows.py --root .
 
   agent-canon-pr:
     name: AgentCanon PR Gate
     needs: change-classification
     if: needs.change-classification.outputs.agent_canon == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.11"]
+
     steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
-      - name: Checkout AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ""
-          AGENT_CANON_REPO_SSH_KEY: ""
+
+      - name: Check out AgentCanon submodule
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
@@ -161,7 +148,7 @@ jobs:
       - name: Install system packages
         run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
 
-      - name: Install pip dependencies
+      - name: Install verification dependencies
         run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
       - name: Run shared canon PR gate
@@ -171,20 +158,19 @@ jobs:
     name: Fresh Clone Acceptance
     needs: change-classification
     if: needs.change-classification.outputs.fresh_clone == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.11"]
+
     steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
-      - name: Checkout AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ""
-          AGENT_CANON_REPO_SSH_KEY: ""
+
+      - name: Check out AgentCanon submodule
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
 
       - name: Set up Python
@@ -197,7 +183,7 @@ jobs:
       - name: Install system packages
         run: sudo apt-get update && sudo apt-get install -y graphviz ripgrep
 
-      - name: Install pip dependencies
+      - name: Install verification dependencies
         run: PYTHON_DEPENDENCY_MARKER_DIR=.state/python-deps bash docker/install_python_dependencies.sh "$PWD"
 
       - name: Run fresh clone acceptance
