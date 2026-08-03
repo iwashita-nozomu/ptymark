@@ -1,11 +1,14 @@
 # Temporary alpha.4 branch-only workflow. Remove before merging the release PR.
-# This run applies only reviewed source substitutions and publishes them after Rust validation.
+# It checks out one fixed same-repository branch and commits only after Rust validation.
 name: alpha4 one-shot source fixup
 
 on:
-  push:
-    branches: [agent/alpha4-typed-config]
+  pull_request:
+    branches: [main]
     paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/**"
       - "scripts/alpha4_fixup.py"
       - ".github/workflows/alpha4-lockfile.yml"
   workflow_dispatch:
@@ -19,12 +22,12 @@ concurrency:
 
 jobs:
   fixup:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'agent/alpha4-typed-config' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
-      - name: Check out alpha4 branch
+      - name: Check out fixed alpha4 branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: agent/alpha4-typed-config
