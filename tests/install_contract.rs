@@ -65,15 +65,17 @@ fn first_install_separates_portable_intent_from_resolved_paths() {
     assert!(!user_toml.contains("max_block_bytes"));
 
     plan.apply().expect("apply");
-    assert_eq!(
-        ptymark::Config::load_exact(&config_path).expect("config"),
-        plan.config
-    );
+    let loaded_user = UserConfig::load_exact(&config_path).expect("user config");
+    assert_eq!(loaded_user, plan.user_config);
+
     let state = InstallState::load(&state_path).expect("state");
     assert_eq!(state.components.len(), 3);
     assert_eq!(state.config_path, config_path);
     assert!(state.config_digest.is_some());
-    assert!(state.matches_user_config(&config_path, &plan.user_config));
+    assert!(state.matches_user_config(&config_path, &loaded_user));
+
+    let resolved = loaded_user.resolve(None, Some(&state)).expect("resolved config");
+    assert_eq!(resolved, plan.config);
 }
 
 #[test]
