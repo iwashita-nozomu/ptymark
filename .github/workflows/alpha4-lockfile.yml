@@ -1,4 +1,5 @@
 # Temporary alpha.4 branch-only workflow. Remove before merging the release PR.
+# This run applies only reviewed source substitutions and publishes them after Rust validation.
 name: alpha4 one-shot source fixup
 
 on:
