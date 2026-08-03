@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs CodeQL on the immutable pull-request head and on push commits for the Rust core, renderer JavaScript, and GitHub Actions.
+# responsibility Runs CodeQL on every immutable branch head and pull-request head for the Rust core, renderer JavaScript, and GitHub Actions.
 # upstream implementation ../../src/lib.rs Rust library surface
 # upstream implementation ../../renderers managed renderer surface
 # upstream environment ./ci.yml GitHub Actions workflow surface
@@ -12,14 +12,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "src/**"
-      - "scripts/**"
-      - "renderers/**"
-      - ".github/workflows/**"
+    branches: ["**"]
   pull_request:
     branches: [main]
   schedule:
@@ -75,7 +68,7 @@ jobs:
           build-mode: ${{ matrix['build-mode'] }}
           queries: security-extended
 
-      - name: Analyze and register the immutable pull-request head
+      - name: Analyze and register the immutable source head
         uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
         with:
           category: "/language:${{ matrix.language }}"
