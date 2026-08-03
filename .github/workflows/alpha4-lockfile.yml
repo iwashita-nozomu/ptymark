@@ -11,6 +11,7 @@ on:
       - "tests/**"
       - "scripts/alpha4_fixup.py"
       - "scripts/alpha4_cli_fixup.py"
+      - "scripts/finish_agent_canon_removal.py"
       - "scripts/remove_agent_canon.py"
       - ".github/workflows/alpha4-lockfile.yml"
   workflow_dispatch:
@@ -47,33 +48,16 @@ jobs:
           python3 scripts/alpha4_fixup.py
           python3 scripts/alpha4_cli_fixup.py
 
+      - name: Normalize product-owned documents
+        run: python3 scripts/finish_agent_canon_removal.py
+
       - name: Remove inherited AgentCanon and template surfaces
-        continue-on-error: true
         run: python3 scripts/remove_agent_canon.py
 
-      - name: Normalize remaining product ownership references
+      - name: Verify AgentCanon removal
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("README.md")
-          text = path.read_text(encoding="utf-8")
-          text = text.replace(
-              "The complete reader map, including maintainer ownership and shared AgentCanon references, is [`documents/README.md`](documents/README.md).",
-              "The complete product-owned reader map is [`documents/README.md`](documents/README.md).",
-          )
-          path.write_text(text, encoding="utf-8")
-
-          path = Path("documents/ptymark-runtime-dependencies.md")
-          text = path.read_text(encoding="utf-8")
-          text = text.replace(
-              "- the generic AgentCanon/Python/Jupyter repository environment;\n",
-              "- unrelated repository-template, Python, and Jupyter environments;\n",
-          )
-          path.write_text(text, encoding="utf-8")
-          PY
-          git rm -f --ignore-unmatch documents/licensing-policy.md vendor/README.md
+          set -euo pipefail
           if git grep -I -n -i -E 'agent[ _-]?canon' -- .; then
             echo 'AgentCanon references remain after product-only migration' >&2
             exit 1
