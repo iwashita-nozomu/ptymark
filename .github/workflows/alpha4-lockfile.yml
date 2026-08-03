@@ -1,6 +1,5 @@
-# Temporary alpha.4 branch-only workflow. Remove before merging the release PR.
-# It checks out one fixed same-repository branch and commits only after Rust validation.
-name: alpha4 one-shot source fixup
+# Temporary same-repository workflow. It deletes itself after committing the validated product-only tree.
+name: alpha4 product-only migration
 
 on:
   pull_request:
@@ -9,8 +8,10 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "src/**"
+      - "tests/**"
       - "scripts/alpha4_fixup.py"
       - "scripts/alpha4_cli_fixup.py"
+      - "scripts/remove_agent_canon.py"
       - ".github/workflows/alpha4-lockfile.yml"
   workflow_dispatch:
 
@@ -18,14 +19,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: alpha4-one-shot-fixup
+  group: alpha4-product-only-migration
   cancel-in-progress: true
 
 jobs:
-  fixup:
+  migrate:
     if: github.head_ref == 'agent/alpha4-typed-config' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Check out fixed alpha4 branch
@@ -34,38 +35,59 @@ jobs:
           ref: agent/alpha4-typed-config
           persist-credentials: true
           submodules: false
+          fetch-depth: 0
 
       - name: Install pinned Rust toolchain
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
 
-      - name: Apply reviewed source fixes
+      - name: Apply reviewed Alpha.4 source fixes
         run: |
           python3 scripts/alpha4_fixup.py
           python3 scripts/alpha4_cli_fixup.py
 
-      - name: Normalize generated and Rust sources
+      - name: Remove inherited AgentCanon and template surfaces
+        run: python3 scripts/remove_agent_canon.py
+
+      - name: Normalize lockfile and Rust sources
         run: |
           cargo generate-lockfile
           cargo fmt --all
 
-      - name: Validate source tree before publishing the fix
-        run: |
-          cargo check --locked --all-targets
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked --all-targets
-
-      - name: Commit validated fixup
+      - name: Validate product-only source tree
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo 'alpha4 source tree already contains the reviewed fixup'
+          git diff --check
+          test -z "$(git ls-files -s | awk '$1 == 160000 { print }')"
+          cargo check --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          node scripts/check-ptymark-runtime-dependencies.mjs
+          python3 scripts/check-release-metadata.py
+          python3 -m unittest tests.tools.test_release_metadata -v
+          bash -n \
+            scripts/check-ptymark-renderers.sh \
+            scripts/installer.sh \
+            scripts/install.sh \
+            scripts/install-managed-bundle.sh \
+            scripts/package-release.sh \
+            distribution/install.sh \
+            tests/install_smoke.sh \
+            tests/managed_renderer_smoke.sh \
+            tests/shell_profile_coexistence.sh
+
+      - name: Commit validated product-only migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'product-only Alpha.4 tree is already current'
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Cargo.lock src tests
-          git commit -m 'fix: complete alpha4 typed configuration integration'
+          git commit -m 'refactor: remove AgentCanon and keep product-only CI'
           git push origin HEAD:agent/alpha4-typed-config
