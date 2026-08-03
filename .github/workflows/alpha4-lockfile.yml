@@ -54,6 +54,25 @@ jobs:
       - name: Remove inherited AgentCanon and template surfaces
         run: python3 scripts/remove_agent_canon.py
 
+      - name: Normalize regenerated documentation map
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('documents/README.md')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '# Documentation map\n\n| Goal | Start here | Continue with |',
+              '# Documentation map\n\n## Start by task\n\n| Goal | Start here | Continue with |',
+          )
+          text = text.replace(
+              '## Product contracts',
+              '## Document ownership\n\nAll documents below are product-owned contracts maintained in this repository.\n\n### Product contracts',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Verify AgentCanon removal
         shell: bash
         run: |
