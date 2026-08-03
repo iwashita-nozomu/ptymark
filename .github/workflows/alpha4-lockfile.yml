@@ -48,7 +48,37 @@ jobs:
           python3 scripts/alpha4_cli_fixup.py
 
       - name: Remove inherited AgentCanon and template surfaces
+        continue-on-error: true
         run: python3 scripts/remove_agent_canon.py
+
+      - name: Normalize remaining product ownership references
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("README.md")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "The complete reader map, including maintainer ownership and shared AgentCanon references, is [`documents/README.md`](documents/README.md).",
+              "The complete product-owned reader map is [`documents/README.md`](documents/README.md).",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("documents/ptymark-runtime-dependencies.md")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "- the generic AgentCanon/Python/Jupyter repository environment;\n",
+              "- unrelated repository-template, Python, and Jupyter environments;\n",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          git rm -f --ignore-unmatch documents/licensing-policy.md vendor/README.md
+          if git grep -I -n -i -E 'agent[ _-]?canon' -- .; then
+            echo 'AgentCanon references remain after product-only migration' >&2
+            exit 1
+          fi
+          test -z "$(git ls-files -s | awk '$1 == 160000 { print }')"
 
       - name: Normalize lockfile and Rust sources
         run: |
@@ -60,7 +90,6 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          test -z "$(git ls-files -s | awk '$1 == 160000 { print }')"
           cargo check --locked --all-targets
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked --all-targets
