@@ -1,4 +1,5 @@
 # Temporary same-repository workflow. It deletes itself after committing the validated product-only release tree.
+# The branch remains write-frozen while this validation and publication job runs.
 name: alpha4 product-only migration
 
 on:
