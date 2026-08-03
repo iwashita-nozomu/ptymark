@@ -1,19 +1,27 @@
-name: alpha4 branch maintenance
+# Temporary alpha.4 branch-only workflow. Remove before merging the release PR.
+name: alpha4 one-shot source fixup
 
 on:
   push:
-    branches:
-      - agent/alpha4-typed-config
-  pull_request:
-    branches: [main]
+    branches: [agent/alpha4-typed-config]
+    paths:
+      - "scripts/alpha4_fixup.py"
+      - ".github/workflows/alpha4-lockfile.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: alpha4-one-shot-fixup
+  cancel-in-progress: false
+
 jobs:
-  maintain:
-    if: github.ref_name == 'agent/alpha4-typed-config' || github.head_ref == 'agent/alpha4-typed-config'
+  fixup:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
     steps:
       - name: Check out alpha4 branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -21,196 +29,36 @@ jobs:
           ref: agent/alpha4-typed-config
           persist-credentials: true
           submodules: false
+
       - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
+          rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
           rustup override set 1.97.0
-      - name: Apply compiler-directed source normalization
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
 
-          def rewrite(path_name, transform):
-              path = Path(path_name)
-              source = path.read_text(encoding='utf-8')
-              updated = transform(source)
-              if updated != source:
-                  path.write_text(updated, encoding='utf-8')
+      - name: Apply reviewed source fixes
+        run: python3 scripts/alpha4_fixup.py
 
-          def config_transform(text):
-              text = text.replace(
-                  'let state = load_matching_install_state(path);\n        user.resolve(selected_profile, state.as_ref())',
-                  'let state = load_matching_install_state(path, &user);\n        user.resolve(selected_profile, state.as_ref())',
-              )
-              old = '''fn load_matching_install_state(config_path: &Path) -> Option<InstallState> {
-          let state_path = default_install_state_path().ok()?;
-          let state = InstallState::load(&state_path).ok()?;
-          (state.config_path == config_path).then_some(state)
-      }'''
-              new = '''fn load_matching_install_state(
-          config_path: &Path,
-          user: &UserConfig,
-      ) -> Option<InstallState> {
-          let state_path = default_install_state_path().ok()?;
-          let state = InstallState::load(&state_path).ok()?;
-          state.matches_user_config(config_path, user).then_some(state)
-      }'''
-              return text.replace(old, new)
-
-          def install_transform(text):
-              return text.replace(
-                  'Config, EngineProvider, EngineSelection, MathEngine, MermaidEngine, PresenterProvider,',
-                  'Config, EngineProvider, EngineSelection, PresenterProvider,',
-              )
-
-          def routing_transform(text):
-              return text.replace(
-                  '''RenderContext {
-                      columns: 123,
-                      color: false,
-                      theme_fingerprint: 7,
-                  }''',
-                  '''RenderContext {
-                      columns: 123,
-                      color: false,
-                      plain: false,
-                      theme_fingerprint: 7,
-                  }''',
-              )
-
-          def pipeline_transform(text):
-              return text.replace(
-                  'pub const MAX_PENDING_OUTPUT_BYTES: usize = 1024 * 1024;',
-                  'pub const MAX_PENDING_OUTPUT_BYTES: usize = crate::limits::MAX_PENDING_TERMINAL_BYTES;',
-              )
-
-          def native_transform(text):
-              text = text.replace(
-                  'use crate::command::ChildCommand;\n',
-                  'use crate::command::ChildCommand;\nuse crate::limits::{DEFAULT_PTY_ROWS, RESIZE_POLL_INTERVAL};\n#[cfg(windows)]\nuse crate::limits::CONPTY_OUTPUT_DRAIN_GRACE;\n',
-              )
-              text = text.replace('use std::time::Duration;\n', '')
-              text = text.replace(
-                  'const DEFAULT_ROWS: u16 = 24;\nconst RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);\n#[cfg(windows)]\nconst CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);\n',
-                  '',
-              )
-              return text.replace('unwrap_or(DEFAULT_ROWS)', 'unwrap_or(DEFAULT_PTY_ROWS)')
-
-          def doctor_transform(text):
-              text = text.replace(
-                  'pub config_path: Option<PathBuf>,\n    pub pipeline: PipelineOptions,',
-                  'pub config_path: Option<PathBuf>,\n    pub profile: Option<String>,\n    pub pipeline: PipelineOptions,',
-              )
-              text = text.replace(
-                  '''        let (config, config_state, schema_version) = load_configuration(
-              request.config_path.as_deref(),
-              selected_config_path.as_deref(),
-              &mut findings,
-          );''',
-                  '''        let (config, config_state, schema_version) = load_configuration(
-              request.config_path.as_deref(),
-              request.profile.as_deref(),
-              selected_config_path.as_deref(),
-              &mut findings,
-          );''',
-              )
-              text = text.replace(
-                  '''fn load_configuration(
-          explicit: Option<&Path>,
-          selected_path: Option<&Path>,''',
-                  '''fn load_configuration(
-          explicit: Option<&Path>,
-          profile: Option<&str>,
-          selected_path: Option<&Path>,''',
-              )
-              text = text.replace(
-                  '''    let result = match explicit {
-          Some(path) => Config::load_exact(path),
-          None => Config::load(None),
-      };''',
-                  '''    let result = match explicit {
-          Some(path) => Config::load_exact_profile(path, profile),
-          None => Config::load_profile(None, profile),
-      };''',
-              )
-              return text
-
-          def cli_transform(text):
-              old = '''        match arguments[index].to_str() {
-              Some("--config" | "--profile") => index = index.saturating_add(2),
-              _ => break,
-          }'''
-              new = '''        match arguments[index].to_str() {
-              Some("--config" | "--profile") if index + 1 < arguments.len() => {
-                  index += 2;
-              }
-              Some("--config" | "--profile") => return arguments,
-              _ => break,
-          }'''
-              return text.replace(old, new)
-
-          def unix_installer_transform(text):
-              text = text.replace(
-                  'elif [[ -n "$system_mermaid" ]]; then mermaid_value="$system_mermaid"',
-                  'elif [[ -n "$system_mermaid" ]]; then mermaid_value=auto',
-              )
-              text = text.replace(
-                  'elif [[ -n "$system_math" ]]; then math_value="$system_math"',
-                  'elif [[ -n "$system_math" ]]; then math_value=auto',
-              )
-              return text.replace(
-                  'elif [[ -n "$system_presenter" ]]; then presenter_value="$system_presenter"',
-                  'elif [[ -n "$system_presenter" ]]; then presenter_value=auto',
-              )
-
-          def windows_installer_transform(text):
-              text = text.replace(
-                  'elseif ($SystemMermaid) { $Mermaid = $SystemMermaid }',
-                  "elseif ($SystemMermaid) { $Mermaid = 'auto' }",
-              )
-              text = text.replace(
-                  'elseif ($SystemMath) { $Math = $SystemMath }',
-                  "elseif ($SystemMath) { $Math = 'auto' }",
-              )
-              return text.replace(
-                  'elseif ($SystemPresenter) { $Presenter = $SystemPresenter }',
-                  "elseif ($SystemPresenter) { $Presenter = 'auto' }",
-              )
-
-          rewrite('src/config.rs', config_transform)
-          rewrite('src/install.rs', install_transform)
-          rewrite('src/routing.rs', routing_transform)
-          rewrite('src/pipeline.rs', pipeline_transform)
-          rewrite('src/native_session.rs', native_transform)
-          rewrite('src/doctor.rs', doctor_transform)
-          rewrite('src/cli.rs', cli_transform)
-          rewrite('scripts/installer.sh', unix_installer_transform)
-          rewrite('scripts/installer.ps1', windows_installer_transform)
-          PY
-      - name: Generate lockfile and format Rust
+      - name: Normalize generated and Rust sources
         run: |
           cargo generate-lockfile
           cargo fmt --all
-      - name: Commit maintenance changes when needed
+
+      - name: Validate source tree before publishing the fix
+        run: |
+          cargo check --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+
+      - name: Commit validated fixup
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet; then
-            echo 'Branch-generated files and formatting are current'
+            echo 'alpha4 source tree already contains the reviewed fixup'
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Cargo.lock src scripts
-          git commit -m 'chore: normalize alpha4 generated and Rust sources'
+          git add Cargo.lock src
+          git commit -m 'fix: complete alpha4 typed configuration integration'
           git push origin HEAD:agent/alpha4-typed-config
-      - name: Check compilation
-        run: cargo check --locked --all-targets
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: alpha4-cargo-lock
-          path: Cargo.lock
-          if-no-files-found: error
-          retention-days: 2
