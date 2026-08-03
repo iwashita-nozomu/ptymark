@@ -2,7 +2,7 @@
 
 # @dependency-start
 # contract implementation
-# responsibility Validates immutable GitHub Action references, merge-result CodeQL identity, stable PR gates, and prerelease workflow boundaries.
+# responsibility Validates immutable GitHub Action references, immutable PR-head CodeQL identity, stable PR gates, and prerelease workflow boundaries.
 # upstream environment ../.github/workflows GitHub Actions definitions
 # upstream design ../documents/release.md source-only prerelease contract
 # downstream environment ../.github/workflows/ci.yml repository wiring gate
@@ -20,6 +20,18 @@ from pathlib import Path
 
 USES_PATTERN = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)")
 FULL_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+PR_HEAD_SHA = (
+    "${{ github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.sha || github.sha }}"
+)
+PR_HEAD_REPOSITORY = (
+    "${{ github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.repo.full_name || github.repository }}"
+)
+PR_HEAD_REF = (
+    "${{ github.event_name == 'pull_request' && "
+    "format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}"
+)
 
 
 def _read(path: Path, failures: list[str]) -> str:
@@ -67,50 +79,30 @@ def _validate_codeql(root: Path, failures: list[str]) -> None:
 
     required_markers = (
         "pull_request:",
-        "EXPECTED_SHA: ${{ github.sha }}",
-        "Analyze the GitHub pull-request merge result",
+        f"repository: {PR_HEAD_REPOSITORY}",
+        f"ref: {PR_HEAD_SHA}",
+        f"EXPECTED_SHA: {PR_HEAD_SHA}",
+        "Analyze and register the immutable pull-request head",
         "category: \"/language:${{ matrix.language }}\"",
+        f"ref: {PR_HEAD_REF}",
+        f"sha: {PR_HEAD_SHA}",
         "security-events: write",
     )
     for marker in required_markers:
         if marker not in content:
-            failures.append(f"CodeQL workflow is missing required merge-result marker: {marker}")
+            failures.append(f"CodeQL workflow is missing required immutable-head marker: {marker}")
 
     forbidden_markers = (
-        "github.event.pull_request.head.sha",
         "github.event.pull_request.head.ref",
-        "refs/pull/{0}/head",
         "refs/heads/{0}",
-        "Analyze and register the stable PR head",
+        "refs/pull/{0}/merge",
+        "Analyze the GitHub pull-request merge result",
         "Analyze and register the stable source ref",
     )
     for marker in forbidden_markers:
         if marker in content:
             failures.append(
-                f"CodeQL workflow must analyze GitHub's protected event commit instead of overriding the PR source: {marker}"
-            )
-
-    checkout_section = content.split("actions/checkout@", maxsplit=1)
-    if len(checkout_section) != 2:
-        failures.append("CodeQL workflow has no checkout action")
-    else:
-        before_init = checkout_section[1].split("github/codeql-action/init@", maxsplit=1)[0]
-        for marker in ("\n          repository: ${{", "\n          ref: ${{"):
-            if marker in before_init:
-                failures.append(
-                    "CodeQL checkout must retain the GitHub event commit; repository/ref overrides are forbidden"
-                )
-
-    analyze_section = content.split("github/codeql-action/analyze@", maxsplit=1)
-    if len(analyze_section) != 2:
-        failures.append("CodeQL workflow has no analyze action")
-        return
-
-    action_inputs = analyze_section[1]
-    for marker in ("\n          ref: ${{", "\n          sha: ${{"):
-        if marker in action_inputs:
-            failures.append(
-                "CodeQL analyze must not override ref/sha; GitHub must register the protected event commit"
+                f"CodeQL workflow must register the immutable PR head instead of a branch or moving merge identity: {marker}"
             )
 
 
