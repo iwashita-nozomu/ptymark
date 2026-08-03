@@ -24,9 +24,18 @@ def main() -> None:
 )]""",
         """    disable_help_subcommand = true,
     arg_required_else_help = true,
-    after_help = "Common commands:\n  ptymark engine check\n  ptymark shell [--source|--safe] [--private] -- COMMAND [ARG...]"
+    after_help = "Common commands:\n  ptymark engine check\n  ptymark run [OPTIONS] -- COMMAND [ARG...]\n  ptymark shell [--source|--safe] [--private] -- COMMAND [ARG...]"
 )]""",
         "top-level help examples",
+    )
+    replace_once(
+        "src/cli.rs",
+        """#[derive(Debug, Args)]
+struct RunArgs {""",
+        """#[derive(Debug, Args)]
+#[command(after_help = "The child stdout is filtered through a pipe; stdout is a pipe, not a PTY.")]
+struct RunArgs {""",
+        "run help transport contract",
     )
     replace_once(
         "src/cli.rs",
