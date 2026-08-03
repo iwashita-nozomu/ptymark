@@ -1,6 +1,6 @@
 // @dependency-start
 // contract test
-// responsibility Validates the verification catalog and referenced paths.
+// responsibility Validates the product-owned verification catalog and referenced paths.
 // upstream design ../verification/manifest.toml required checks
 // upstream design ../verification/README.md evidence policy
 // downstream environment ../.github/workflows/ptymark-ci.yml supported-platform execution
@@ -23,10 +23,9 @@ struct Manifest {
 struct Policy {
     all_required: bool,
     run_results_live_in: String,
-    canonical_product_workflow: String,
+    merge_workflow: String,
     repository_workflow: String,
-    docker_workflow: String,
-    agent_workflow: String,
+    release_workflow: String,
     compatibility_inventory: String,
 }
 
@@ -35,6 +34,7 @@ struct Check {
     id: String,
     owner: String,
     level: String,
+    phase: String,
     platforms: Vec<String>,
     command: String,
     sources: Vec<String>,
@@ -76,8 +76,6 @@ const REQUIRED_IDS: &[&str] = &[
     "package-smoke.macos",
     "package-smoke.windows",
     "repository.ci",
-    "repository.docker-build",
-    "repository.agent-improvement-guide",
 ];
 
 fn repository_root() -> PathBuf {
@@ -109,27 +107,21 @@ fn verification_catalog_is_complete_and_self_consistent() {
     let documentation = fs::read_to_string(root.join("verification/README.md"))
         .expect("read verification documentation");
 
-    assert_eq!(manifest.schema_version, 1);
-    assert_eq!(manifest.catalog, "ptymark-merge-gates");
+    assert_eq!(manifest.schema_version, 2);
+    assert_eq!(manifest.catalog, "ptymark-product-gates");
     assert!(manifest.policy.all_required);
     assert!(!manifest.policy.run_results_live_in.trim().is_empty());
 
     for path in [
-        &manifest.policy.canonical_product_workflow,
+        &manifest.policy.merge_workflow,
         &manifest.policy.repository_workflow,
-        &manifest.policy.docker_workflow,
-        &manifest.policy.agent_workflow,
+        &manifest.policy.release_workflow,
         &manifest.policy.compatibility_inventory,
     ] {
         assert_repository_path(&root, path);
     }
 
-    let allowed_owners = HashSet::from([
-        "ptymark-ci",
-        "repository-ci",
-        "docker-build",
-        "agent-improvement-guide",
-    ]);
+    let allowed_owners = HashSet::from(["ptymark-ci", "repository-ci"]);
     let allowed_levels = HashSet::from([
         "static",
         "contract",
@@ -138,9 +130,11 @@ fn verification_catalog_is_complete_and_self_consistent() {
         "compatibility",
         "repository",
     ]);
+    let allowed_phases = HashSet::from(["merge", "release"]);
     let allowed_platforms = HashSet::from(["linux", "macos", "windows", "docker", "repository"]);
 
     let mut ids = HashSet::new();
+    let mut release_checks = 0usize;
     for check in &manifest.check {
         assert!(!check.id.trim().is_empty());
         assert!(
@@ -161,15 +155,20 @@ fn verification_catalog_is_complete_and_self_consistent() {
             check.level
         );
         assert!(
-            check.required,
-            "all catalog checks must be required: {}",
-            check.id
+            allowed_phases.contains(check.phase.as_str()),
+            "unknown phase for {}: {}",
+            check.id,
+            check.phase
         );
+        if check.phase == "release" {
+            release_checks += 1;
+        }
         assert!(
-            !check.command.trim().is_empty(),
-            "empty command: {}",
+            check.required,
+            "catalog checks are required within their declared phase: {}",
             check.id
         );
+        assert!(!check.command.trim().is_empty(), "empty command: {}", check.id);
         assert!(!check.platforms.is_empty(), "no platforms: {}", check.id);
         assert!(!check.sources.is_empty(), "no source paths: {}", check.id);
         assert!(
@@ -196,11 +195,9 @@ fn verification_catalog_is_complete_and_self_consistent() {
         );
     }
 
+    assert!(release_checks > 0, "catalog must declare explicit release-only evidence");
     assert_eq!(manifest.check.len(), REQUIRED_IDS.len());
     for required in REQUIRED_IDS {
-        assert!(
-            ids.contains(required),
-            "required check ID is missing: {required}"
-        );
+        assert!(ids.contains(required), "required check ID is missing: {required}");
     }
 }
