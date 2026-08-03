@@ -8,11 +8,12 @@ from pathlib import Path
 def replace_once(path: str, old: str, new: str, label: str) -> None:
     target = Path(path)
     source = target.read_text(encoding="utf-8")
-    if new in source:
+    if old in source:
+        target.write_text(source.replace(old, new, 1), encoding="utf-8")
         return
-    if old not in source:
-        raise RuntimeError(f"{label}: expected source fragment was not found in {path}")
-    target.write_text(source.replace(old, new, 1), encoding="utf-8")
+    if new and new in source:
+        return
+    raise RuntimeError(f"{label}: neither source nor replacement fragment was found in {path}")
 
 
 def main() -> None:
