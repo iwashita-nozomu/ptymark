@@ -1,20 +1,10 @@
-# Temporary same-repository workflow. It deletes itself after committing the validated product-only release tree.
-# The branch remains write-frozen while this validation and publication job runs.
+# Temporary workflow. It deletes itself after committing the validated product-only release tree.
 name: alpha4 product-only migration
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [agent/alpha4-release-final]
     paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "src/**"
-      - "tests/**"
-      - "prepare_alpha4_release.py"
-      - "scripts/alpha4_fixup.py"
-      - "scripts/alpha4_cli_fixup.py"
-      - "scripts/finish_agent_canon_removal.py"
-      - "scripts/remove_agent_canon.py"
       - ".github/workflows/alpha4-lockfile.yml"
   workflow_dispatch:
 
@@ -22,20 +12,20 @@ permissions:
   contents: write
 
 concurrency:
-  group: alpha4-product-only-migration
-  cancel-in-progress: true
+  group: alpha4-product-only-release-final
+  cancel-in-progress: false
 
 jobs:
   migrate:
-    if: github.head_ref == 'agent/alpha4-typed-config' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    if: github.ref_name == 'agent/alpha4-release-final' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
-      - name: Check out fixed alpha4 branch
+      - name: Check out isolated release branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          ref: agent/alpha4-typed-config
+          ref: agent/alpha4-release-final
           persist-credentials: true
           submodules: false
           fetch-depth: 0
@@ -148,4 +138,4 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m 'release: prepare product-only v0.1.0-alpha.4'
-          git push origin HEAD:agent/alpha4-typed-config
+          git push origin HEAD:agent/alpha4-release-final
