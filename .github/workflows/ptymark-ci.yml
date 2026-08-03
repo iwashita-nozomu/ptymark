@@ -1,6 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs the minimum cross-platform product gates and defers heavyweight packaging to release events.
+# responsibility Runs product-owned cross-platform merge gates and defers heavyweight packaging to release changes.
 # upstream design ../../documents/ptymark-design.md terminal-safety architecture
 # upstream environment ../../rust-toolchain.toml supported Rust toolchain
 # downstream design ../../verification/README.md merge evidence policy
@@ -17,6 +17,7 @@ on:
       - "Cargo.lock"
       - "rust-toolchain.toml"
       - "GNUmakefile"
+      - "Makefile"
       - "ptymark.mk"
       - "src/**"
       - "tests/**"
@@ -31,6 +32,8 @@ on:
       - "documents/ptymark-*.md"
       - "documents/shell-plugin-compatibility.md"
       - "README.md"
+      - "CHANGELOG.md"
+      - "release-notes/**"
       - ".github/workflows/ptymark-ci.yml"
   push:
     branches: [main]
@@ -40,6 +43,7 @@ on:
       - "Cargo.lock"
       - "rust-toolchain.toml"
       - "GNUmakefile"
+      - "Makefile"
       - "ptymark.mk"
       - "src/**"
       - "tests/**"
@@ -54,6 +58,8 @@ on:
       - "documents/ptymark-*.md"
       - "documents/shell-plugin-compatibility.md"
       - "README.md"
+      - "CHANGELOG.md"
+      - "release-notes/**"
       - ".github/workflows/ptymark-ci.yml"
   workflow_dispatch:
 
@@ -93,14 +99,14 @@ jobs:
           REF_NAME: ${{ github.ref }}
         run: |
           set -euo pipefail
-          release=false
           installer=false
           docker=false
+          release=false
 
           if [[ "$EVENT_NAME" == "workflow_dispatch" || "$REF_NAME" == refs/tags/v* ]]; then
-            release=true
             installer=true
             docker=true
+            release=true
           else
             if [[ "$EVENT_NAME" == "pull_request" ]]; then
               base_sha="$PR_BASE_SHA"
@@ -114,7 +120,13 @@ jobs:
             fi
             git diff --name-only "$base_sha" "$head_sha" > changed-paths.txt
             cat changed-paths.txt
+
             while IFS= read -r path; do
+              case "$path" in
+                Cargo.toml|Cargo.lock|CHANGELOG.md|release-notes/*|.github/workflows/ptymark-release*.yml)
+                  release=true
+                  ;;
+              esac
               case "$path" in
                 src/config.rs|src/install.rs|src/managed_launcher.rs|src/engine.rs|scripts/*|distribution/*|compat/*|renderers/*|tests/install*|tests/managed*|tests/windows*|tests/shell_profile*|.github/workflows/ptymark-ci.yml)
                   installer=true
@@ -248,13 +260,10 @@ jobs:
           submodules: false
           persist-credentials: false
 
-      - name: Check out AgentCanon submodule for the canonical image
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-
       - name: Build canonical image
         run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml build --pull
 
-      - name: Check product scripts
+      - name: Check product scripts and WezTerm plugin
         shell: bash
         run: |
           set -euo pipefail
@@ -264,12 +273,13 @@ jobs:
           "${compose[@]}" run --rm --no-TTY dev shellcheck "${scripts[@]}"
           "${compose[@]}" run --rm --no-TTY dev node --check renderers/managed/mathjax-cli.mjs
           "${compose[@]}" run --rm --no-TTY dev node --check renderers/managed/ansi-presenter.mjs
+          "${compose[@]}" run --rm --no-TTY dev lua5.4 tests/plugin_smoke.lua
 
       - name: Run installer and shell coexistence acceptance
         run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev bash -lc 'cargo build --locked && bash tests/install_smoke.sh && bash tests/shell_profile_coexistence.sh "${CARGO_TARGET_DIR}/debug/ptymark"'
 
       - name: Run isolated managed-renderer acceptance
-        run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev bash -lc 'cargo build --locked && PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/managed_renderer_smoke.sh'
+        run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev bash -lc 'cargo build --locked && PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/managed_renderer_smoke.sh && bash scripts/check-ptymark-renderers.sh'
 
   windows-managed-renderers:
     name: Windows managed renderer installation and strict rendering
@@ -371,6 +381,7 @@ jobs:
     if: always()
     needs: [changes, native, windows-frontends, canonical-docker, windows-managed-renderers, local-package-smoke]
     runs-on: ubuntu-24.04
+
     steps:
       - name: Require all selected product checks
         env:
