@@ -82,7 +82,7 @@ def _validate_codeql(root: Path, failures: list[str]) -> None:
         f"repository: {PR_HEAD_REPOSITORY}",
         f"ref: {PR_HEAD_SHA}",
         f"EXPECTED_SHA: {PR_HEAD_SHA}",
-        "Analyze and register the immutable pull-request head",
+        "Analyze and register the immutable source head",
         "category: \"/language:${{ matrix.language }}\"",
         f"ref: {PR_HEAD_REF}",
         f"sha: {PR_HEAD_SHA}",
