@@ -1,6 +1,6 @@
 # @dependency-start
 # contract test
-# responsibility Verifies immutable Action refs, merge-result CodeQL identity, stable PR gates, and prerelease-only publication.
+# responsibility Verifies immutable Action refs, immutable PR-head CodeQL registration, stable PR gates, and prerelease-only publication.
 # upstream implementation ../../scripts/check-workflow-policy.py workflow policy validator
 # upstream environment ../../.github/workflows GitHub Actions definitions
 # downstream environment ../../.github/workflows/ci.yml repository wiring gate
@@ -55,7 +55,7 @@ class WorkflowPolicyTest(unittest.TestCase):
             failures,
         )
 
-    def test_codeql_head_checkout_override_is_rejected(self) -> None:
+    def test_codeql_branch_ref_registration_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             workflow_dir = root / ".github" / "workflows"
@@ -64,50 +64,56 @@ class WorkflowPolicyTest(unittest.TestCase):
                 "pull_request:\n"
                 "permissions:\n  security-events: write\n"
                 "jobs:\n  analyze:\n    steps:\n"
-                "      - name: Check out the immutable GitHub event commit without stored credentials\n"
+                "      - name: Check out the immutable analyzed source without stored credentials\n"
                 "        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n"
                 "        with:\n"
-                "          ref: ${{ github.event.pull_request.head.sha }}\n"
-                "      - name: Verify checked-out event identity\n"
+                "          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}\n"
+                "          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n"
+                "      - name: Verify checked-out source identity\n"
                 "        env:\n"
-                "          EXPECTED_SHA: ${{ github.sha }}\n"
-                "      - name: Analyze the GitHub pull-request merge result\n"
-                "        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9\n"
-                "        with:\n"
-                "          category: \"/language:${{ matrix.language }}\"\n",
-                encoding="utf-8",
-            )
-            failures = _POLICY.validate(root)
-        self.assertTrue(
-            any("protected event commit" in failure or "event commit" in failure for failure in failures),
-            failures,
-        )
-
-    def test_codeql_analyze_identity_override_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            workflow_dir = root / ".github" / "workflows"
-            workflow_dir.mkdir(parents=True)
-            (workflow_dir / "codeql.yml").write_text(
-                "pull_request:\n"
-                "permissions:\n  security-events: write\n"
-                "jobs:\n  analyze:\n    steps:\n"
-                "      - name: Check out the immutable GitHub event commit without stored credentials\n"
-                "        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n"
-                "      - name: Verify checked-out event identity\n"
-                "        env:\n"
-                "          EXPECTED_SHA: ${{ github.sha }}\n"
-                "      - name: Analyze the GitHub pull-request merge result\n"
+                "          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n"
+                "      - name: Analyze and register the immutable pull-request head\n"
                 "        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9\n"
                 "        with:\n"
                 "          category: \"/language:${{ matrix.language }}\"\n"
-                "          ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number) }}\n"
-                "          sha: ${{ github.event.pull_request.head.sha }}\n",
+                "          ref: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.event.pull_request.head.ref) || github.ref }}\n"
+                "          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n",
                 encoding="utf-8",
             )
             failures = _POLICY.validate(root)
         self.assertTrue(
-            any("must not override ref/sha" in failure for failure in failures),
+            any("branch or moving merge identity" in failure for failure in failures),
+            failures,
+        )
+
+    def test_codeql_merge_ref_registration_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workflow_dir = root / ".github" / "workflows"
+            workflow_dir.mkdir(parents=True)
+            (workflow_dir / "codeql.yml").write_text(
+                "pull_request:\n"
+                "permissions:\n  security-events: write\n"
+                "jobs:\n  analyze:\n    steps:\n"
+                "      - name: Check out the immutable analyzed source without stored credentials\n"
+                "        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n"
+                "        with:\n"
+                "          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}\n"
+                "          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n"
+                "      - name: Verify checked-out source identity\n"
+                "        env:\n"
+                "          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n"
+                "      - name: Analyze and register the immutable pull-request head\n"
+                "        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9\n"
+                "        with:\n"
+                "          category: \"/language:${{ matrix.language }}\"\n"
+                "          ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.ref }}\n"
+                "          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n",
+                encoding="utf-8",
+            )
+            failures = _POLICY.validate(root)
+        self.assertTrue(
+            any("branch or moving merge identity" in failure for failure in failures),
             failures,
         )
 
