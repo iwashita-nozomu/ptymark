@@ -1,4 +1,4 @@
-"""Normalize the last product documents before removing inherited template surfaces."""
+"""Normalize product documents and their contracts before removing inherited surfaces."""
 
 from __future__ import annotations
 
@@ -28,6 +28,51 @@ def main() -> None:
         "documents/ptymark-runtime-dependencies.md",
         "- the generic AgentCanon/Python/Jupyter repository environment;",
         "- generic Python/Jupyter repository-template environments that are unrelated to the shipped product;",
+    )
+    replace(
+        "tests/documentation_contract.rs",
+        """#[test]
+fn document_map_starts_with_user_tasks_before_ownership_policy() {
+    let tasks = DOCUMENT_MAP.find("## Start by task").expect("task map");
+    let ownership = DOCUMENT_MAP
+        .find("## Document ownership")
+        .expect("ownership section");
+    assert!(tasks < ownership);
+    for required in [
+        "./openmath.md",
+        "./interactive-session.md",
+        "./filtered-command.md",
+        "./troubleshooting.md",
+        "../verification/README.md",
+    ] {
+        assert!(
+            DOCUMENT_MAP.contains(required),
+            "documentation map is missing `{required}`"
+        );
+    }
+}""",
+        """#[test]
+fn document_map_routes_user_tasks_to_product_owned_contracts() {
+    let tasks = DOCUMENT_MAP
+        .find("| Goal | Start here | Continue with |")
+        .expect("task map");
+    let contracts = DOCUMENT_MAP
+        .find("## Product contracts")
+        .expect("product contract section");
+    assert!(tasks < contracts);
+    for required in [
+        "./openmath.md",
+        "./interactive-session.md",
+        "./filtered-command.md",
+        "./troubleshooting.md",
+        "../verification/README.md",
+    ] {
+        assert!(
+            DOCUMENT_MAP.contains(required),
+            "documentation map is missing `{required}`"
+        );
+    }
+}""",
     )
 
     (ROOT / "documents/licensing-policy.md").write_text(
