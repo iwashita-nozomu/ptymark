@@ -74,6 +74,11 @@ fn document_map_routes_user_tasks_to_product_owned_contracts() {
     }
 }""",
     )
+    replace(
+        "verification/manifest.toml",
+        'sources = ["src/filtered_run.rs", "src/cli_args.rs", "tests/filtered_run_contract.rs"]',
+        'sources = ["src/filtered_run.rs", "src/cli.rs", "tests/filtered_run_contract.rs"]',
+    )
 
     (ROOT / "documents/licensing-policy.md").write_text(
         """# Licensing Policy
