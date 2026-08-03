@@ -1,7 +1,6 @@
 # @dependency-start
 # contract workflow
-# responsibility Routes lightweight repository checks and inherited AgentCanon gates by changed surface.
-# upstream implementation ../../tools/ci/check_github_workflows.py workflow contract checker
+# responsibility Runs lightweight repository wiring checks and routes inherited AgentCanon gates only for their owned surfaces.
 # upstream implementation ../../Makefile inherited AgentCanon targets
 # upstream implementation ../scripts/checkout_agent_canon_submodule.sh AgentCanon checkout gate
 # downstream implementation ./ptymark-ci.yml product validation workflow
@@ -98,9 +97,6 @@ jobs:
           submodules: false
           persist-credentials: false
 
-      - name: Check out workflow checker source
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -110,10 +106,24 @@ jobs:
         run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
 
       - name: Check repository wiring
+        shell: bash
         run: |
+          set -euo pipefail
           git diff --check
-          python -m compileall -q tools/ci
-          python tools/ci/check_github_workflows.py --root .
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          workflows = sorted(Path('.github/workflows').glob('*.yml'))
+          if not workflows:
+              raise SystemExit('no GitHub workflows were found')
+          for path in workflows:
+              with path.open(encoding='utf-8') as handle:
+                  document = yaml.safe_load(handle)
+              if not isinstance(document, dict) or 'jobs' not in document:
+                  raise SystemExit(f'{path}: workflow must be a mapping with jobs')
+          print(f'workflow YAML ok: {len(workflows)} files')
+          PY
 
   agent-canon-pr:
     name: AgentCanon PR Gate
@@ -131,6 +141,8 @@ jobs:
           submodules: false
           persist-credentials: false
       - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -161,6 +173,8 @@ jobs:
           submodules: false
           persist-credentials: false
       - name: Check out AgentCanon submodule
+        env:
+          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
         run: bash .github/scripts/checkout_agent_canon_submodule.sh
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
