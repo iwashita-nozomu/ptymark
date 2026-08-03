@@ -163,6 +163,36 @@ const CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);
                 },""",
         "routing render context",
     )
+    replace_once(
+        "tests/routing_contract.rs",
+        """            RenderContext {
+                columns: 96,
+                color: false,
+                theme_fingerprint: 11,
+            },""",
+        """            RenderContext {
+                columns: 96,
+                color: false,
+                plain: false,
+                theme_fingerprint: 11,
+            },""",
+        "routing contract render context",
+    )
+    replace_once(
+        "tests/pipeline_contract.rs",
+        """        RenderContext {
+            columns: 80,
+            color: false,
+            theme_fingerprint: 0,
+        },""",
+        """        RenderContext {
+            columns: 80,
+            color: false,
+            plain: false,
+            theme_fingerprint: 0,
+        },""",
+        "pipeline contract render context",
+    )
 
 
 if __name__ == "__main__":
