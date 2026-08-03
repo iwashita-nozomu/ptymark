@@ -1,4 +1,4 @@
-# Temporary same-repository workflow. It deletes itself after committing the validated product-only tree.
+# Temporary same-repository workflow. It deletes itself after committing the validated product-only release tree.
 name: alpha4 product-only migration
 
 on:
@@ -9,6 +9,7 @@ on:
       - "Cargo.lock"
       - "src/**"
       - "tests/**"
+      - "prepare_alpha4_release.py"
       - "scripts/alpha4_fixup.py"
       - "scripts/alpha4_cli_fixup.py"
       - "scripts/finish_agent_canon_removal.py"
@@ -51,7 +52,7 @@ jobs:
       - name: Normalize product-owned documents
         run: python3 scripts/finish_agent_canon_removal.py
 
-      - name: Remove inherited AgentCanon and template surfaces
+      - name: Remove inherited template surfaces
         run: python3 scripts/remove_agent_canon.py
 
       - name: Normalize regenerated documentation map
@@ -73,12 +74,35 @@ jobs:
           path.write_text(text, encoding='utf-8')
           PY
 
-      - name: Verify AgentCanon removal
+      - name: Prepare Alpha.4 release metadata and user documentation
+        shell: bash
+        run: |
+          python3 prepare_alpha4_release.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'CHANGELOG.md': (
+                  'inherited repository-template and AgentCanon suites',
+                  'inherited repository-template and generic automation suites',
+              ),
+              'release-notes/0.1.0-alpha.4.md': (
+                  'inherited AgentCanon, Python/Jupyter template, and generic repository CI surfaces',
+                  'inherited repository-template, Python/Jupyter, and generic automation surfaces',
+              ),
+          }
+          for name, (old, new) in replacements.items():
+              path = Path(name)
+              text = path.read_text(encoding='utf-8')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
+      - name: Verify product-only ownership
         shell: bash
         run: |
           set -euo pipefail
           if git grep -I -n -i -E 'agent[ _-]?canon' -- .; then
-            echo 'AgentCanon references remain after product-only migration' >&2
+            echo 'inherited automation references remain after product-only migration' >&2
             exit 1
           fi
           test -z "$(git ls-files -s | awk '$1 == 160000 { print }')"
@@ -88,7 +112,7 @@ jobs:
           cargo generate-lockfile
           cargo fmt --all
 
-      - name: Validate product-only source tree
+      - name: Validate product-only release tree
         shell: bash
         run: |
           set -euo pipefail
@@ -110,16 +134,16 @@ jobs:
             tests/managed_renderer_smoke.sh \
             tests/shell_profile_coexistence.sh
 
-      - name: Commit validated product-only migration
+      - name: Commit validated product-only Alpha.4 tree
         shell: bash
         run: |
           set -euo pipefail
           git add -A
           if git diff --cached --quiet; then
-            echo 'product-only Alpha.4 tree is already current'
+            echo 'product-only Alpha.4 release tree is already current'
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'refactor: remove AgentCanon and keep product-only CI'
+          git commit -m 'release: prepare product-only v0.1.0-alpha.4'
           git push origin HEAD:agent/alpha4-typed-config
