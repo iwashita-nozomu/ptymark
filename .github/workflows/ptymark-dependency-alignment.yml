@@ -4,15 +4,14 @@
 # upstream implementation ../../scripts/check-ptymark-runtime-dependencies.mjs alignment contract
 # upstream environment ../../renderers/managed-bundle.env managed dependency versions
 # downstream design ../../documents/ptymark-runtime-dependencies.md ownership and upgrade rules
+# downstream implementation ../../scripts/check-workflow-policy.py immutable Action refs
 # @dependency-end
 
 name: ptymark dependency alignment
 
 on:
-  push:
-    branches:
-      - main
-      - "agent/**"
+  pull_request:
+    branches: [main]
     paths:
       - "Cargo.toml"
       - "rust-toolchain.toml"
@@ -24,9 +23,8 @@ on:
       - "documents/ptymark-runtime-dependencies.md"
       - ".github/workflows/ptymark-ci.yml"
       - ".github/workflows/ptymark-dependency-alignment.yml"
-  pull_request:
-    branches:
-      - main
+  push:
+    branches: [main]
     paths:
       - "Cargo.toml"
       - "rust-toolchain.toml"
@@ -44,7 +42,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ptymark-dependency-alignment-${{ github.workflow }}-${{ github.ref }}
+  group: ptymark-dependency-alignment-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -55,19 +53,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: false
           persist-credentials: false
 
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ${{ secrets.AGENT_CANON_REPO_TOKEN }}
-          AGENT_CANON_REPO_SSH_KEY: ${{ secrets.AGENT_CANON_REPO_SSH_KEY }}
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-
       - name: Install managed-bundle Node runtime
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24.18.0
           package-manager-cache: false

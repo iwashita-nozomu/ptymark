@@ -1,31 +1,27 @@
 # @dependency-start
 # contract workflow
-# responsibility Runs CodeQL analysis for the Rust core, Python tooling, renderer JavaScript, and GitHub Actions.
+# responsibility Runs CodeQL on the immutable GitHub pull-request merge result and on push commits for the Rust core, renderer JavaScript, and GitHub Actions.
 # upstream implementation ../../src/lib.rs Rust library surface
-# upstream implementation ../../python Python tooling surface
 # upstream implementation ../../renderers managed renderer surface
 # upstream environment ./ci.yml GitHub Actions workflow surface
 # downstream design ../../SECURITY.md vulnerability reporting and support policy
+# downstream implementation ../../scripts/check-workflow-policy.py workflow identity guard
 # @dependency-end
 
 name: CodeQL
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
       - "src/**"
-      - "python/**"
       - "scripts/**"
       - "renderers/**"
       - ".github/workflows/**"
-  # Code scanning is a required merge gate, so pull requests must always publish results.
   pull_request:
-    branches:
-      - main
+    branches: [main]
   schedule:
     - cron: "21 18 * * 1"
   workflow_dispatch:
@@ -37,7 +33,7 @@ permissions:
   security-events: write
 
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  group: codeql-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,36 +47,33 @@ jobs:
         include:
           - language: rust
             build-mode: none
-          - language: python
-            build-mode: none
           - language: javascript-typescript
             build-mode: none
           - language: actions
             build-mode: none
 
     steps:
-      - name: Check out public source without repository credentials
+      - name: Check out the immutable GitHub event commit without stored credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 2
+          submodules: false
+          persist-credentials: false
+
+      - name: Verify checked-out event identity
         shell: bash
         env:
-          SOURCE_REF: ${{ github.ref }}
-          SOURCE_SHA: ${{ github.sha }}
-          SOURCE_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          git init .
-          git remote add origin "https://github.com/${SOURCE_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin "${SOURCE_REF}"
-          test "$(git rev-parse FETCH_HEAD)" = "${SOURCE_SHA}"
-          git checkout --detach "${SOURCE_SHA}"
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          build-mode: ${{ matrix['build-mode'] }}
           queries: security-extended
 
-      - name: Analyze
+      - name: Analyze the GitHub pull-request merge result
         uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
         with:
           category: "/language:${{ matrix.language }}"

@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/tools/test_run_repo_program.py

@@ -51,7 +51,7 @@ ptymark --config examples/ptymark.toml config check
 ptymark --config examples/external-engines.toml config check
 ```
 
-OpenMath shares `[detection].math` and `[engines.math]`; it does not require another configuration section or executable role.
+OpenMath shares `profiles.<name>.detection.math` and `profiles.<name>.engines.math`; it does not require another configuration section or executable role.
 
 ## WezTerm
 
@@ -116,7 +116,7 @@ PTYMARK_BINARY
 PTYMARK_CONFIG
 ```
 
-GUI applications may not inherit the same environment as an interactive shell. Installer-generated absolute paths avoid renderer PATH ambiguity; explicit `PTYMARK_BINARY` and `PTYMARK_CONFIG` values remain the most predictable launcher setup.
+GUI applications may not inherit the same environment as an interactive shell. Managed and installer-discovered renderer paths are resolved from machine-local install state; explicit `PTYMARK_BINARY` and `PTYMARK_CONFIG` values remain the most predictable launcher setup.
 
 For local plugin development, replace the HTTPS plugin URL with an absolute file URL:
 

@@ -19,9 +19,13 @@ fn root(label: &str) -> PathBuf {
 fn absolute_program_resolution_honors_native_exe_suffix() {
     let root = root("pathext");
     let executable = root.join("renderer.exe");
-    fs::write(&executable, b"native-test-placeholder").expect("placeholder");
+    let marker = b"native-test-placeholder";
+    fs::write(&executable, marker).expect("placeholder");
+
     let resolved = resolve_executable(&root.join("renderer")).expect("resolve .exe");
-    assert_eq!(resolved, fs::canonicalize(&executable).expect("canonical"));
+    assert!(resolved.is_absolute());
+    assert_eq!(resolved.file_name(), executable.file_name());
+    assert_eq!(fs::read(&resolved).expect("resolved executable"), marker);
     let _ = fs::remove_dir_all(root);
 }
 

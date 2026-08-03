@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/agent_tools/test_check_algorithm_module_public_surface.py

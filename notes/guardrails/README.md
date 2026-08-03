@@ -1,1 +1,0 @@
-../../vendor/agent-canon/notes/guardrails/README.md

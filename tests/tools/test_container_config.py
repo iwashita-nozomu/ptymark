@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/tools/test_container_config.py

@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/tools/test_result_log_tools.py

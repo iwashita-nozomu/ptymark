@@ -17,6 +17,12 @@ fn temp_root(label: &str) -> PathBuf {
     root
 }
 
+fn valid_config(root: &Path) -> PathBuf {
+    let config = root.join("config.toml");
+    fs::write(&config, "schema_version = 1\n").expect("write valid config");
+    config
+}
+
 fn isolated_command(root: &Path) -> Command {
     let mut command = Command::new(binary());
     command
@@ -24,7 +30,8 @@ fn isolated_command(root: &Path) -> Command {
         .env("USERPROFILE", root.join("home"))
         .env("XDG_CONFIG_HOME", root.join("xdg-config"))
         .env("XDG_STATE_HOME", root.join("xdg-state"))
-        .env("APPDATA", root.join("appdata"));
+        .env("APPDATA", root.join("appdata"))
+        .env("LOCALAPPDATA", root.join("local-appdata"));
     command
 }
 
@@ -38,11 +45,21 @@ fn doctor(root: &Path, arguments: &[&str]) -> Output {
 #[test]
 fn doctor_json_has_the_v1_schema_and_ready_exit() {
     let root = temp_root("ready");
-    let output = doctor(&root, &["doctor", "--json"]);
+    let config = valid_config(&root);
+    let output = doctor(
+        &root,
+        &[
+            "doctor",
+            "--json",
+            "--config",
+            config.to_str().expect("path"),
+        ],
+    );
     assert_eq!(
         output.status.code(),
         Some(0),
-        "{}",
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let json = String::from_utf8(output.stdout).expect("UTF-8 JSON");
@@ -156,16 +173,37 @@ fn missing_external_engine_is_degraded_or_unusable_when_strict() {
 #[test]
 fn support_report_is_redacted_and_refuses_overwrite() {
     let root = temp_root("support-report");
+    let config = valid_config(&root);
     let report = root.join("support.json");
     let path = report.to_str().expect("path");
-    let first = doctor(&root, &["doctor", "--support-report", path, "--private"]);
-    assert_eq!(first.status.code(), Some(0));
+    let config_path = config.to_str().expect("config path");
+    let first = doctor(
+        &root,
+        &[
+            "doctor",
+            "--support-report",
+            path,
+            "--private",
+            "--config",
+            config_path,
+        ],
+    );
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&first.stdout),
+        String::from_utf8_lossy(&first.stderr)
+    );
     let source = fs::read_to_string(&report).expect("read report");
     assert!(source.contains("ptymark.doctor.v1"));
     assert!(source.contains("mode.private"));
     assert!(!source.contains(root.to_string_lossy().as_ref()));
 
-    let second = doctor(&root, &["doctor", "--support-report", path]);
+    let second = doctor(
+        &root,
+        &["doctor", "--support-report", path, "--config", config_path],
+    );
     assert_eq!(second.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&second.stderr).contains("already exists"));
     let _ = fs::remove_dir_all(root);

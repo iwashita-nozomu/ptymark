@@ -31,6 +31,7 @@ impl RenderCancellation {
 pub struct RenderContext {
     pub columns: u16,
     pub color: bool,
+    pub plain: bool,
     pub theme_fingerprint: u64,
 }
 
@@ -39,6 +40,7 @@ impl Default for RenderContext {
         Self {
             columns: 80,
             color: false,
+            plain: false,
             theme_fingerprint: 0,
         }
     }
@@ -93,7 +95,7 @@ impl RenderError {
                 "a configured renderer executable is unavailable",
                 "install the configured executable, select preview/source, or use --safe",
             ),
-            code::ENGINE_INCOMPATIBLE => (
+            code::ENGINE_INCOMPATIBLE | code::RENDER_INVALID_ARTIFACT => (
                 DiagnosticComponent::Engine,
                 "a renderer or artifact is incompatible",
                 "select a compatible renderer or use preview/source fallback",
@@ -156,7 +158,7 @@ pub struct PreviewRenderer;
 
 impl Renderer for PreviewRenderer {
     fn id(&self) -> &str {
-        "builtin/preview-v1"
+        "builtin/preview-v2"
     }
 
     fn render(
@@ -172,6 +174,19 @@ impl Renderer for PreviewRenderer {
         })?;
 
         let mut bytes = Vec::new();
+        if context.plain {
+            bytes.extend_from_slice(format!("ptymark {}:\n", block.kind()).as_bytes());
+            if body.is_empty() {
+                bytes.extend_from_slice(b"<empty>\n");
+            } else {
+                bytes.extend_from_slice(body.as_bytes());
+                if !body.ends_with('\n') {
+                    bytes.push(b'\n');
+                }
+            }
+            return Ok(RenderArtifact::new(bytes));
+        }
+
         if context.color {
             bytes.extend_from_slice(b"\x1b[1;36m");
         }
@@ -232,13 +247,14 @@ impl RenderService {
         block: &SemanticBlock,
         context: RenderContext,
     ) -> Result<RenderOutput, RenderError> {
-        let key = CacheKey::new_with_format(
+        let key = CacheKey::new_with_presentation(
             self.renderer.id(),
             block.kind(),
             block.format(),
             block.source(),
             context.columns,
             context.color,
+            context.plain,
             context.theme_fingerprint,
         );
         if let Some(bytes) = self.cache.get(&key) {
@@ -300,6 +316,21 @@ mod tests {
             .expect("second");
         assert!(!first.cache_hit);
         assert!(second.cache_hit);
+    }
+
+    #[test]
+    fn plain_preview_is_ascii_and_selectable() {
+        let artifact = PreviewRenderer
+            .render(
+                &block(),
+                RenderContext {
+                    plain: true,
+                    ..RenderContext::default()
+                },
+            )
+            .expect("plain preview");
+        assert_eq!(artifact.bytes, b"ptymark math:\nE = mc^2\n");
+        assert!(artifact.bytes.is_ascii());
     }
 
     #[test]

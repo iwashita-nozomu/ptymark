@@ -42,12 +42,18 @@ function Get-ProfileSnapshot {
 $Before = @(Get-ProfileSnapshot)
 $Config = Join-Path $Root 'config.toml'
 $State = Join-Path $Root 'state.toml'
+$FakeMath = Join-Path $Root 'tex2svg.exe'
+$FakePresenter = Join-Path $Root 'chafa.exe'
+Copy-Item $Binary $FakeMath
+Copy-Item $Binary $FakePresenter
+
 & (Join-Path $PSScriptRoot '..\scripts\installer.ps1') `
   -SkipCore `
   -Binary $Binary `
   -Managed never `
   -Mermaid preview `
-  -Math preview `
+  -Math $FakeMath `
+  -Presenter $FakePresenter `
   -Config $Config `
   -State $State
 if ($LASTEXITCODE -ne 0) { throw "installer failed with exit code $LASTEXITCODE" }
@@ -56,11 +62,41 @@ if (($Before -join "`n") -ne ($After -join "`n")) {
   throw 'installer modified one or more shell profile files'
 }
 
+# A one-slot update must not re-probe or replace the two unspecified roles.
+& (Join-Path $PSScriptRoot '..\scripts\installer.ps1') `
+  -SkipCore `
+  -Binary $Binary `
+  -Managed never `
+  -Mermaid source `
+  -Config $Config `
+  -State $State
+if ($LASTEXITCODE -ne 0) { throw "one-slot installer update failed with exit code $LASTEXITCODE" }
+$ConfigText = Get-Content $Config -Raw
+if ($ConfigText -notmatch 'provider = "source"') {
+  throw 'one-slot installer update did not select the requested Mermaid source provider'
+}
+
+$StatusLines = @(& $Binary install status --state $State)
+if ($LASTEXITCODE -ne 0) { throw "install status failed with exit code $LASTEXITCODE" }
+$MathStatus = $StatusLines | Where-Object { $_ -like "math`tmathjax-cli`tready`t*" } | Select-Object -First 1
+$PresenterStatus = $StatusLines | Where-Object { $_ -like "presenter`tchafa-symbols`tready`t*" } | Select-Object -First 1
+if (-not $MathStatus) { throw "preserved math status was not reported: $($StatusLines -join '; ')" }
+if (-not $PresenterStatus) { throw "preserved presenter status was not reported: $($StatusLines -join '; ')" }
+$ObservedMath = ($MathStatus -split "`t", 4)[3]
+$ObservedPresenter = ($PresenterStatus -split "`t", 4)[3]
+if ($ObservedMath -ne $FakeMath) {
+  throw "one-slot installer update replaced the existing math program: '$ObservedMath'"
+}
+if ($ObservedPresenter -ne $FakePresenter) {
+  throw "one-slot installer update replaced the existing presenter program: '$ObservedPresenter'"
+}
+
 $env:STARSHIP_SHELL = 'powershell'
 $env:ATUIN_SESSION = 'ptymark-compat'
 $env:ZDOTDIR = $HomeRoot
 $env:FISH_CONFIG_DIR = $FishRoot
 $env:NU_LIB_DIRS = $NuRoot
+$env:PTYMARK_INSTALL_STATE = $State
 $Pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
 $BeginMarker = '__PTYMARK_ENV_BEGIN__'
 $EndMarker = '__PTYMARK_ENV_END__'

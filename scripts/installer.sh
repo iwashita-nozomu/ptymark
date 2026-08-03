@@ -247,6 +247,17 @@ is_builtin_choice() {
 
 config_exists=0
 [[ -f "$config_path" ]] && config_exists=1
+explicit_role_update=0
+if [[ -n "$mermaid_value" || -n "$math_value" || -n "$presenter_value" ]]; then
+  explicit_role_update=1
+fi
+if [[ "$config_exists" -eq 1 && "$reset" -eq 0 && "$reprobe" -eq 0 \
+  && "$explicit_role_update" -eq 1 ]]; then
+  [[ -n "$mermaid_value" ]] || mermaid_value=keep
+  [[ -n "$math_value" ]] || math_value=keep
+  [[ -n "$presenter_value" ]] || presenter_value=keep
+fi
+
 resolve_defaults=0
 if [[ "$config_exists" -eq 0 || "$reset" -eq 1 || "$reprobe" -eq 1 \
   || -n "$mermaid_value" || -n "$math_value" || -n "$presenter_value" ]]; then

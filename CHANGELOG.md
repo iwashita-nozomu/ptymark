@@ -14,7 +14,38 @@ All notable changes to ptymark are documented in this file. The project follows 
 
 ## [Unreleased]
 
-No user-visible changes are currently queued after `0.1.0-alpha.3`.
+No user-visible changes are currently queued after `0.1.0-alpha.4`.
+
+## [0.1.0-alpha.4] - 2026-08-03
+
+### Added
+
+- Typed TOML configuration schema v2 with named profiles, portable user intent, deterministic schema-v1 migration, and `--profile` selection.
+- Canonical `ptymark shell -- COMMAND` interactive execution while retaining the Alpha.3 `ptymark -- COMMAND` compatibility form.
+- Structural SVG validation, bounded maintained XML parsing, typed managed-bundle inspection, and standard platform-directory and executable resolution.
+
+### Changed
+
+- Resolved executable paths, managed-bundle ownership, and installation provenance now live in machine-local install state instead of being copied into portable user configuration.
+- Hard process, parser, terminal-control, artifact, and pending-output limits are centralized as internal policy and cannot be weakened through user TOML.
+- Hand-written CLI parsing, doctor JSON serialization, XML tokenization, temporary-directory allocation, and LRU recency bookkeeping were replaced with maintained crates where the product contract could be preserved.
+- CI now validates product-owned Rust, installer, renderer, Docker, and release surfaces directly; inherited repository-template and generic automation suites were removed from the product gate.
+
+### Fixed
+
+- Config and install-state publication is recoverable as one ownership-scoped transaction, preventing mixed new/old installation metadata after a failed commit.
+- Unterminated or oversized terminal control sequences are bounded and remain on the raw byte-exact path.
+- Renderer output containing an incidental `<svg` substring is no longer accepted as a valid SVG artifact.
+- Cache recency updates are O(1), source-bearing keys are not duplicated for ordering, and disabled caches no longer report policy misses.
+
+### Compatibility
+
+- Schema-v1 TOML remains readable and can be normalized with `ptymark config migrate`; schema-v2 is the canonical emitted form.
+- Existing `ptymark -- COMMAND`, source, safe, private, strict, PTY/ConPTY, exact-source fallback, and source-only distribution contracts remain supported.
+
+### Known limitations
+
+- This remains an alpha release. Guided first-run setup, complete CJK/grapheme/accessibility behavior, persistent renderer workers/cache, signed package channels, and terminal image protocols remain follow-up work.
 
 ## [0.1.0-alpha.3] - 2026-08-02
 

@@ -24,7 +24,6 @@ root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 bundle="$root/bundle"
 config="$root/config.toml"
-strict_config="$root/strict-config.toml"
 state="$root/state.toml"
 
 installer_args=(
@@ -41,6 +40,9 @@ fi
 
 PTYMARK_BROWSER_NO_SANDBOX="${PTYMARK_BROWSER_NO_SANDBOX:-1}" \
   bash "$repo_root/scripts/installer.sh" "${installer_args[@]}"
+
+export PTYMARK_CONFIG="$config"
+export PTYMARK_INSTALL_STATE="$state"
 
 "$binary" --config "$config" config check
 "$binary" --config "$config" engine check
@@ -99,12 +101,11 @@ if grep -F 'E = mc^2' "$root/math.out" >/dev/null; then
   exit 1
 fi
 
-sed 's/^strict = false$/strict = true/' "$config" >"$strict_config"
 interactive_script=$(cat <<'EOF_INTERACTIVE_SCRIPT'
 printf 'before\n```mermaid\nflowchart LR\n  Interactive --> PTY --> Renderer\n```\n$$\nE = mc^2\n$$\nafter\n'
 EOF_INTERACTIVE_SCRIPT
 )
-"$binary" --config "$strict_config" -- /bin/sh -c "$interactive_script" \
+"$binary" --config "$config" shell --strict -- /bin/sh -c "$interactive_script" \
   >"$root/interactive-managed.out"
 test -s "$root/interactive-managed.out"
 if grep -F '```mermaid' "$root/interactive-managed.out" >/dev/null \

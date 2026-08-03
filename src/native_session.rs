@@ -1,4 +1,7 @@
 use crate::command::ChildCommand;
+#[cfg(windows)]
+use crate::limits::CONPTY_OUTPUT_DRAIN_GRACE;
+use crate::limits::{DEFAULT_PTY_ROWS, RESIZE_POLL_INTERVAL};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 use portable_pty::{
     Child as PtyChild, ChildKiller, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
@@ -9,12 +12,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
-
-const DEFAULT_ROWS: u16 = 24;
-const RESIZE_POLL_INTERVAL: Duration = Duration::from_millis(80);
-#[cfg(windows)]
-const CONPTY_OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(100);
 
 type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
 type SharedWriter = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
@@ -385,7 +382,7 @@ fn initial_pty_size(fallback_columns: u16, terminal_attached: bool) -> PtySize {
     }
 
     PtySize {
-        rows: environment_dimension("LINES").unwrap_or(DEFAULT_ROWS),
+        rows: environment_dimension("LINES").unwrap_or(DEFAULT_PTY_ROWS),
         cols: environment_dimension("COLUMNS").unwrap_or(fallback_columns.max(1)),
         pixel_width: 0,
         pixel_height: 0,

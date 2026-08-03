@@ -28,7 +28,7 @@ fn executable(path: &Path) {
 }
 
 #[test]
-fn install_resolve_writes_absolute_engine_paths_and_status() {
+fn install_resolve_separates_user_intent_from_resolved_state() {
     let root = temp_root("resolve");
     let mmdc = root.join("mmdc");
     let chafa = root.join("chafa");
@@ -55,9 +55,14 @@ fn install_resolve_writes_absolute_engine_paths_and_status() {
     );
 
     let config_text = fs::read_to_string(&config).expect("config");
-    assert!(config_text.contains("backend = \"mermaid-cli\""));
+    assert!(config_text.contains("schema_version = 2"));
+    assert!(config_text.contains("provider = \"external\""));
     assert!(config_text.contains(&mmdc.display().to_string()));
-    assert!(state.is_file());
+    assert!(!config_text.contains("backend = \"mermaid-cli\""));
+
+    let state_text = fs::read_to_string(&state).expect("state");
+    assert!(state_text.contains(&mmdc.display().to_string()));
+    assert!(state_text.contains(&chafa.display().to_string()));
 
     let status = Command::new(binary())
         .args(["install", "status", "--state"])
@@ -87,6 +92,8 @@ fn install_dry_run_does_not_write_files() {
     assert!(output.status.success());
     assert!(!config.exists());
     assert!(!state.exists());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("resolved ptymark configuration"));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("user-authored ptymark configuration"));
+    assert!(stdout.contains("internal installation state"));
     let _ = fs::remove_dir_all(root);
 }

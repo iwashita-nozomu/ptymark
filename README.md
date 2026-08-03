@@ -44,15 +44,16 @@ Keyboard input, signals, shell hooks, prompts, completion, mouse reports, bracke
 | Configure engines and cache | [Configuration](#configuration) | [Examples](examples/README.md) |
 | Integrate with WezTerm | [WezTerm](#wezterm) | [Runnable configuration](examples/wezterm.lua) |
 | Develop or review a change | [Development and CI](#development-and-ci) | [Documentation map](documents/README.md) |
+| Review the next release trains | [Alpha.5/Beta roadmap](documents/roadmap-alpha5-beta.md) | [Verification catalog](verification/README.md) |
 
-The complete reader map, including maintainer ownership and shared AgentCanon references, is [`documents/README.md`](documents/README.md).
+The complete product documentation map is [`documents/README.md`](documents/README.md).
 
 ## Current status
 
 Implemented:
 
 - stream and file rendering through `ptymark preview`;
-- native Unix PTY and Windows ConPTY sessions through `ptymark -- COMMAND`;
+- native Unix PTY and Windows ConPTY sessions through canonical `ptymark shell -- COMMAND`, with `ptymark -- COMMAND` retained as an Alpha compatibility form;
 - pipe-oriented command filtering through `ptymark run -- COMMAND`;
 - keyboard forwarding, resize propagation, and child exit-status preservation;
 - complete Mermaid, TeX block-math, and explicit OpenMath fences;
@@ -63,14 +64,14 @@ Implemented:
 - an isolated, versioned managed renderer bundle;
 - terminal-safe ANSI/Unicode presentation;
 - platform-specific installers for POSIX shells, Windows PowerShell, cmd.exe, and Windows Bash;
-- installation-time path normalization and absolute-path configuration;
+- portable named-profile configuration separated from machine-local resolved installation state;
 - role-by-role engine replacement without resetting unrelated settings;
 - bounded in-memory and no-op caches;
 - `ptymark doctor`, versioned redacted JSON/support reports, and stable ready/degraded/unusable status;
 - bounded external-renderer deadlines, output limits, ordered exact-source recovery, and process cleanup;
 - a thin WezTerm launcher plugin and portable example;
 - shell coexistence contracts for Bash, Zsh, Fish, PowerShell, and Nushell;
-- Docker plus Ubuntu, macOS, and Windows GitHub Actions validation.
+- product-owned Docker plus Ubuntu, macOS, and Windows GitHub Actions validation without inherited template suites.
 
 Not implemented yet:
 
@@ -97,7 +98,7 @@ Source installation requires Git and Rust/Cargo 1.97 or newer.
 ### Linux, macOS, or WSL
 
 ```bash
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+git clone https://github.com/iwashita-nozomu/ptymark.git
 cd ptymark
 bash scripts/installer.sh
 ```
@@ -109,7 +110,7 @@ WSL is treated as Linux. It installs the Linux binary and renderer bundle inside
 PowerShell 7+:
 
 ```powershell
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+git clone https://github.com/iwashita-nozomu/ptymark.git
 Set-Location ptymark
 pwsh -File scripts/installer.ps1
 ```
@@ -123,7 +124,7 @@ powershell -ExecutionPolicy Bypass -File scripts/installer.ps1
 ### Windows cmd.exe
 
 ```bat
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+git clone https://github.com/iwashita-nozomu/ptymark.git
 cd ptymark
 scripts\installer.cmd
 ```
@@ -133,7 +134,7 @@ scripts\installer.cmd
 ### Git Bash, MSYS2, or Cygwin
 
 ```bash
-git clone --recurse-submodules https://github.com/iwashita-nozomu/ptymark.git
+git clone https://github.com/iwashita-nozomu/ptymark.git
 cd ptymark
 bash scripts/installer.sh
 ```
@@ -158,28 +159,37 @@ A managed installation reports resolved native paths for the Mermaid, math, and 
 
 ## Interactive use
 
+The canonical interactive command is:
+
 ```text
-ptymark [--config PATH] [--source|--safe] [--private] -- COMMAND [ARG...]
+ptymark [--config PATH] [--profile NAME] shell [OPTIONS] -- COMMAND [ARG...]
 ```
 
 Examples:
 
 ```bash
-ptymark -- bash
-ptymark -- python
-ptymark -- cargo test
-ptymark --source -- bash
-ptymark --safe -- bash
-ptymark --private -- bash
+ptymark shell -- bash
+ptymark shell -- python
+ptymark --profile plain shell -- cargo test
+ptymark shell --source -- bash
+ptymark shell --safe -- bash
+ptymark shell --private -- bash
 ```
 
-The command runs in a native Unix PTY or Windows ConPTY. Ptymark forwards input, propagates size changes, filters only safe child-output regions, and returns the child exit status.
+The Alpha.3 form remains a compatibility alias in Alpha.4:
+
+```bash
+ptymark -- bash
+```
+
+The command runs in a native Unix PTY or Windows ConPTY. Ptymark forwards input, propagates size changes, filters only safe child-output regions, and returns the child exit status. Child argv remains an `OsString` sequence after `--`; Ptymark does not build a shell command string.
 
 Session modes change only pre-display policy:
 
 - `--source` keeps explicit block detection but emits each complete block's exact source;
 - `--safe` bypasses semantic detection, source-format conversion, engines, presentation, and cache;
-- `--private` keeps rendering but disables the process-local artifact cache.
+- `--private` keeps rendering but disables the process-local artifact cache;
+- `--allow-nested` permits deliberate development/debug nesting while accidental nesting remains rejected.
 
 `--source` and `--safe` are mutually exclusive. See [`documents/interactive-session.md`](documents/interactive-session.md).
 
@@ -281,41 +291,60 @@ See [`documents/troubleshooting.md`](documents/troubleshooting.md).
 
 ## Configuration
 
-The installer writes strict TOML with resolved absolute paths:
+Alpha.4 uses strict TOML schema v2. The user file records portable intent; resolved engine paths and ownership remain in machine-local installation state.
 
 ```toml
-schema_version = 1
+schema_version = 2
+default_profile = "default"
 
-[detection]
+[profiles.default.session]
+mode = "render"             # render | source
+strict = false
+
+[profiles.default.detection]
 mermaid = true
 math = true                 # TeX and OpenMath
-max_block_bytes = 1048576
 
-[rendering]
-mode = "preview"
-strict = false
-columns = 80
+[profiles.default.presentation]
+mode = "auto"              # auto | symbols | plain | source
+color = "auto"             # auto | always | never
+fallback_columns = 80
 
-[cache]
-enabled = true
+[profiles.default.cache]
+backend = "memory"         # memory | none
 max_entries = 128
 max_bytes = 33554432
 
-[engines.mermaid]
-backend = "mermaid-cli"
-path = "/absolute/path/to/mmdc"
+[profiles.default.engines.mermaid]
+provider = "auto"          # auto | preview | source | managed | external
 
-[engines.math]
-backend = "mathjax-cli"
-path = "/absolute/path/to/tex2svg"
+[profiles.default.engines.math]
+provider = "auto"
 
-[engines.presenter]
-path = "/absolute/path/to/chafa-compatible-presenter"
+[profiles.default.engines.presenter]
+provider = "auto"          # auto | managed | external
 ```
 
-`[detection].math` governs dollar-sign block math, `math|latex|tex` fences, and `openmath` fences. OpenMath does not add another engine or installer role.
+Use `provider = "external"` together with an explicit `program` only when the executable choice itself is user intent. Installer-discovered or managed absolute paths are stored in `install.toml`, matched to the normalized user-config digest, and are not emitted by `ptymark config show`.
 
-Manually written bare executable names are supported and resolved through runtime `PATH`. Working-directory-relative paths such as `tools/mmdc` are rejected. See [`examples/README.md`](examples/README.md) for validated examples.
+Named profiles provide the extension boundary for future presentation and engine policy without adding disconnected top-level flags:
+
+```bash
+ptymark --profile plain config check
+ptymark --profile plain shell -- "$SHELL" -l
+```
+
+Schema-v1 files remain readable. Inspect or normalize them explicitly:
+
+```bash
+ptymark --config ~/.config/ptymark/config.toml config check
+ptymark --config ~/.config/ptymark/config.toml config migrate
+ptymark --config ~/.config/ptymark/config.toml config migrate --write
+```
+
+Hard renderer deadlines, artifact/output caps, OpenMath limits, terminal-control bounds, process polling, and PTY recovery timing are internal versioned policy. User TOML can choose stricter or lower-cost behavior but cannot weaken that safety floor.
+
+`profiles.<name>.detection.math` governs dollar-sign block math, `math|latex|tex` fences, and `openmath` fences. OpenMath does not add another engine or installer role. See [`examples/README.md`](examples/README.md) and [`documents/alpha4-design.md`](documents/alpha4-design.md).
 
 ## Renderer installation and isolation
 
@@ -325,8 +354,8 @@ One setup command:
 places or selects the native ptymark executable
   -> inspects explicit and installed renderer commands
   -> installs missing default roles in an isolated managed bundle
-  -> normalizes selected executables to native absolute paths
-  -> writes config.toml and install.toml atomically
+  -> records resolved executables in machine-local install state
+  -> commits portable config and ownership-scoped state transactionally
   -> runs installation and engine checks
 ```
 
@@ -376,7 +405,7 @@ pwsh -File scripts/installer.ps1 -Reprobe
 pwsh -File scripts/installer.ps1 -Math source
 ```
 
-Use explicit `--mermaid`, `--math`, and `--presenter` paths to replace one role while preserving unrelated settings. See [`documents/ptymark-installer.md`](documents/ptymark-installer.md) for destinations, browser selection, offline behavior, and replacement semantics.
+Use explicit `--mermaid`, `--math`, and `--presenter` values to change one profile role while preserving unrelated user settings. Resolved paths remain inspectable through `install status`, `engine check`, and `doctor`. See [`documents/ptymark-installer.md`](documents/ptymark-installer.md) for destinations, browser selection, offline behavior, and replacement semantics.
 
 ## Safety and failure behavior
 

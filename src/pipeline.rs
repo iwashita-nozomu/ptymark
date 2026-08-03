@@ -7,7 +7,7 @@ use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
 
-pub const MAX_PENDING_OUTPUT_BYTES: usize = 1024 * 1024;
+pub const MAX_PENDING_OUTPUT_BYTES: usize = crate::limits::MAX_PENDING_TERMINAL_BYTES;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PipelineReport {

@@ -1,1 +1,0 @@
-../vendor/agent-canon/notes/github-mirror-procedure.md

@@ -1,1 +1,0 @@
-../../vendor/agent-canon/notes/branches/BRANCH_NOTE_TEMPLATE.md

@@ -1,31 +1,28 @@
 # @dependency-start
 # contract workflow
-# responsibility Blocks pull requests that introduce dependencies with known moderate-or-higher vulnerabilities.
+# responsibility Blocks pull requests that introduce product dependencies with known moderate-or-higher vulnerabilities.
 # upstream environment ../dependabot.yml proposes dependency updates
 # upstream environment ../../Cargo.lock resolved Rust dependency graph
-# upstream environment ../../docker/requirements-runtime.txt Python runtime dependencies
-# upstream environment ../../docker/requirements-dev.txt Python verification dependencies
 # upstream environment ../../renderers/package-lock.json resolved renderer dependency graph
+# upstream environment ../../docker/ptymark.Dockerfile canonical validation image
 # downstream design ../../SECURITY.md vulnerability reporting and support policy
+# downstream implementation ../../scripts/check-workflow-policy.py immutable Action refs
 # @dependency-end
 
 name: Dependency Review
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
-      - "pyproject.toml"
-      - "docker/requirements*.txt"
-      - "docker/Dockerfile"
-      - "docker/**/Dockerfile"
-      - "docker/*.Dockerfile"
+      - "docker/ptymark.Dockerfile"
+      - "docker/ptymark-compose.yaml"
+      - "docker/ptymark-versions.env"
       - "renderers/package.json"
       - "renderers/package-lock.json"
-      - ".gitmodules"
+      - "renderers/managed-bundle.env"
       - ".github/dependabot.yml"
       - ".github/workflows/**"
 

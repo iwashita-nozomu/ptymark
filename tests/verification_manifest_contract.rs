@@ -25,8 +25,6 @@ struct Policy {
     run_results_live_in: String,
     canonical_product_workflow: String,
     repository_workflow: String,
-    docker_workflow: String,
-    agent_workflow: String,
     compatibility_inventory: String,
 }
 
@@ -75,9 +73,6 @@ const REQUIRED_IDS: &[&str] = &[
     "package-smoke.linux",
     "package-smoke.macos",
     "package-smoke.windows",
-    "repository.ci",
-    "repository.docker-build",
-    "repository.agent-improvement-guide",
 ];
 
 fn repository_root() -> PathBuf {
@@ -117,19 +112,12 @@ fn verification_catalog_is_complete_and_self_consistent() {
     for path in [
         &manifest.policy.canonical_product_workflow,
         &manifest.policy.repository_workflow,
-        &manifest.policy.docker_workflow,
-        &manifest.policy.agent_workflow,
         &manifest.policy.compatibility_inventory,
     ] {
         assert_repository_path(&root, path);
     }
 
-    let allowed_owners = HashSet::from([
-        "ptymark-ci",
-        "repository-ci",
-        "docker-build",
-        "agent-improvement-guide",
-    ]);
+    let allowed_owners = HashSet::from(["ptymark-ci"]);
     let allowed_levels = HashSet::from([
         "static",
         "contract",

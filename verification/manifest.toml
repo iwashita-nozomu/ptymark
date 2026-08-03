@@ -2,7 +2,6 @@
 # contract registry
 # responsibility Defines every merge-relevant verification item.
 # upstream implementation ../.github/workflows/ptymark-ci.yml product checks
-# upstream implementation ../.github/workflows/ci.yml repository checks
 # downstream implementation ../tests/verification_manifest_contract.rs catalog validation
 # downstream design ./README.md evidence documentation
 # @dependency-end
@@ -15,8 +14,6 @@ all_required = true
 run_results_live_in = "GitHub Actions for the tested commit"
 canonical_product_workflow = ".github/workflows/ptymark-ci.yml"
 repository_workflow = ".github/workflows/ci.yml"
-docker_workflow = ".github/workflows/docker-build.yml"
-agent_workflow = ".github/workflows/agent-improvement-guide.yml"
 compatibility_inventory = "documents/shell-plugin-compatibility.md"
 
 [[check]]
@@ -125,7 +122,7 @@ owner = "ptymark-ci"
 level = "integration"
 platforms = ["linux", "macos", "windows", "docker"]
 command = "cargo test --locked --test filtered_run_contract"
-sources = ["src/filtered_run.rs", "src/cli_args.rs", "tests/filtered_run_contract.rs"]
+sources = ["src/filtered_run.rs", "src/cli.rs", "tests/filtered_run_contract.rs"]
 evidence = ["Native Rust checks", "Canonical Docker checks"]
 required = true
 
@@ -337,34 +334,4 @@ platforms = ["windows"]
 command = "pwsh -File scripts/package-release.ps1"
 sources = ["scripts/package-release.ps1", "distribution/install.ps1", "distribution/install.cmd"]
 evidence = ["Cross-platform local package smoke (windows)"]
-required = true
-
-[[check]]
-id = "repository.ci"
-owner = "repository-ci"
-level = "repository"
-platforms = ["repository"]
-command = "make ci"
-sources = [".github/workflows/ci.yml", "Makefile"]
-evidence = ["CI / Repository CI"]
-required = true
-
-[[check]]
-id = "repository.docker-build"
-owner = "docker-build"
-level = "repository"
-platforms = ["repository"]
-command = "bash docker/check_build.sh"
-sources = [".github/workflows/docker-build.yml", "docker/check_build.sh"]
-evidence = ["Docker Build"]
-required = true
-
-[[check]]
-id = "repository.agent-improvement-guide"
-owner = "agent-improvement-guide"
-level = "repository"
-platforms = ["repository"]
-command = "GitHub Actions workflow"
-sources = [".github/workflows/agent-improvement-guide.yml"]
-evidence = ["Agent Improvement Guide"]
 required = true

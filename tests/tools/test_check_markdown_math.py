@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/tools/test_check_markdown_math.py

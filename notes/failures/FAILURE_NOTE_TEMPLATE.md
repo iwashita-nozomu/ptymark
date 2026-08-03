@@ -1,1 +1,0 @@
-../../vendor/agent-canon/notes/failures/FAILURE_NOTE_TEMPLATE.md

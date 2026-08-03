@@ -1,24 +1,31 @@
 <!--
 @dependency-start
 contract policy
-responsibility Defines supported source release lines, private vulnerability reporting, and distribution trust boundaries.
-upstream design documents/release.md source-only release and recovery contract
+responsibility Defines alpha support, private vulnerability reporting, and source-only distribution trust boundaries.
+upstream design documents/release.md source-only prerelease and recovery contract
 upstream design documents/ptymark-design.md terminal safety and process boundary design
-downstream implementation .github/workflows/ptymark-release.yml notes-only source publication
+downstream implementation .github/workflows/ptymark-release.yml notes-only source prerelease publication
+downstream implementation scripts/check-release-metadata.py prerelease status validation
 @dependency-end
 -->
 
 # Security Policy
 
+## Release status
+
+Ptymark is still an **alpha prerelease**. The command-line interface, configuration schema, installer behavior, renderer ownership model, and lifecycle commands may change between alpha releases. Alpha releases receive best-effort security fixes, but they do not carry stable-API, long-term-support, upgrade, rollback, or binary-distribution guarantees.
+
+A development branch or version declared in `Cargo.toml` is not a supported release until the matching immutable tag and GitHub prerelease have been published. The current publication workflow accepts only version strings of the form `alpha.N`, `beta.N`, or `rc.N`; publishing a stable version requires a separate reviewed policy change.
+
 ## Supported versions
 
 | Version | Support |
 | --- | --- |
-| `0.1.0-alpha.2` | Best-effort security fixes during the alpha period |
-| Older prereleases | Unsupported except for coordinated disclosure or replacement guidance |
+| Newest published `0.1.0-alpha.*` prerelease | Best-effort security fixes during the alpha period |
+| Older alpha prereleases | Unsupported except for coordinated disclosure or replacement guidance |
 | Unreleased development branches | Not a supported distribution channel |
 
-The newest published prerelease is the only supported alpha line.
+Only the newest published alpha prerelease is supported.
 
 ## Source-only distribution policy
 
@@ -42,7 +49,7 @@ Include only the minimum information needed to reproduce the issue:
 - a redacted reproducer containing no secrets or private terminal source;
 - the observed security-boundary violation and expected safe behavior.
 
-The project will validate impact, coordinate a fix and disclosure, and publish a corrected source release when required. Exact response times are not guaranteed during the alpha period.
+The project will validate impact, coordinate a fix and disclosure, and publish a corrected source prerelease when required. Exact response times are not guaranteed during the alpha period.
 
 ## Security boundaries
 

@@ -21,6 +21,7 @@ fn pipeline(source: bool, cache: bool) -> DisplayPipeline {
         RenderContext {
             columns: 80,
             color: false,
+            plain: false,
             theme_fingerprint: 0,
         },
         false,

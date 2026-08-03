@@ -1,8 +1,8 @@
 pub mod cache;
 pub mod cli;
-mod cli_args;
 mod command;
 pub mod config;
+mod config_ext;
 pub mod detector;
 pub mod diagnostics;
 pub mod doctor;
@@ -11,11 +11,13 @@ mod filtered_run;
 pub mod format_adapter;
 pub mod install;
 mod interactive;
+mod limits;
 pub mod managed_launcher;
 pub mod model;
 mod native_session;
 pub mod openmath;
 pub mod pipeline;
+mod platform;
 pub mod render;
 pub mod routing;
 pub mod runtime;
@@ -24,9 +26,11 @@ pub mod terminal;
 
 pub use cache::{ArtifactCache, CacheKey, CacheStats, MemoryCache, NoopCache};
 pub use config::{
-    CONFIG_SCHEMA_VERSION, CacheConfig, Config, ConfigError, DetectionConfig, EnginesConfig,
-    MathEngine, MathEngineConfig, MermaidEngine, MermaidEngineConfig, PresenterConfig, RenderMode,
-    RenderingConfig,
+    CONFIG_SCHEMA_VERSION, CacheBackend, CacheConfig, ColorPolicy, Config, ConfigError,
+    DetectionConfig, EngineProvider, EngineSelection, EnginesConfig, MathEngine, MathEngineConfig,
+    MermaidEngine, MermaidEngineConfig, PresentationMode, PresenterConfig, PresenterProvider,
+    PresenterSelection, ProfileConfig, RenderMode, RenderingConfig, SessionConfig, SessionMode,
+    UserCacheConfig, UserConfig, UserDetectionConfig, UserEnginesConfig, UserPresentationConfig,
 };
 pub use detector::{FencedDetector, PassthroughDetector, SemanticDetector};
 pub use diagnostics::{
@@ -42,8 +46,8 @@ pub use install::{
     ProgramResolver, ResolutionOrigin, default_install_state_path,
 };
 pub use managed_launcher::{
-    MANAGED_BUNDLE_SCHEMA_VERSION, ManagedBundleInspection, inspect_managed_alias,
-    run_if_managed_alias,
+    MANAGED_BUNDLE_SCHEMA_VERSION, ManagedBundleInspection, ManagedBundleStatus,
+    inspect_managed_alias, run_if_managed_alias,
 };
 pub use model::{BlockKind, SemanticBlock, SemanticFormat, StreamItem};
 pub use openmath::{

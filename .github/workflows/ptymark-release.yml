@@ -1,12 +1,13 @@
 # @dependency-start
 # contract workflow
-# responsibility Creates immutable version tags and notes-only source releases without publishing project-built executables.
-# upstream design ../../documents/release.md source-only release and recovery contract
+# responsibility Creates immutable prerelease tags and notes-only source prereleases without publishing project-built executables.
+# upstream design ../../documents/release.md source-only prerelease and recovery contract
 # upstream implementation ../../scripts/check-release-metadata.py source-only publication validator
+# upstream implementation ../../scripts/check-workflow-policy.py prerelease and Action-pin guard
 # downstream design ../../SECURITY.md distribution and vulnerability-reporting policy
 # @dependency-end
 
-name: ptymark Source Release
+name: ptymark Source Prerelease
 
 on:
   push:
@@ -14,7 +15,7 @@ on:
       - 'release/v*'
 
 concurrency:
-  group: ptymark-source-release-${{ github.ref }}
+  group: ptymark-source-prerelease-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -22,10 +23,11 @@ permissions:
 
 jobs:
   publish:
-    name: Validate, tag, and publish source-only release
+    name: Validate, tag, and publish source-only prerelease
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: production-release
+
     steps:
       - name: Check out reviewed source commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -34,31 +36,30 @@ jobs:
           submodules: false
           persist-credentials: false
 
-      - name: Check out AgentCanon submodule
-        env:
-          AGENT_CANON_REPO_TOKEN: ''
-          AGENT_CANON_REPO_SSH_KEY: ''
-        run: bash .github/scripts/checkout_agent_canon_submodule.sh
-
-      - name: Resolve source-only release identity
+      - name: Resolve source-only prerelease identity
         id: release
         shell: bash
         run: |
           set -euo pipefail
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]] || {
+            echo 'source prerelease workflow accepts only alpha, beta, or rc versions' >&2
+            exit 1
+          }
           expected_branch="release/v${version}"
           expected_tag="v${version}"
           test "$GITHUB_REF_NAME" = "$expected_branch" || {
-            echo "release request branch $GITHUB_REF_NAME does not match Cargo version $version" >&2
+            echo "prerelease request branch $GITHUB_REF_NAME does not match Cargo version $version" >&2
             exit 1
           }
           git fetch origin main --depth=1
           source_sha=$(git rev-parse HEAD)
           test "$source_sha" = "$(git rev-parse origin/main)" || {
-            echo 'source-only release request branch must point exactly at current main' >&2
+            echo 'source-only prerelease request branch must point exactly at current main' >&2
             exit 1
           }
           python3 scripts/check-release-metadata.py --tag "$expected_tag"
+          python3 scripts/check-workflow-policy.py
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$expected_tag" >> "$GITHUB_OUTPUT"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
@@ -95,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "release $RELEASE_TAG already exists; refusing to overwrite it" >&2
+            echo "prerelease $RELEASE_TAG already exists; refusing to overwrite it" >&2
             exit 1
           fi
           gh release create "$RELEASE_TAG" \
@@ -103,9 +104,10 @@ jobs:
             --prerelease \
             --title "ptymark $RELEASE_TAG" \
             --notes-file "release-notes/${VERSION}.md"
+          test "$(gh release view "$RELEASE_TAG" --json isPrerelease --jq '.isPrerelease')" = 'true'
           test "$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length')" = '0'
 
-      - name: Remove completed release request branch
+      - name: Remove completed prerelease request branch
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}

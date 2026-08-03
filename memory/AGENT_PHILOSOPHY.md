@@ -1,1 +1,0 @@
-../vendor/agent-canon/memory/AGENT_PHILOSOPHY.md
