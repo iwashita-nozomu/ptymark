@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: alpha4-one-shot-fixup
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   fixup:
