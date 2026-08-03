@@ -66,16 +66,18 @@ bash scripts/installer.sh \
   --math "$fake_bin/tex2svg" \
   --presenter "$fake_bin/chafa"
 
-grep -F 'backend = "mermaid-cli"' "$config" >/dev/null
-grep -F 'backend = "mathjax-cli"' "$config" >/dev/null
-grep -F "path = \"$fake_bin/mmdc\"" "$config" >/dev/null
-grep -F "path = \"$fake_bin/tex2svg\"" "$config" >/dev/null
-grep -F "path = \"$fake_bin/chafa\"" "$config" >/dev/null
+grep -F 'schema_version = 2' "$config" >/dev/null
+test "$(grep -F -c 'provider = "external"' "$config")" -eq 3
+grep -F "program = \"$fake_bin/mmdc\"" "$config" >/dev/null
+grep -F "program = \"$fake_bin/tex2svg\"" "$config" >/dev/null
+grep -F "program = \"$fake_bin/chafa\"" "$config" >/dev/null
+grep -F 'backend = "mermaid-cli"' "$state" >/dev/null
+grep -F 'backend = "mathjax-cli"' "$state" >/dev/null
 
 {
   printf '%s\n' '```mermaid' 'A --> B' '```'
-} | env PTYMARK_CONFIG="$config" "$binary" preview \
-  | grep -F 'installed-engine-output' >/dev/null
+} | env PTYMARK_CONFIG="$config" PTYMARK_INSTALL_STATE="$state" \
+  "$binary" preview | grep -F 'installed-engine-output' >/dev/null
 
 # The old name remains a compatibility wrapper and must preserve one-slot updates.
 bash scripts/install.sh \
@@ -85,8 +87,8 @@ bash scripts/install.sh \
   --state "$state" \
   --mermaid source
 
-grep -F 'backend = "source"' "$config" >/dev/null
-grep -F 'backend = "mathjax-cli"' "$config" >/dev/null
+grep -F 'provider = "source"' "$config" >/dev/null
+grep -F "program = \"$fake_bin/tex2svg\"" "$config" >/dev/null
 "$binary" install status --state "$state" | grep -F $'math\tmathjax-cli\tready' >/dev/null
 
 # A private Node runtime must execute npm even when no global node command is

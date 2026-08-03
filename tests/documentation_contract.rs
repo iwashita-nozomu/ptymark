@@ -23,12 +23,14 @@ fn root_entrypoint_routes_common_user_tasks() {
 }
 
 #[test]
-fn document_map_starts_with_user_tasks_before_ownership_policy() {
-    let tasks = DOCUMENT_MAP.find("## Start by task").expect("task map");
-    let ownership = DOCUMENT_MAP
-        .find("## Document ownership")
-        .expect("ownership section");
-    assert!(tasks < ownership);
+fn document_map_routes_user_tasks_to_product_owned_contracts() {
+    let tasks = DOCUMENT_MAP
+        .find("| Goal | Start here | Continue with |")
+        .expect("task map");
+    let contracts = DOCUMENT_MAP
+        .find("## Product contracts")
+        .expect("product contract section");
+    assert!(tasks < contracts);
     for required in [
         "./openmath.md",
         "./interactive-session.md",

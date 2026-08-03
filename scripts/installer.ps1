@@ -133,7 +133,16 @@ function Test-BuiltinChoice([string]$Value) {
   return $Value -eq 'preview' -or $Value -eq 'source'
 }
 
-$ResolveDefaults = (-not (Test-Path $Config -PathType Leaf)) -or $Reset -or $Reprobe -or
+$ConfigExists = Test-Path $Config -PathType Leaf
+$ExplicitRoleUpdate = $PSBoundParameters.ContainsKey('Mermaid') -or
+  $PSBoundParameters.ContainsKey('Math') -or $PSBoundParameters.ContainsKey('Presenter')
+if ($ConfigExists -and -not $Reset -and -not $Reprobe -and $ExplicitRoleUpdate) {
+  if (-not $PSBoundParameters.ContainsKey('Mermaid')) { $Mermaid = 'keep' }
+  if (-not $PSBoundParameters.ContainsKey('Math')) { $Math = 'keep' }
+  if (-not $PSBoundParameters.ContainsKey('Presenter')) { $Presenter = 'keep' }
+}
+
+$ResolveDefaults = (-not $ConfigExists) -or $Reset -or $Reprobe -or
   [bool]$Mermaid -or [bool]$Math -or [bool]$Presenter
 
 if ($ResolveDefaults) {

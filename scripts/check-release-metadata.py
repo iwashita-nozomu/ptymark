@@ -2,14 +2,14 @@
 
 # @dependency-start
 # contract implementation
-# responsibility Validates version metadata and enforces source-only GitHub Release publication.
+# responsibility Validates prerelease version metadata and enforces source-only GitHub prerelease publication.
 # upstream environment ../Cargo.toml package version
-# upstream design ../documents/release.md source-only release contract
+# upstream design ../documents/release.md source-only prerelease contract
 # downstream implementation ../.github/workflows/ptymark-release.yml notes-only publication
 # downstream implementation ../tests/tools/test_release_metadata.py metadata tests
 # @dependency-end
 
-"""Validate ptymark source-only release metadata without changing the repository."""
+"""Validate ptymark source-only prerelease metadata without changing the repository."""
 
 from __future__ import annotations
 
@@ -20,6 +20,9 @@ import tomllib
 from pathlib import Path
 
 TAG_PATTERN = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$")
+PRERELEASE_VERSION_PATTERN = re.compile(
+    r"^[0-9]+\.[0-9]+\.[0-9]+-(?:alpha|beta|rc)\.[0-9]+$"
+)
 
 
 def package_version(root: Path) -> str:
@@ -45,6 +48,11 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         version = package_version(root)
     except (OSError, tomllib.TOMLDecodeError, ValueError) as error:
         return "unknown", [str(error)]
+
+    if not PRERELEASE_VERSION_PATTERN.fullmatch(version):
+        failures.append(
+            "Cargo version must remain an alpha, beta, or rc prerelease for the current publication workflow"
+        )
 
     expected_tag = f"v{version}"
     if tag is not None:
@@ -102,12 +110,15 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         "release/v*",
         "gh release create",
         "--notes-file",
+        "--prerelease",
+        "isPrerelease",
         "assets --jq '.assets | length'",
+        "source prerelease workflow accepts only alpha, beta, or rc versions",
         "source-only",
     )
     for marker in required_markers:
         if workflow and marker not in workflow:
-            failures.append(f"source release workflow is missing required marker: {marker}")
+            failures.append(f"source prerelease workflow is missing required marker: {marker}")
 
     forbidden_markers = (
         "cargo build",
@@ -118,10 +129,12 @@ def validate(root: Path, tag: str | None = None) -> tuple[str, list[str]]:
         "release-manifest.json",
         "SHA256SUMS",
         "dist/*",
+        "--latest",
+        "make_latest=true",
     )
     for marker in forbidden_markers:
         if workflow and marker in workflow:
-            failures.append(f"source release workflow contains forbidden binary marker: {marker}")
+            failures.append(f"source prerelease workflow contains forbidden marker: {marker}")
 
     product_ci = _read_text(root / ".github/workflows/ptymark-ci.yml", failures)
     if product_ci and "Cross-platform local package smoke" not in product_ci:
@@ -156,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         for failure in failures:
             print(f"release metadata error: {failure}", file=sys.stderr)
         return 1
-    print(f"source-only release metadata ok: version={version} tag={arguments.tag or f'v{version}'}")
+    print(
+        f"source-only release metadata ok: prerelease version={version} "
+        f"tag={arguments.tag or f'v{version}'}"
+    )
     return 0
 
 

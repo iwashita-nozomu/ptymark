@@ -21,7 +21,6 @@ $LogRoot = Join-Path $Root 'logs'
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 $Bundle = Join-Path $Root 'bundle'
 $Config = Join-Path $Root 'config.toml'
-$StrictConfig = Join-Path $Root 'strict-config.toml'
 $State = Join-Path $Root 'state.toml'
 
 function Write-Utf8NoBom([string]$Path, [string]$Text) {
@@ -44,6 +43,8 @@ function Invoke-NativeStage {
   $StartInfo.CreateNoWindow = $true
   $StartInfo.RedirectStandardOutput = $true
   $StartInfo.RedirectStandardError = $true
+  $StartInfo.Environment['PTYMARK_CONFIG'] = $Config
+  $StartInfo.Environment['PTYMARK_INSTALL_STATE'] = $State
   foreach ($Argument in $ArgumentList) {
     $StartInfo.ArgumentList.Add([string]$Argument)
   }
@@ -78,6 +79,10 @@ try {
     -Browser $Browser `
     -SkipBrowserDownload *>&1 | Tee-Object -FilePath $InstallerLog
   if ($LASTEXITCODE -ne 0) { throw "installer failed with exit code $LASTEXITCODE" }
+
+  # The smoke uses an intentionally isolated, non-default installation-state
+  # location. Runtime commands discover it through the documented override.
+  $env:PTYMARK_INSTALL_STATE = $State
 
   Copy-Item $Config (Join-Path $LogRoot 'config.toml') -Force
   Copy-Item $State (Join-Path $LogRoot 'state.toml') -Force
@@ -164,15 +169,13 @@ try {
     throw 'math source was not replaced by managed output'
   }
 
-  $StrictText = (Get-Content $Config -Raw) -replace '(?m)^strict = false$', 'strict = true'
-  Write-Utf8NoBom $StrictConfig $StrictText
   $Pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
   $InteractiveScript = @'
 [Console]::Out.Write((@('before','```mermaid','flowchart LR','  Interactive --> ConPTY --> Renderer','```','$$','E = mc^2','$$','after') -join "`n") + "`n")
 '@
   $InteractiveArguments = @(
-    '--config', $StrictConfig,
-    '--', $Pwsh,
+    '--config', $Config,
+    'shell', '--strict', '--', $Pwsh,
     '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', $InteractiveScript
   )
   try {

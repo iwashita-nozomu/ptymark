@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/agent_tools/test_task_start_and_close.py

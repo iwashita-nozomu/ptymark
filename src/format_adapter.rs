@@ -50,6 +50,7 @@ impl Renderer for OpenMathAdapterRenderer {
 mod tests {
     use super::OpenMathAdapterRenderer;
     use crate::model::{BlockKind, SemanticBlock, SemanticFormat};
+    use crate::openmath::OPENMATH_TO_TEX_ID;
     use crate::render::{PreviewRenderer, RenderContext, Renderer, SourceRenderer};
 
     #[test]
@@ -66,7 +67,7 @@ mod tests {
             .expect("OpenMath preview");
         let output = String::from_utf8(artifact.bytes).expect("UTF-8 preview");
         assert!(output.contains("x + 1"));
-        assert!(renderer.id().contains("builtin/openmath-to-tex-v1"));
+        assert!(renderer.id().contains(OPENMATH_TO_TEX_ID));
     }
 
     #[test]

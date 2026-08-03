@@ -383,6 +383,7 @@ mod tests {
                 RenderContext {
                     columns: 123,
                     color: false,
+                    plain: false,
                     theme_fingerprint: 7,
                 },
             )

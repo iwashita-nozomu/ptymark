@@ -38,7 +38,7 @@ The following are execution-environment details, not product dependency sources:
 - Debian packages and environment variables inside `docker/ptymark.Dockerfile`;
 - Docker base-image, Compose, and local image-tag settings;
 - tools used only by container smoke tests, such as ShellCheck and Lua;
-- the generic AgentCanon/Python/Jupyter repository environment;
+- generic Python/Jupyter repository-template environments that are unrelated to the shipped product;
 - software preinstalled on GitHub-hosted runners.
 
 The alignment checker does not read any file under `docker/`. Those surfaces may be

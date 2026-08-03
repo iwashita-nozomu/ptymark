@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,7 @@ pub mod code {
     pub const PRESENTER_UNSUPPORTED: &str = "presenter.unsupported";
     pub const RENDER_FAILED: &str = "render.failed";
     pub const RENDER_PROCESS_EXIT: &str = "render.process_exit";
+    pub const RENDER_INVALID_ARTIFACT: &str = "render.invalid_artifact";
     pub const RENDER_TIMEOUT: &str = "render.timeout";
     pub const RENDER_OUTPUT_LIMIT: &str = "render.output_limit";
     pub const PRESENTATION_FALLBACK: &str = "presentation.fallback";
@@ -25,7 +27,8 @@ pub mod code {
     pub const MODE_PRIVATE: &str = "mode.private";
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DiagnosticSeverity {
     Info,
     Warning,
@@ -42,7 +45,8 @@ impl DiagnosticSeverity {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DiagnosticComponent {
     Configuration,
     Installation,
@@ -73,7 +77,8 @@ impl DiagnosticComponent {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DiagnosticStatus {
     Ready,
     Degraded,
@@ -114,7 +119,7 @@ impl DiagnosticStatus {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct DiagnosticEvidence {
     pub value: String,
     pub redacted: bool,
@@ -140,7 +145,7 @@ impl DiagnosticEvidence {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct DiagnosticFinding {
     pub code: String,
     pub severity: DiagnosticSeverity,
@@ -301,27 +306,10 @@ impl Redactor {
     }
 }
 
+/// Compatibility helper retained until `DoctorReport` has moved completely to
+/// Serde JSON in #129. New JSON output must use `serde_json` directly.
 pub fn json_string(value: &str) -> String {
-    let mut output = String::with_capacity(value.len().saturating_add(2));
-    output.push('"');
-    for character in value.chars() {
-        match character {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\u{08}' => output.push_str("\\b"),
-            '\u{0c}' => output.push_str("\\f"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            character if character <= '\u{1f}' => {
-                use std::fmt::Write as _;
-                let _ = write!(output, "\\u{:04x}", character as u32);
-            }
-            character => output.push(character),
-        }
-    }
-    output.push('"');
-    output
+    serde_json::to_string(value).expect("serializing a string cannot fail")
 }
 
 fn sanitize_controls(value: &str) -> String {

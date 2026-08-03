@@ -1,41 +1,41 @@
 # @dependency-start
 # contract configuration
-# responsibility Demonstrates explicit external renderer selection.
+# responsibility Demonstrates explicit external renderer selection in schema v2.
 # upstream design ../documents/ptymark-installer.md executable discovery contract
 # downstream implementation ../src/config.rs configuration parser
 # downstream implementation ../src/engine.rs selected engine roles
 # @dependency-end
 
-schema_version = 1
+schema_version = 2
+default_profile = "external"
 
-[detection]
+[profiles.external.session]
+mode = "render"
+strict = false
+
+[profiles.external.detection]
 mermaid = true
 math = true
-max_block_bytes = 1048576
 
-[rendering]
-mode = "preview"
-strict = false
-columns = 80
+[profiles.external.presentation]
+mode = "symbols"
+color = "auto"
+fallback_columns = 100
 
-[cache]
-enabled = true
+[profiles.external.cache]
+backend = "memory"
 max_entries = 128
 max_bytes = 33554432
 
-# Bare names are resolved through PATH. Replace them with absolute paths when
-# WezTerm or another GUI launcher receives a different PATH from your shell.
-[engines.mermaid]
-backend = "mermaid-cli"
-path = "mmdc"
+# A bare name is resolved through PATH. An absolute program is also accepted.
+[profiles.external.engines.mermaid]
+provider = "external"
+program = "mmdc"
 
-# Keep math on the built-in renderer until a tex2svg-compatible MathJax CLI is
-# installed. Then set backend = "mathjax-cli" and path = "tex2svg" (or an
-# absolute executable path).
-[engines.math]
-backend = "preview"
-path = "tex2svg"
+# Keep math dependency-free for this profile.
+[profiles.external.engines.math]
+provider = "preview"
 
-# External SVG engines are converted to terminal-safe symbol output by Chafa.
-[engines.presenter]
-path = "chafa"
+[profiles.external.engines.presenter]
+provider = "external"
+program = "chafa"

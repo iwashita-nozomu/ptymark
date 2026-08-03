@@ -4,7 +4,6 @@ contract reference
 responsibility Explains verification evidence, reproduction, and merge policy.
 upstream design ./manifest.toml required checks
 upstream implementation ../.github/workflows/ptymark-ci.yml product evidence
-upstream implementation ../.github/workflows/ci.yml repository evidence
 downstream implementation ../tests/verification_manifest_contract.rs drift prevention
 @dependency-end
 -->
@@ -20,7 +19,7 @@ This directory is the Git-owned source of truth for **what must be verified** be
 - `compat/shell-integrations/*.tsv` contains the reviewed shell-integration inventory.
 - `documents/shell-plugin-compatibility.md` explains what `contract-verified` means and what it does not mean.
 - `.github/workflows/ptymark-ci.yml` is the canonical product workflow.
-- `.github/workflows/ci.yml`, `docker-build.yml`, and `agent-improvement-guide.yml` remain independent repository gates.
+- `.github/workflows/ci.yml` performs a lightweight repository-wiring check; all feature evidence is owned by the product workflow.
 
 ## Evidence levels
 
@@ -31,7 +30,7 @@ This directory is the Git-owned source of truth for **what must be verified** be
 | `integration` | Real installer, renderer, browser, process, or adapter execution. |
 | `package` | A native executable is built and packaged in an ephemeral CI workspace, locally installed and smoke-tested, then discarded without upload or distribution. |
 | `compatibility` | Terminal behavior and shell ownership are validated without claiming every upstream release is vendored. |
-| `repository` | Inherited template, Docker-pack, and AgentCanon-owned gates. |
+| `repository` | Lightweight repository wiring that is independent of feature behavior. |
 
 ## Product checks
 
@@ -86,12 +85,6 @@ The following IDs are stable review references. Renaming or removing one require
 - `package-smoke.linux`
 - `package-smoke.macos`
 - `package-smoke.windows`
-
-### Independent repository gates
-
-- `repository.ci`
-- `repository.docker-build`
-- `repository.agent-improvement-guide`
 
 ## Canonical commands
 

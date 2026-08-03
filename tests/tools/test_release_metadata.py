@@ -1,16 +1,17 @@
 # @dependency-start
 # contract test
-# responsibility Verifies version consistency and the source-only release/publication policy.
+# responsibility Verifies prerelease version consistency and the source-only publication policy.
 # upstream implementation ../../scripts/check-release-metadata.py source-only validator
 # upstream environment ../../Cargo.toml current package version
-# upstream design ../../documents/release.md source-only release contract
+# upstream design ../../documents/release.md source-only prerelease contract
 # downstream environment ../../.github/workflows/ptymark-release.yml notes-only publication
 # @dependency-end
 
-"""Source-only release metadata contract tests."""
+"""Source-only prerelease metadata contract tests."""
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tomllib
@@ -18,15 +19,20 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+PRERELEASE_VERSION_PATTERN = re.compile(
+    r"^[0-9]+\.[0-9]+\.[0-9]+-(?:alpha|beta|rc)\.[0-9]+$"
+)
 
 
 class ReleaseMetadataTest(unittest.TestCase):
-    """Verify source-only release metadata and publication constraints."""
+    """Verify source-only prerelease metadata and publication constraints."""
 
     def test_release_tree_metadata_is_consistent(self) -> None:
-        """Require the current release tree to satisfy the metadata validator."""
+        """Require the current prerelease tree to satisfy the metadata validator."""
         cargo = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
-        tag = f"v{cargo['package']['version']}"
+        version = cargo["package"]["version"]
+        self.assertRegex(version, PRERELEASE_VERSION_PATTERN)
+        tag = f"v{version}"
         result = subprocess.run(
             [
                 sys.executable,
@@ -40,12 +46,19 @@ class ReleaseMetadataTest(unittest.TestCase):
             text=True,
         )
         self.assertIn("source-only release metadata ok", result.stdout)
+        self.assertIn("prerelease", result.stdout)
 
-    def test_release_workflow_publishes_notes_without_project_assets(self) -> None:
-        """Require release automation to publish notes without binary assets."""
+    def test_release_workflow_publishes_prerelease_notes_without_project_assets(self) -> None:
+        """Require release automation to publish prerelease notes without binary assets."""
         workflow = (ROOT / ".github/workflows/ptymark-release.yml").read_text()
         self.assertIn("gh release create", workflow)
         self.assertIn("--notes-file", workflow)
+        self.assertIn("--prerelease", workflow)
+        self.assertIn("isPrerelease", workflow)
+        self.assertIn(
+            "source prerelease workflow accepts only alpha, beta, or rc versions",
+            workflow,
+        )
         self.assertIn(".assets | length", workflow)
         for forbidden in (
             "cargo build",
@@ -56,6 +69,8 @@ class ReleaseMetadataTest(unittest.TestCase):
             "release-manifest.json",
             "SHA256SUMS",
             "dist/*",
+            "--latest",
+            "make_latest=true",
         ):
             self.assertNotIn(forbidden, workflow)
 

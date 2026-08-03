@@ -24,7 +24,7 @@ platform installer
     -> provision only missing default roles in an isolated bundle
     -> convert paths to the host-native representation
     -> call the shared Rust resolver
-    -> atomically write runtime configuration and installation state
+    -> transactionally commit portable user configuration and machine-local installation state
     -> normal rendering performs no installation
 ```
 
@@ -72,7 +72,7 @@ The Rust implementation owns:
 - installation inventory and readiness reporting.
 
 Every frontend ends by calling this resolver. Consequently, PowerShell, cmd.exe, Git Bash, MSYS2,
-Linux, macOS, and WSL produce the same semantic configuration.
+Linux, macOS, and WSL produce the same portable user intent while retaining host-native resolved state.
 
 ### 2.3 Managed-bundle installer
 
@@ -148,7 +148,7 @@ This prevents mixed path representations such as `/c/Users/...` in a configurati
 
 ## 4. Path contract
 
-Paths have an explicit owner and normalization point.
+Paths and preferences have explicit owners.
 
 | Value | Owner | Stored form |
 | --- | --- | --- |
@@ -156,19 +156,20 @@ Paths have an explicit owner and normalization point.
 | config path | platform frontend | host-native absolute path |
 | state path | platform frontend | host-native absolute path |
 | managed bundle root | platform frontend | host-native absolute path |
-| selected engine path | Rust resolver input | canonical absolute path |
-| runtime config engine path | Rust resolver | canonical absolute path |
-| installation-state paths | Rust resolver | canonical absolute path |
+| user engine preference | user config | provider plus optional explicit program |
+| discovered/managed engine path | install state | canonical host-native absolute path |
+| temporary files and process metadata | runtime | never serialized as user preference |
 
 Rules:
 
-1. an explicit executable may be an absolute path or a bare command name;
-2. a bare name is searched only during installation or an explicit runtime check;
-3. a relative path containing directory components is rejected;
-4. generated runtime configuration always stores absolute paths;
+1. schema-v2 user configuration records portable product intent;
+2. `external` may carry an absolute path or bare command name because that program is an explicit user choice;
+3. `auto` and `managed` do not copy discovered paths into user TOML;
+4. relative paths containing directory components are rejected;
 5. Git Bash/MSYS/Cygwin paths are converted before the Rust resolver sees them;
 6. WSL paths remain Linux paths;
-7. normal rendering never repeats installation-time candidate ranking.
+7. install state is accepted only when its config path and normalized user-config digest match;
+8. normal rendering performs no candidate ranking, installation, or network operation.
 
 ## 5. One-command flow
 
@@ -180,14 +181,13 @@ On a new installation, the frontend performs:
 3. inspect explicit options and visible system commands
 4. determine whether any renderer role is missing
 5. install or reuse the versioned managed bundle when allowed
-6. select absolute engine and presenter paths
+6. build portable provider choices plus a machine-local resolved inventory
 7. invoke `ptymark install resolve`
-8. invoke `ptymark install status`
+8. commit user config and install state as one recoverable transaction
+9. invoke `ptymark install status`
 ```
 
-A valid existing configuration changes the behavior of an ordinary rerun: existing choices and all
-unrelated detector, render, and cache settings are retained. `--reprobe` or `-Reprobe` asks the
-frontend to inspect current commands and managed fallbacks again.
+An ordinary rerun preserves unrelated profiles and preferences. `--reprobe` or `-Reprobe` refreshes the machine-local resolution; `--reset` deliberately starts from the schema-v2 defaults. A failed managed installation or failed pair commit must not make a new configuration appear complete.
 
 ## 6. Engine slots and selection
 

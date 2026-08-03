@@ -1,1 +1,0 @@
-../../vendor/agent-canon/notes/knowledge/path_resolution.md

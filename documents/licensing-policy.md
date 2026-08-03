@@ -1,39 +1,32 @@
 # Licensing Policy
+
 <!--
 @dependency-start
 contract policy
-responsibility Documents template and derived repository licensing ownership.
-upstream design ../README.md repository ownership overview
+responsibility Documents Ptymark source and third-party licensing ownership.
+upstream design ../README.md product ownership overview
 upstream design ../LICENSE repository license text
-upstream design ../vendor/agent-canon/documents/agent-canon-licensing-policy.md AgentCanon licensing boundary
-downstream implementation ../pyproject.toml publishes Python package license metadata
+downstream implementation ../Cargo.toml package license metadata
 @dependency-end
 -->
 
-This template repository is licensed under Apache License 2.0 unless a derived
-repository deliberately replaces the root `LICENSE` and package metadata.
+Ptymark source code and product-owned repository content are licensed under the
+Apache License 2.0, as declared by the root `LICENSE` and `Cargo.toml`.
 
-The license boundary follows repository ownership:
+Third-party Rust and managed-renderer dependencies retain their own licenses.
+Their inclusion in a source checkout or isolated managed bundle does not change
+those upstream terms. Dependency upgrades must keep license compatibility under
+review together with security, MSRV, source-only distribution, and lockfile
+changes.
 
-- Root `LICENSE` is the license for template-owned and project-owned repository
-  content.
-- `vendor/agent-canon/LICENSE` is the license for AgentCanon-owned shared
-  runtime, workflow, skill, tool, MCP, and documentation surfaces.
-- Root symlink views into `vendor/agent-canon/` keep the AgentCanon license.
-- Derived repositories may choose a different project license, but they must not
-  edit `vendor/agent-canon/LICENSE` through a root view.
-- Third-party skills or reusable assets under `vendor/agent-canon/vendor/` must
-  keep upstream URL, revision, and license metadata before they are enabled.
+Local developer tools, operating-system packages, browsers, and container images
+used for verification are not redistributed as Ptymark release assets. GitHub
+releases remain source-only and contain no project-uploaded executables.
 
-When a derived repository changes its project license, update these surfaces in
-the same change:
+When the project license or packaging metadata changes, update the following in
+the same reviewed change:
 
-- `LICENSE`
-- `pyproject.toml` package license metadata, if the repository publishes Python
-  packages
-- README license text
-- project-specific source headers, if the project uses source headers
-- any release or distribution packaging metadata
-
-Do not infer that the parent repository license applies to upstream AgentCanon
-or third-party vendored skills. Those surfaces carry their own license metadata.
+- root `LICENSE`;
+- `Cargo.toml` package license metadata;
+- README and release documentation;
+- downstream package metadata, when an independently maintained package exists.

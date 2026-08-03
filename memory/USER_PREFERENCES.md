@@ -1,1 +1,0 @@
-../vendor/agent-canon/memory/USER_PREFERENCES.md

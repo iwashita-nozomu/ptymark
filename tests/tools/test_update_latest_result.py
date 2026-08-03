@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/tools/test_update_latest_result.py

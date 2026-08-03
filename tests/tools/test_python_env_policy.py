@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/tools/test_python_env_policy.py

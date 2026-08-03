@@ -1,3 +1,5 @@
+use crate::limits::MAX_TERMINAL_CONTROL_BYTES;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OutputSegment {
     SafeText(Vec<u8>),
@@ -8,6 +10,12 @@ pub enum OutputSegment {
 enum AlternateScreenEvent {
     Enter,
     Leave,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct ParserEvent {
+    alternate_screen: Option<AlternateScreenEvent>,
+    overflowed: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -34,13 +42,13 @@ impl ControlParser {
         matches!(self.state, ParserState::Ground)
     }
 
-    fn feed(&mut self, byte: u8) -> Option<AlternateScreenEvent> {
+    fn feed(&mut self, byte: u8) -> ParserEvent {
         match &mut self.state {
             ParserState::Ground => {
                 if byte == 0x1b {
                     self.state = ParserState::Escape;
                 }
-                None
+                ParserEvent::default()
             }
             ParserState::Escape => {
                 match byte {
@@ -52,16 +60,29 @@ impl ControlParser {
                     0x1b => self.state = ParserState::Escape,
                     _ => self.state = ParserState::Ground,
                 }
-                None
+                ParserEvent::default()
             }
             ParserState::Csi(bytes) => {
+                if bytes.len() >= MAX_TERMINAL_CONTROL_BYTES {
+                    // The complete sequence cannot be classified within the
+                    // internal safety bound. Stop retaining bytes and ask the
+                    // gate to remain raw for the rest of this session.
+                    self.state = ParserState::Ground;
+                    return ParserEvent {
+                        overflowed: true,
+                        alternate_screen: None,
+                    };
+                }
                 bytes.push(byte);
                 if (0x40..=0x7e).contains(&byte) {
-                    let event = alternate_screen_event(bytes);
+                    let alternate_screen = alternate_screen_event(bytes);
                     self.state = ParserState::Ground;
-                    event
+                    ParserEvent {
+                        alternate_screen,
+                        overflowed: false,
+                    }
                 } else {
-                    None
+                    ParserEvent::default()
                 }
             }
             ParserState::Osc { escaped } => {
@@ -70,7 +91,7 @@ impl ControlParser {
                 } else {
                     *escaped = byte == 0x1b;
                 }
-                None
+                ParserEvent::default()
             }
             ParserState::String { escaped } => {
                 if *escaped && byte == b'\\' {
@@ -78,7 +99,7 @@ impl ControlParser {
                 } else {
                     *escaped = byte == 0x1b;
                 }
-                None
+                ParserEvent::default()
             }
         }
     }
@@ -124,6 +145,7 @@ pub struct TerminalOutputGate {
     raw_until_newline: bool,
     alternate_screen: bool,
     pending_carriage_return: bool,
+    parser_fail_closed: bool,
     parser: ControlParser,
 }
 
@@ -137,6 +159,7 @@ impl TerminalOutputGate {
                 if byte == b'\n'
                     && !self.alternate_screen
                     && !self.raw_until_newline
+                    && !self.parser_fail_closed
                     && self.parser.is_ground()
                 {
                     push_segment(&mut segments, false, b'\r');
@@ -149,6 +172,7 @@ impl TerminalOutputGate {
             if byte == b'\r'
                 && !self.alternate_screen
                 && !self.raw_until_newline
+                && !self.parser_fail_closed
                 && self.parser.is_ground()
             {
                 self.pending_carriage_return = true;
@@ -176,15 +200,23 @@ impl TerminalOutputGate {
     fn process_byte(&mut self, byte: u8, segments: &mut Vec<OutputSegment>) {
         let parser_active = !self.parser.is_ground();
         let unsafe_control = is_unsafe_control(byte);
-        let raw =
-            self.alternate_screen || self.raw_until_newline || parser_active || unsafe_control;
+        let raw = self.parser_fail_closed
+            || self.alternate_screen
+            || self.raw_until_newline
+            || parser_active
+            || unsafe_control;
         push_segment(segments, raw, byte);
 
         if unsafe_control {
             self.raw_until_newline = true;
         }
 
-        if let Some(event) = self.parser.feed(byte) {
+        let event = self.parser.feed(byte);
+        if event.overflowed {
+            self.parser_fail_closed = true;
+            self.raw_until_newline = true;
+        }
+        if let Some(event) = event.alternate_screen {
             match event {
                 AlternateScreenEvent::Enter => {
                     self.alternate_screen = true;
@@ -197,7 +229,11 @@ impl TerminalOutputGate {
             }
         }
 
-        if byte == b'\n' && !self.alternate_screen && self.parser.is_ground() {
+        if byte == b'\n'
+            && !self.parser_fail_closed
+            && !self.alternate_screen
+            && self.parser.is_ground()
+        {
             self.raw_until_newline = false;
         }
     }
@@ -206,6 +242,7 @@ impl TerminalOutputGate {
 #[cfg(test)]
 mod tests {
     use super::{OutputSegment, TerminalOutputGate};
+    use crate::limits::MAX_TERMINAL_CONTROL_BYTES;
 
     fn flatten(segments: Vec<OutputSegment>) -> Vec<u8> {
         segments
@@ -279,5 +316,30 @@ mod tests {
             gate.finish(),
             vec![OutputSegment::RawTerminalBytes(b"\r".to_vec())]
         );
+    }
+
+    #[test]
+    fn oversized_csi_is_bounded_and_fails_closed() {
+        let mut source = vec![0x1b, b'['];
+        source.extend(std::iter::repeat_n(b'0', MAX_TERMINAL_CONTROL_BYTES));
+        source.extend_from_slice(b"m\n$$\nE = mc^2\n$$\n");
+
+        let mut gate = TerminalOutputGate::default();
+        let segments = gate.feed(&source);
+        assert_eq!(flatten(segments.clone()), source);
+        assert!(
+            segments
+                .iter()
+                .all(|segment| matches!(segment, OutputSegment::RawTerminalBytes(_)))
+        );
+    }
+
+    #[test]
+    fn incomplete_csi_at_eof_is_byte_exact() {
+        let source = b"before\x1b[123";
+        let mut gate = TerminalOutputGate::default();
+        let mut output = flatten(gate.feed(source));
+        output.extend(flatten(gate.finish()));
+        assert_eq!(output, source);
     }
 }

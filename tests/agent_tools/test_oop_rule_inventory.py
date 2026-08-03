@@ -1,1 +1,0 @@
-../../vendor/agent-canon/tests/agent_tools/test_oop_rule_inventory.py

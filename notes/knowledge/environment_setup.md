@@ -1,1 +1,0 @@
-../../vendor/agent-canon/notes/knowledge/environment_setup.md

@@ -69,6 +69,7 @@ fn custom_decision_and_handoff_can_be_substituted_without_changing_the_pipeline_
             RenderContext {
                 columns: 96,
                 color: false,
+                plain: false,
                 theme_fingerprint: 11,
             },
         )

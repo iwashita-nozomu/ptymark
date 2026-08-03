@@ -9,7 +9,7 @@
 
 [package]
 name = "ptymark"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 edition = "2024"
 rust-version = "1.97.0"
 description = "Pre-display renderer for explicit semantic blocks in terminal output"
@@ -23,13 +23,25 @@ categories = ["command-line-utilities"]
 path = "src/lib.rs"
 
 [dependencies]
+clap = { version = "4.6", features = ["derive"] }
 crossterm = "0.29"
+directories = "6"
+lru = "0.18"
 portable-pty = "0.9"
+roxmltree = "0.21"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
 toml = "1.1"
+which = "8"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[dev-dependencies]
+assert_cmd = "2.2"
+predicates = "3"
 
 [lints.rust]
 unsafe_code = "forbid"

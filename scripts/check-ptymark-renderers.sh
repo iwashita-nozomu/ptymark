@@ -16,8 +16,21 @@ trap 'rm -rf "$work_dir"' EXIT
 
 node "$renderer_root/check.mjs"
 
-real_mmdc="$(command -v mmdc)"
-real_chafa="$(command -v chafa)"
+real_mmdc="${PTYMARK_TEST_MMDC:-$(command -v mmdc 2>/dev/null || true)}"
+if [[ -z "$real_mmdc" && -x "$renderer_root/node_modules/.bin/mmdc" ]]; then
+  real_mmdc="$renderer_root/node_modules/.bin/mmdc"
+fi
+[[ -x "$real_mmdc" ]] || {
+  echo "Mermaid CLI is unavailable; checked PATH and $renderer_root/node_modules/.bin/mmdc" >&2
+  exit 1
+}
+
+real_chafa="${PTYMARK_TEST_CHAFA:-$(command -v chafa 2>/dev/null || true)}"
+[[ -x "$real_chafa" ]] || {
+  echo 'Chafa is unavailable for the renderer integration smoke' >&2
+  exit 1
+}
+
 browser="${PUPPETEER_EXECUTABLE_PATH:-}"
 if [[ -z "$browser" ]]; then
   for candidate in chromium chromium-browser google-chrome google-chrome-stable; do
@@ -27,7 +40,7 @@ if [[ -z "$browser" ]]; then
     fi
   done
 fi
-[[ -n "$browser" ]] || {
+[[ -n "$browser" && -x "$browser" ]] || {
   echo 'no Chromium-compatible browser is available for the Mermaid smoke test' >&2
   exit 1
 }
