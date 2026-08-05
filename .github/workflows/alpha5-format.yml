@@ -1,0 +1,45 @@
+name: Format Alpha.5 candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/alpha5-format.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/alpha5-render-toggle'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out the candidate branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply the pinned formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt
+          rustup override set 1.97.0
+          cargo fmt --all
+          rm -f .github/workflows/alpha5-format.yml
+          git diff --check
+
+      - name: Publish the formatted product tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style: format Alpha.5 rendering toggle"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
