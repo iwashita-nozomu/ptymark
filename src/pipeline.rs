@@ -59,6 +59,10 @@ pub struct DisplayPipeline {
     context: RenderContext,
     strict: bool,
     terminal_line_endings: bool,
+    rendering_enabled: bool,
+    requested_rendering_enabled: bool,
+    safe_line_start: bool,
+    passthrough_until_newline: bool,
     report: PipelineReport,
 }
 
@@ -93,6 +97,10 @@ impl DisplayPipeline {
             context,
             strict,
             terminal_line_endings: false,
+            rendering_enabled: true,
+            requested_rendering_enabled: true,
+            safe_line_start: true,
+            passthrough_until_newline: false,
             report: PipelineReport::default(),
         }
     }
@@ -102,16 +110,22 @@ impl DisplayPipeline {
     }
 
     pub fn feed(&mut self, input: &[u8], display: &mut dyn Write) -> Result<(), PipelineError> {
+        self.apply_rendering_state(display)?;
         self.report.input_bytes = self.report.input_bytes.saturating_add(input.len());
         let segments = self.gate.feed(input);
         self.emit_segments(segments, display)
     }
 
     pub fn finish(&mut self, display: &mut dyn Write) -> Result<(), PipelineError> {
+        self.apply_rendering_state(display)?;
         let segments = self.gate.finish();
         self.emit_segments(segments, display)?;
         let items = self.detector.finish();
-        self.emit(items, display)?;
+        if self.rendering_enabled {
+            self.emit(items, display)?;
+        } else {
+            self.emit_exact_source(items, display)?;
+        }
         display.flush()?;
         Ok(())
     }
@@ -132,6 +146,27 @@ impl DisplayPipeline {
         self.terminal_line_endings = enabled;
     }
 
+    /// Request semantic rendering to be enabled or disabled at the next safe
+    /// display boundary. Terminal-control classification remains active in
+    /// both states.
+    pub(crate) fn set_rendering_enabled(&mut self, enabled: bool) {
+        self.requested_rendering_enabled = enabled;
+    }
+
+    fn apply_rendering_state(&mut self, display: &mut dyn Write) -> Result<(), PipelineError> {
+        if self.rendering_enabled == self.requested_rendering_enabled {
+            return Ok(());
+        }
+        if !self.requested_rendering_enabled {
+            let pending = self.detector.finish();
+            self.emit_exact_source(pending, display)?;
+        } else {
+            self.passthrough_until_newline = !self.safe_line_start;
+        }
+        self.rendering_enabled = self.requested_rendering_enabled;
+        Ok(())
+    }
+
     fn emit_segments(
         &mut self,
         segments: Vec<OutputSegment>,
@@ -139,19 +174,89 @@ impl DisplayPipeline {
     ) -> Result<(), PipelineError> {
         for segment in segments {
             match segment {
+                OutputSegment::SafeText(bytes) if self.rendering_enabled => {
+                    self.emit_renderable_text(&bytes, display)?;
+                    self.update_safe_line_start(&bytes);
+                }
                 OutputSegment::SafeText(bytes) => {
-                    let items = self.detector.feed(&bytes);
-                    self.emit(items, display)?;
+                    self.write_passthrough(&bytes, display)?;
+                    self.update_safe_line_start(&bytes);
                 }
                 OutputSegment::RawTerminalBytes(bytes) => {
                     let pending = self.detector.finish();
-                    self.emit(pending, display)?;
+                    if self.rendering_enabled {
+                        self.emit(pending, display)?;
+                    } else {
+                        self.emit_exact_source(pending, display)?;
+                    }
                     display.write_all(&bytes)?;
                     self.report.raw_terminal_bytes =
                         self.report.raw_terminal_bytes.saturating_add(bytes.len());
+                    self.update_safe_line_start(&bytes);
                 }
             }
         }
+        Ok(())
+    }
+
+    fn emit_renderable_text(
+        &mut self,
+        bytes: &[u8],
+        display: &mut dyn Write,
+    ) -> Result<(), PipelineError> {
+        let renderable = if self.passthrough_until_newline {
+            match bytes.iter().position(|byte| *byte == b'\n') {
+                Some(index) => {
+                    let split = index + 1;
+                    self.write_passthrough(&bytes[..split], display)?;
+                    self.passthrough_until_newline = false;
+                    &bytes[split..]
+                }
+                None => {
+                    self.write_passthrough(bytes, display)?;
+                    return Ok(());
+                }
+            }
+        } else {
+            bytes
+        };
+        let items = self.detector.feed(renderable);
+        self.emit(items, display)
+    }
+
+    fn update_safe_line_start(&mut self, bytes: &[u8]) {
+        if let Some(byte) = bytes.last() {
+            self.safe_line_start = *byte == b'\n';
+            if self.safe_line_start {
+                self.passthrough_until_newline = false;
+            }
+        }
+    }
+
+    fn emit_exact_source(
+        &mut self,
+        items: Vec<StreamItem>,
+        display: &mut dyn Write,
+    ) -> Result<(), PipelineError> {
+        for item in items {
+            match item {
+                StreamItem::Passthrough(bytes) => self.write_passthrough(&bytes, display)?,
+                StreamItem::Semantic(block) => {
+                    self.report.semantic_blocks = self.report.semantic_blocks.saturating_add(1);
+                    self.write_passthrough(block.source(), display)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn write_passthrough(
+        &mut self,
+        bytes: &[u8],
+        display: &mut dyn Write,
+    ) -> Result<(), PipelineError> {
+        display.write_all(bytes)?;
+        self.report.passthrough_bytes = self.report.passthrough_bytes.saturating_add(bytes.len());
         Ok(())
     }
 
@@ -170,9 +275,7 @@ impl DisplayPipeline {
         for (index, item) in items.into_iter().enumerate() {
             match item {
                 StreamItem::Passthrough(bytes) => {
-                    display.write_all(&bytes)?;
-                    self.report.passthrough_bytes =
-                        self.report.passthrough_bytes.saturating_add(bytes.len());
+                    self.write_passthrough(&bytes, display)?;
                 }
                 StreamItem::Semantic(block) => {
                     self.report.semantic_blocks = self.report.semantic_blocks.saturating_add(1);
@@ -378,6 +481,88 @@ mod tests {
         }
         pipeline.finish(&mut output).expect("finish");
         assert_eq!(output, source);
+    }
+
+    #[test]
+    fn disabling_rendering_restores_a_partial_block_as_exact_source() {
+        let mut pipeline = preview_pipeline();
+        let mut output = Vec::new();
+        let source = b"before\n$$\nE = mc^2\n$$\nafter\n";
+
+        pipeline
+            .feed(b"before\n$$\nE =", &mut output)
+            .expect("partial feed");
+        pipeline.set_rendering_enabled(false);
+        pipeline
+            .feed(b" mc^2\n$$\nafter\n", &mut output)
+            .expect("disabled feed");
+        pipeline.finish(&mut output).expect("finish");
+
+        assert_eq!(output, source);
+        assert_eq!(pipeline.report().rendered_blocks, 0);
+    }
+
+    #[test]
+    fn rendering_can_resume_for_future_blocks() {
+        let mut pipeline = preview_pipeline();
+        let mut output = Vec::new();
+
+        pipeline.set_rendering_enabled(false);
+        pipeline
+            .feed(b"$$\nA = 1\n$$\n", &mut output)
+            .expect("disabled block");
+        pipeline.set_rendering_enabled(true);
+        pipeline
+            .feed(b"$$\nB = 2\n$$\n", &mut output)
+            .expect("enabled block");
+        pipeline.finish(&mut output).expect("finish");
+
+        let text = String::from_utf8(output).expect("UTF-8");
+        assert!(text.starts_with("$$\nA = 1\n$$\n"), "{text}");
+        assert!(text.contains("ptymark math"), "{text}");
+        assert!(!text.contains("$$\nB = 2\n$$"), "{text}");
+        assert_eq!(pipeline.report().rendered_blocks, 1);
+    }
+
+    #[test]
+    fn a_raw_newline_restores_a_safe_resume_boundary() {
+        let mut pipeline = preview_pipeline();
+        let mut output = Vec::new();
+
+        pipeline.set_rendering_enabled(false);
+        pipeline
+            .feed(b"prefix\x1b[31mred\x1b[0m\n", &mut output)
+            .expect("disabled raw line");
+        pipeline.set_rendering_enabled(true);
+        pipeline
+            .feed(b"$$\nB = 2\n$$\n", &mut output)
+            .expect("enabled block");
+        pipeline.finish(&mut output).expect("finish");
+
+        let text = String::from_utf8(output).expect("UTF-8");
+        assert!(text.starts_with("prefix\x1b[31mred\x1b[0m\n"), "{text:?}");
+        assert!(text.contains("ptymark math"), "{text}");
+        assert!(!text.contains("$$\nB = 2\n$$"), "{text}");
+    }
+
+    #[test]
+    fn reenable_mid_line_does_not_create_a_false_block_boundary() {
+        let mut pipeline = preview_pipeline();
+        let mut output = Vec::new();
+        let source = b"prefix$$\nA = 1\n$$\n";
+
+        pipeline.set_rendering_enabled(false);
+        pipeline
+            .feed(b"prefix", &mut output)
+            .expect("disabled prefix");
+        pipeline.set_rendering_enabled(true);
+        pipeline
+            .feed(b"$$\nA = 1\n$$\n", &mut output)
+            .expect("enabled remainder");
+        pipeline.finish(&mut output).expect("finish");
+
+        assert_eq!(output, source);
+        assert_eq!(pipeline.report().rendered_blocks, 0);
     }
 
     struct PanicRenderer;

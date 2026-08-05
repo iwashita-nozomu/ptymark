@@ -6,6 +6,7 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_si
 use portable_pty::{
     Child as PtyChild, ChildKiller, CommandBuilder, MasterPty, PtyPair, PtySize, native_pty_system,
 };
+use std::collections::VecDeque;
 use std::env;
 use std::io::{self, IsTerminal, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,6 +17,12 @@ use std::thread::{self, JoinHandle};
 type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
 type SharedWriter = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
 type SharedKiller = Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>;
+
+/// UTF-8 for the supplementary private-use scalar U+10FFFD. WezTerm sends
+/// this code point for the session-local render toggle. Using a private-use
+/// scalar avoids delaying the ordinary Escape key while still remaining a
+/// bounded sequence that can be recognized across read boundaries.
+pub(crate) const RENDER_TOGGLE_SEQUENCE: &[u8] = b"\xf4\x8f\xbf\xbd";
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ParentTerminal {
@@ -210,6 +217,7 @@ impl NativeSessionKiller {
 
 pub(crate) struct SessionControl {
     running: Arc<AtomicBool>,
+    rendering_enabled: Arc<AtomicBool>,
     input_writer: SharedWriter,
     _input: JoinHandle<()>,
     resize: Option<ResizeMonitor>,
@@ -221,6 +229,7 @@ impl SessionControl {
         parent: ParentTerminal,
     ) -> Result<Self, String> {
         let running = Arc::new(AtomicBool::new(true));
+        let rendering_enabled = Arc::new(AtomicBool::new(true));
         let resize = ResizeMonitor::spawn(
             session.resize_handle(),
             Arc::clone(&running),
@@ -236,7 +245,11 @@ impl SessionControl {
             }
         };
         let input_writer = Arc::new(Mutex::new(Some(writer)));
-        let input = match spawn_input_pump(Arc::clone(&input_writer), Arc::clone(&running)) {
+        let input = match spawn_input_pump(
+            Arc::clone(&input_writer),
+            Arc::clone(&running),
+            Arc::clone(&rendering_enabled),
+        ) {
             Ok(input) => input,
             Err(error) => {
                 running.store(false, Ordering::Release);
@@ -248,6 +261,7 @@ impl SessionControl {
 
         Ok(Self {
             running,
+            rendering_enabled,
             input_writer,
             _input: input,
             resize: Some(resize),
@@ -259,6 +273,10 @@ impl SessionControl {
         InputResponder {
             writer: Arc::clone(&self.input_writer),
         }
+    }
+
+    pub(crate) fn rendering_enabled(&self) -> bool {
+        self.rendering_enabled.load(Ordering::Acquire)
     }
 
     pub(crate) fn latest_resize(&self) -> Option<PtySize> {
@@ -312,9 +330,61 @@ pub(crate) fn normalize_exit_code(status: &portable_pty::ExitStatus) -> i32 {
     i32::try_from(status.exit_code()).unwrap_or(1)
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum SessionInputAction {
+    Forward(Vec<u8>),
+    ToggleRendering,
+}
+
+fn push_forward_action(actions: &mut Vec<SessionInputAction>, byte: u8) {
+    match actions.last_mut() {
+        Some(SessionInputAction::Forward(bytes)) => bytes.push(byte),
+        _ => actions.push(SessionInputAction::Forward(vec![byte])),
+    }
+}
+
+#[derive(Default)]
+struct SessionInputFilter {
+    pending: VecDeque<u8>,
+}
+
+impl SessionInputFilter {
+    fn push(&mut self, input: &[u8], actions: &mut Vec<SessionInputAction>) {
+        for &byte in input {
+            self.pending.push_back(byte);
+            while !self.pending_is_prefix() {
+                let byte = self
+                    .pending
+                    .pop_front()
+                    .expect("a non-prefix input candidate is non-empty");
+                push_forward_action(actions, byte);
+            }
+            if self.pending.len() == RENDER_TOGGLE_SEQUENCE.len() {
+                self.pending.clear();
+                actions.push(SessionInputAction::ToggleRendering);
+            }
+        }
+    }
+
+    fn finish(&mut self, actions: &mut Vec<SessionInputAction>) {
+        while let Some(byte) = self.pending.pop_front() {
+            push_forward_action(actions, byte);
+        }
+    }
+
+    fn pending_is_prefix(&self) -> bool {
+        self.pending.len() <= RENDER_TOGGLE_SEQUENCE.len()
+            && self.pending.iter().copied().eq(RENDER_TOGGLE_SEQUENCE
+                .iter()
+                .copied()
+                .take(self.pending.len()))
+    }
+}
+
 fn spawn_input_pump(
     writer: SharedWriter,
     running: Arc<AtomicBool>,
+    rendering_enabled: Arc<AtomicBool>,
 ) -> Result<JoinHandle<()>, String> {
     thread::Builder::new()
         .name("ptymark-stdin".to_owned())
@@ -322,27 +392,74 @@ fn spawn_input_pump(
             let stdin = io::stdin();
             let mut input = stdin.lock();
             let mut buffer = [0_u8; 8192];
+            let mut filter = SessionInputFilter::default();
 
             while running.load(Ordering::Acquire) {
                 let count = match input.read(&mut buffer) {
-                    Ok(0) => break,
+                    Ok(0) => {
+                        flush_pending_input(&mut filter, &writer, &rendering_enabled);
+                        break;
+                    }
                     Ok(count) => count,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(_) => break,
+                    Err(_) => {
+                        flush_pending_input(&mut filter, &writer, &rendering_enabled);
+                        break;
+                    }
                 };
-                let mut writer = match writer.lock() {
-                    Ok(writer) => writer,
-                    Err(poisoned) => poisoned.into_inner(),
-                };
-                let Some(writer) = writer.as_mut() else {
-                    break;
-                };
-                if writer.write_all(&buffer[..count]).is_err() || writer.flush().is_err() {
+
+                let mut actions = Vec::new();
+                filter.push(&buffer[..count], &mut actions);
+                if !apply_input_actions(&writer, &rendering_enabled, actions) {
                     break;
                 }
             }
         })
         .map_err(|error| format!("cannot start terminal input forwarding: {error}"))
+}
+
+fn flush_pending_input(
+    filter: &mut SessionInputFilter,
+    writer: &SharedWriter,
+    rendering_enabled: &AtomicBool,
+) {
+    let mut actions = Vec::new();
+    filter.finish(&mut actions);
+    let _ = apply_input_actions(writer, rendering_enabled, actions);
+}
+
+fn apply_input_actions(
+    writer: &SharedWriter,
+    rendering_enabled: &AtomicBool,
+    actions: Vec<SessionInputAction>,
+) -> bool {
+    for action in actions {
+        match action {
+            SessionInputAction::Forward(bytes) => {
+                if !forward_input(writer, &bytes) {
+                    return false;
+                }
+            }
+            SessionInputAction::ToggleRendering => {
+                rendering_enabled.fetch_xor(true, Ordering::AcqRel);
+            }
+        }
+    }
+    true
+}
+
+fn forward_input(writer: &SharedWriter, bytes: &[u8]) -> bool {
+    if bytes.is_empty() {
+        return true;
+    }
+    let mut writer = match writer.lock() {
+        Ok(writer) => writer,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let Some(writer) = writer.as_mut() else {
+        return false;
+    };
+    writer.write_all(bytes).is_ok() && writer.flush().is_ok()
 }
 
 fn close_shared_writer(writer: &SharedWriter) {
@@ -465,6 +582,108 @@ impl ResizeMonitor {
                 .map_err(|_| "terminal resize forwarding thread panicked".to_owned())?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod input_filter_tests {
+    use super::{RENDER_TOGGLE_SEQUENCE, SessionInputAction, SessionInputFilter};
+
+    fn filter_chunks(chunks: &[&[u8]]) -> Vec<SessionInputAction> {
+        let mut filter = SessionInputFilter::default();
+        let mut actions = Vec::new();
+        for chunk in chunks {
+            filter.push(chunk, &mut actions);
+        }
+        filter.finish(&mut actions);
+        actions
+    }
+
+    fn flatten(actions: &[SessionInputAction]) -> (Vec<u8>, usize) {
+        let mut forwarded = Vec::new();
+        let mut toggles = 0_usize;
+        for action in actions {
+            match action {
+                SessionInputAction::Forward(bytes) => forwarded.extend_from_slice(bytes),
+                SessionInputAction::ToggleRendering => toggles += 1,
+            }
+        }
+        (forwarded, toggles)
+    }
+
+    #[test]
+    fn exact_control_sequence_is_consumed_in_input_order() {
+        let mut input = b"before".to_vec();
+        input.extend_from_slice(RENDER_TOGGLE_SEQUENCE);
+        input.extend_from_slice(b"after");
+        let actions = filter_chunks(&[input.as_slice()]);
+        assert_eq!(
+            actions,
+            vec![
+                SessionInputAction::Forward(b"before".to_vec()),
+                SessionInputAction::ToggleRendering,
+                SessionInputAction::Forward(b"after".to_vec()),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_control_sequence_split_is_recognized() {
+        for split in 0..=RENDER_TOGGLE_SEQUENCE.len() {
+            let actions = filter_chunks(&[
+                &RENDER_TOGGLE_SEQUENCE[..split],
+                &RENDER_TOGGLE_SEQUENCE[split..],
+            ]);
+            assert_eq!(
+                actions,
+                vec![SessionInputAction::ToggleRendering],
+                "split={split}"
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_escape_is_forwarded_without_waiting_for_more_input() {
+        let mut filter = SessionInputFilter::default();
+        let mut actions = Vec::new();
+        filter.push(b"\x1b", &mut actions);
+        assert_eq!(actions, vec![SessionInputAction::Forward(vec![0x1b])]);
+        assert!(filter.pending.is_empty());
+    }
+
+    #[test]
+    fn every_mismatching_prefix_is_forwarded_byte_exact() {
+        for mismatch_at in 0..RENDER_TOGGLE_SEQUENCE.len() {
+            let mut input = RENDER_TOGGLE_SEQUENCE[..mismatch_at].to_vec();
+            let expected = RENDER_TOGGLE_SEQUENCE[mismatch_at];
+            input.push(expected ^ 0x01);
+            input.extend_from_slice(b" ordinary input");
+            let actions = filter_chunks(&[input.as_slice()]);
+            assert_eq!(flatten(&actions), (input, 0), "mismatch_at={mismatch_at}");
+        }
+    }
+
+    #[test]
+    fn every_unfinished_prefix_is_forwarded_at_end_of_input() {
+        for length in 0..RENDER_TOGGLE_SEQUENCE.len() {
+            let input = &RENDER_TOGGLE_SEQUENCE[..length];
+            let actions = filter_chunks(&[input]);
+            assert_eq!(flatten(&actions), (input.to_vec(), 0), "length={length}");
+        }
+    }
+
+    #[test]
+    fn repeated_sequences_report_each_toggle() {
+        let mut input = RENDER_TOGGLE_SEQUENCE.to_vec();
+        input.extend_from_slice(RENDER_TOGGLE_SEQUENCE);
+        let actions = filter_chunks(&[input.as_slice()]);
+        assert_eq!(
+            actions,
+            vec![
+                SessionInputAction::ToggleRendering,
+                SessionInputAction::ToggleRendering,
+            ]
+        );
     }
 }
 

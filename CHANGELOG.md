@@ -14,7 +14,34 @@ All notable changes to ptymark are documented in this file. The project follows 
 
 ## [Unreleased]
 
-No user-visible changes are currently queued after `0.1.0-alpha.4`.
+No user-visible changes are currently queued after `0.1.0-alpha.5`.
+
+
+## [0.1.0-alpha.5] - 2026-08-05
+
+### Added
+
+- A session-local interactive rendering toggle that pauses semantic replacement without changing user configuration, installation state, shell profiles, child argv, or the child process.
+- Append-only WezTerm `render_toggle_key` integration, defaulting to `CTRL|SHIFT|ALT+R`, with custom-key and disabled forms.
+- Real Unix PTY and Windows ConPTY evidence that one block can render before the toggle while the next complete block is restored as exact source.
+
+### Safety
+
+- The native input filter reserves only UTF-8 `U+10FFFD`, recognizes every read-boundary split, forwards partial or mismatching prefixes byte-for-byte, and never delays ordinary Escape.
+- Pausing restores detector-retained partial source before passthrough; resuming in the middle of a logical line waits through the next newline so it cannot manufacture a false semantic opener.
+- ANSI/CSI, OSC, DCS/APC/PM, carriage-return redraw, parser-fail-closed state, and alternate-screen classification remain active while semantic rendering is paused.
+- The toggle can suppress the selected baseline policy but cannot turn `--source` or `--safe` into a render-capable mode or re-enable cache under `--private`.
+
+### Changed
+
+- The broader guided-adoption, state-discovery, CJK/grapheme, and text-first usability plan moves to `v0.1.0-alpha.6` so this bounded interactive control can be reviewed and released independently.
+- The prerelease remains source-only, with zero project-uploaded executable assets.
+
+### Known limitations
+
+- A renderer already executing when the key is pressed may finish before the new state applies.
+- The default WezTerm binding targets the active pane; use it inside a Ptymark-hosted session or customize/disable it.
+- The toggle does not persist state or inject a visual status line.
 
 ## [0.1.0-alpha.4] - 2026-08-03
 

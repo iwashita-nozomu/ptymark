@@ -71,6 +71,7 @@ pub(crate) fn run(
                 &mut display,
                 &mut pipeline,
                 |pipeline| {
+                    pipeline.set_rendering_enabled(control.rendering_enabled());
                     if let Some(size) = control.latest_resize() {
                         pipeline.set_columns(size.cols);
                     }

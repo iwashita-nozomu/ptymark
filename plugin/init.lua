@@ -2,6 +2,8 @@ local wezterm = require 'wezterm'
 
 local M = {}
 
+M.RENDER_TOGGLE_SEQUENCE = '\xF4\x8F\xBF\xBD'
+
 local function copy_array(values)
   local result = {}
   for index, value in ipairs(values or {}) do
@@ -32,6 +34,21 @@ local function session_mode_flag(mode)
   assert(flags[mode] ~= nil,
     'ptymark option `mode` must be one of: source, safe, private')
   return flags[mode]
+end
+
+local function append_key(config, option, default, action_factory, option_name)
+  if option == false then
+    return
+  end
+  local key = option or default
+  assert(type(key) == 'table' and type(key.key) == 'string',
+    'ptymark option `' .. option_name .. '` must contain a string `key`')
+  config.keys = config.keys or {}
+  table.insert(config.keys, {
+    key = key.key,
+    mods = key.mods or 'NONE',
+    action = action_factory(),
+  })
 end
 
 function M.command(options)
@@ -90,17 +107,24 @@ function M.apply_to_config(config, options)
     table.insert(config.launch_menu, entry)
   end
 
-  if options.key ~= false then
-    local key = options.key or { key = 'P', mods = 'CTRL|SHIFT' }
-    assert(type(key) == 'table' and type(key.key) == 'string',
-      'ptymark option `key` must contain a string `key`')
-    config.keys = config.keys or {}
-    table.insert(config.keys, {
-      key = key.key,
-      mods = key.mods or 'NONE',
-      action = wezterm.action.SpawnCommandInNewTab(spawn_spec(options)),
-    })
-  end
+  append_key(
+    config,
+    options.key,
+    { key = 'P', mods = 'CTRL|SHIFT' },
+    function()
+      return wezterm.action.SpawnCommandInNewTab(spawn_spec(options))
+    end,
+    'key'
+  )
+  append_key(
+    config,
+    options.render_toggle_key,
+    { key = 'R', mods = 'CTRL|SHIFT|ALT' },
+    function()
+      return wezterm.action.SendString(M.RENDER_TOGGLE_SEQUENCE)
+    end,
+    'render_toggle_key'
+  )
 end
 
 return M

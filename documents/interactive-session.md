@@ -64,6 +64,17 @@ The current runtime has only process-local memory caching and no persistent sour
 sink. `--private` disables that cache now and owns the forward-compatible contract for suppressing any
 future persistent diagnostics without changing the CLI.
 
+
+## Temporary rendering toggle
+
+An active interactive session has one in-memory rendering gate. It starts enabled relative to the selected baseline mode and is discarded when the session exits. The gate can pause semantic replacement, but it does not rewrite TOML, installation state, shell profiles, WezTerm configuration, child argv, cache policy, or the child process. In particular, toggling cannot make `--source` or `--safe` render, and `--private` remains cache-disabled.
+
+The WezTerm plugin appends a `render_toggle_key` binding, defaulting to `CTRL|SHIFT|ALT+R`. The binding sends supplementary private-use scalar `U+10FFFD`, whose UTF-8 bytes are `f4 8f bf bd`. The native input pump consumes only that exact four-byte value. Every split across input reads is recognized; partial or mismatching prefixes are forwarded to the child byte-for-byte and in order. Escape is not a prefix, so ordinary Escape, Ctrl+C, bracketed-paste framing, mouse reports, and normal terminal escape sequences are not delayed. The reserved scalar itself is the sole exception and should not be pasted as application data through a Ptymark-hosted pane.
+
+Disabling applies at the next display update. A renderer already executing may finish. Any partially detected semantic block is restored as exact source before passthrough begins. Terminal-control classification remains active while paused. Re-enabling in the middle of a logical line keeps that remainder on the passthrough path through the next newline, preventing a false opener assembled across the state transition.
+
+The plugin is append-only: existing `config.keys` and `config.launch_menu` entries are retained. Set `render_toggle_key = false` to omit the binding or provide another `{ key = ..., mods = ... }` table. Because `SendString` targets the active pane, use the binding in a Ptymark-hosted pane. Ptymark intentionally does not inject a status line or persist Lua-side state; the native session remains the single source of truth.
+
 ## Session visibility and nesting
 
 Every interactive child receives one stable public marker:
@@ -132,7 +143,8 @@ native_session.rs
     parent terminal state
     native PTY / ConPTY child lifecycle
     child environment marker
-    input forwarding
+    input forwarding and exact render-toggle recognition
+    session-local rendering state
     resize observation
 
 runtime.rs
@@ -154,7 +166,7 @@ When both parent stdin and stdout are terminals, ptymark enables raw mode on the
 the lifetime of the session. The child PTY retains its own terminal line discipline. This allows
 normal shell behavior:
 
-- typed bytes and bracketed paste reach the child;
+- typed bytes and bracketed paste reach the child, except the explicitly reserved `U+10FFFD` toggle value;
 - the child controls echo and canonical input;
 - Ctrl+C and related control bytes are interpreted by the child terminal's foreground process group;
 - shell prompts, completion, mouse reports, and full-screen applications continue to use terminal
@@ -223,6 +235,7 @@ Generation-based cancellation of an in-flight stale render remains follow-up wor
 - `PTYMARK_ACTIVE=1` reaches the child on Unix and Windows;
 - accidental nesting is rejected before launch and `--allow-nested` is an explicit escape hatch;
 - alternate-screen bytes remain unrendered;
+- a real session renders one block, consumes the toggle value, and restores the next block as exact source;
 - exit status is preserved;
 - on Unix, a Ctrl+C byte reaches the foreground process group;
 - a real Unix PTY resize changes the size observed by `stty`.

@@ -1,195 +1,149 @@
-# Roadmap from v0.1.0-alpha.4 to Beta
-
 <!--
 @dependency-start
-contract roadmap
-responsibility Defines the bounded Alpha.5 and Beta release trains after the typed Alpha.4 foundation.
-upstream design ../README.md product status and source-only distribution
-upstream design ./alpha4-design.md typed configuration and internal-policy separation
-upstream design ./release.md immutable source-only publication
-downstream implementation ../verification/manifest.toml merge and release evidence phases
+contract reference
+responsibility Defines the bounded release sequence from the released Alpha.4 baseline through Beta.1.
+upstream design ../README.md user-facing product status
+upstream design ./release.md immutable source-only release contract
+upstream design ./interactive-session.md transient rendering-control contract
+downstream environment ../.github/workflows/ptymark-ci.yml merge evidence
+downstream environment ../.github/workflows/ptymark-release.yml source prerelease publication
+downstream implementation ../tests/render_toggle_contract.rs cross-platform session evidence
 @dependency-end
 -->
 
-## Baseline: v0.1.0-alpha.4
+# Ptymark release roadmap: Alpha.5, Alpha.6, and Beta.1
 
-Alpha.4 establishes the implementation foundation used by both later trains:
+## Released baseline: v0.1.0-alpha.4
 
-- schema-v2 user configuration with named profiles and deterministic schema-v1 migration;
-- portable user intent separated from machine-local installation state;
-- canonical `ptymark shell -- COMMAND` with the Alpha.3 form retained as a compatibility alias;
-- maintained CLI, serialization, XML, path, temporary-file, and LRU infrastructure;
-- bounded terminal-control parsing and structural artifact validation;
-- transactional configuration/install-state publication;
-- product-owned CI without inherited repository-template or agent-runtime gates.
+`v0.1.0-alpha.4` was published on 2026-08-03 from reviewed main commit
+`c8d96846bcd968d3b55d39c995b2afbd130240a7`.
 
-Alpha.4 remains a source-only prerelease. The release does not promise signed packages, lifecycle mutation, persistent workers/cache, or terminal image protocols.
+The baseline includes:
 
-## Release train
+- native Unix PTY and Windows ConPTY hosting;
+- explicit Mermaid, TeX block-math, and OpenMath detection;
+- exact-source, safe, and private session modes;
+- terminal-control and alternate-screen byte preservation;
+- typed TOML schema v2 and machine-local installation state;
+- transactional configuration/state publication;
+- bounded renderer, parser, artifact, and pending-output policy;
+- source-only GitHub prereleases with no project-uploaded executable assets.
+
+Release trackers and narrow issues remain the operational source of truth. This document records
+release boundaries and dependency order; it does not mark work complete by itself.
+
+## Release sequence
 
 ```mermaid
 flowchart LR
-    A4[v0.1.0-alpha.4
-typed foundation] --> A5[v0.1.0-alpha.5
-guided adoption]
-    A5 --> B1[v0.1.0-beta.1
-contract freeze]
-    B1 --> S[v0.1 stable candidate]
+    A4[v0.1.0-alpha.4\nreleased]
+    A5[v0.1.0-alpha.5\nsession-local render control]
+    A6[v0.1.0-alpha.6\nguided adoption + text-first usability]
+    B1[v0.1.0-beta.1\nlifecycle + contract freeze]
+    S[v0.1 stable]
 
-    A5 --> C[copyable text/source foundation]
-    B1 --> L[lifecycle completion]
-    B1 --> A[structured artifacts]
-    B1 --> P[measured performance]
+    A4 --> A5 --> A6 --> B1 --> S
 ```
 
-## v0.1.0-alpha.5 — guided adoption and text-first usability
+## v0.1.0-alpha.5: session-local rendering control
 
-### Product goal
+Canonical tracker: #147. Feature contract: #151.
 
-A new user can build from reviewed source, complete one deterministic setup/self-test, launch a named-profile session, render real Mermaid and math, diagnose failures, and recover exact source without manually reconstructing configuration or installation-state paths.
+### Objective
+
+Allow a user to pause and resume semantic rendering inside one active `ptymark shell` session
+without changing user TOML, machine-local install state, shell profiles, or the child process.
 
 ### Committed scope
 
-1. **Fresh-source acceptance**
-   - add one isolated Linux/WSL-style end-to-end path from source installer to real PTY rendering;
-   - use a fresh home and isolated config/data/state/cache directories;
-   - prove that no global Node.js command or pre-existing Ptymark state is required;
-   - retain bounded, redacted failure evidence.
+1. **Private input control**
+   - reserve the exact four-byte UTF-8 encoding of private-use scalar `U+10FFFD`;
+   - consume only an exact match;
+   - recognize the sequence across arbitrary read boundaries;
+   - forward partial and mismatching prefixes byte-for-byte;
+   - forward Escape immediately and keep all input except the reserved scalar byte-exact.
+2. **Safe display transition**
+   - start each session with rendering enabled;
+   - discard the transient state when the session exits;
+   - restore any partially detected block as exact source when rendering is disabled;
+   - bypass semantic replacement while disabled but retain the terminal safety gate;
+   - resume only at a valid logical-line boundary;
+   - allow a renderer already executing at the time of the key press to finish.
+3. **WezTerm integration**
+   - append a `CTRL|SHIFT|ALT+R` toggle binding by default;
+   - allow a custom `render_toggle_key` table or `false` to disable it;
+   - retain all existing `config.keys` and `config.launch_menu` entries;
+   - keep Lua limited to sending `U+10FFFD`; native Rust owns policy and state.
+4. **Evidence**
+   - input-filter unit tests for every split point, mismatch, EOF prefix, and repeated toggle;
+   - display-pipeline tests for disable, exact-source restoration, safe resume, and mid-line protection;
+   - real Unix PTY and Windows ConPTY transition evidence;
+   - executable WezTerm Lua smoke coverage;
+   - synchronized README, design, examples, changelog, and release notes.
 
-2. **Guided setup and self-test**
-   - provide one explicit setup/check command or equivalent bounded flow;
-   - keep read-only checking network-free;
-   - identify the exact failed stage and remedy;
-   - never overwrite an existing user configuration or terminal integration silently.
+### Non-goals
 
-3. **Configuration and installation-state usability**
-   - expose selected config/state paths and matching status clearly;
-   - document and test `PTYMARK_CONFIG`, `PTYMARK_INSTALL_STATE`, and named-profile precedence;
-   - add canonical minimal, private, source/SSH, and deterministic-CI examples;
-   - preserve the schema-v2 portability boundary introduced in Alpha.4.
+- persistent or project-level rendering state;
+- runtime mutation of configuration files;
+- a general terminal command protocol;
+- status injection into child output;
+- guided setup, CJK completion, lifecycle commands, structured-artifact redesign, or image protocols.
 
-4. **WezTerm onboarding**
-   - generate or document a collision-safe named-profile launcher;
-   - preserve existing keys and launch-menu entries;
-   - validate binary/config/profile argv across Linux, macOS, WSL, and Windows;
-   - keep Lua as a thin launcher rather than a second policy engine.
+### Exit gates
 
-5. **Text/plain/CJK and source retrieval foundation**
-   - make `auto`, `symbols`, `plain`, and `source` behavior deterministic;
-   - respect monochrome and `NO_COLOR` operation;
-   - add grapheme-safe clipping/wrapping fixtures for Japanese/CJK, combining characters, emoji, and ambiguous width;
-   - specify a bounded in-memory exact-source retrieval contract without automatic clipboard mutation or default disk persistence.
+- all selected product checks pass on the exact candidate commit;
+- formatting and Clippy pass with warnings denied;
+- Ubuntu, macOS, and Windows Rust/test matrices pass;
+- canonical Docker, WezTerm, installer, managed-renderer, shell-coexistence, CodeQL,
+  dependency, package-smoke, and release-metadata checks pass;
+- immutable tag `v0.1.0-alpha.5` and matching source-only prerelease are verified;
+- the prerelease has zero project-uploaded assets and the temporary release branch is removed.
 
-6. **Surface and compatibility cleanup**
-   - define the supported Rust library surface and reduce accidental public exports;
-   - assign an owner and removal release to Alpha compatibility entrypoints;
-   - prevent CI/docs from preserving obsolete wrappers indefinitely.
+## v0.1.0-alpha.6: guided adoption and text-first usability
 
-### Explicit non-goals
+Canonical tracker: #152.
 
-- rich Kitty/iTerm2/Sixel image placement;
-- persistent renderer workers or disk cache;
-- automatic project-local configuration trust;
-- signed/notarized/package-manager distribution;
-- complete upgrade/rollback/uninstall/purge lifecycle;
-- the full multi-variant structured-artifact redesign.
+The broader adoptability work previously proposed for Alpha.5 moves here so that the small session
+control can be reviewed and released independently.
 
-### Alpha.5 exit criteria
+### Planned scope
 
-- all merge-phase verification is green on Ubuntu, macOS, Windows, and canonical Docker;
-- the fresh-source acceptance passes from an isolated home;
-- a user can discover the active config/state/profile and run a real self-test;
-- Japanese/CJK/plain/source fixtures have deterministic expected output;
-- no user-owned file, shell profile, terminal config, or global `PATH` is modified without an explicit command;
-- release metadata, changelog, docs, and issue tracker identify the exact shipped scope;
-- the GitHub prerelease has zero project-uploaded executable assets.
+- bounded setup/self-test and collision-safe WezTerm guidance;
+- read-only, network-free check mode with exact failed stage and remedy;
+- effective configuration, path, profile, engine provenance, and install-state inspection;
+- deterministic auto/symbols/plain/source behavior;
+- `NO_COLOR`, monochrome, CJK, grapheme, combining-character, emoji, and ambiguous-width coverage;
+- SSH, tmux, narrow terminal, redirected log, and screen-reader/plain qualification;
+- explicit Beta disposition for Alpha compatibility aliases;
+- continued dead-code and speculative-abstraction reduction with call-site evidence.
 
-## v0.1.0-beta.1 — lifecycle completion and contract freeze
+Alpha.6 must preserve the Alpha.5 transient-control contract and all earlier byte-exact, fallback,
+privacy, deadline, and PTY/ConPTY guarantees.
 
-### Product goal
+## v0.1.0-beta.1: lifecycle completion and contract freeze
 
-Ptymark becomes feature-complete for the intended v0.1 stable line: users can install, inspect, use, recover, upgrade, roll back, and remove it under a frozen public contract while structured content remains copyable and terminal safety remains byte-exact.
+Canonical tracker: #148.
 
-### Committed scope
+Beta.1 begins only after Alpha.6 is published and verified. Its required outcomes are:
 
-1. **Lifecycle completion**
-   - dry-run/check, atomic upgrade, failed-upgrade recovery, offline rollback, owned-file uninstall, and explicit purge;
-   - versioned install-state ownership and migration;
-   - no deletion of unrelated files and no silent shell-profile/global-`PATH` mutation.
+- dry-run/check, atomic upgrade, failed-upgrade recovery, offline rollback, uninstall, and purge;
+- versioned ownership and migration formats;
+- a frozen v0.1 configuration and compatibility contract;
+- the minimum copyable structured-artifact boundary from #124;
+- measured renderer/cache performance and justified worker lifecycle;
+- a complete compatibility/accessibility matrix;
+- an explicit source-only versus approved signed-channel decision.
 
-2. **Configuration contract freeze**
-   - freeze discovery, precedence, named profiles, session overrides, migration, and introspection semantics for the v0.1 line;
-   - add source spans/key paths where practical and machine-readable editor schema;
-   - define project-local trust before allowing executable-affecting configuration;
-   - preserve one immutable resolved snapshot per active session.
+After Beta.1, the stable-line backlog should contain defects, measured tuning, compatibility
+qualification, and approved distribution work—not missing core install/use/recovery contracts.
 
-3. **Copyable structured-artifact minimum**
-   - introduce a typed multi-variant artifact boundary with a legacy byte adapter;
-   - retain exact TeX, OpenMath, and Mermaid source identity after successful presentation;
-   - provide a copyable terminal-cell/plain representation for the supported math subset;
-   - add bounded session-owned source lookup and explicit source/copy actions;
-   - keep SVG/image variants optional and never the only surviving representation.
+## Cross-release principles
 
-4. **Measured runtime performance**
-   - define representative cold, warm, and cache-hit fixtures;
-   - add persistent workers only where measurements justify the added lifecycle complexity;
-   - publish p50/p95 targets and cancellation/recycle behavior;
-   - keep one-shot paths as bounded fallbacks.
-
-5. **Compatibility and accessibility matrix**
-   - qualify direct terminals, SSH, tmux, WSL, Windows ConPTY, macOS, monochrome, narrow terminals, and screen-reader/plain paths;
-   - distinguish contract fixtures from live upstream-version evidence;
-   - require exact-source fallback for every unsupported capability.
-
-6. **Release-channel decision**
-   - keep source-only as the default until signing, notarization, package ownership, incident response, revocation, and support responsibility are approved together;
-   - Beta may ship source-only, but the stable-release channel decision must be explicit and documented.
-
-### Explicit non-goals for Beta.1
-
-- claiming universal terminal image support;
-- unbounded or default-persistent source history;
-- automatic clipboard writes during rendering;
-- remote rendering services or network engines;
-- silently loading executable project configuration;
-- declaring stable status before the lifecycle and compatibility gates pass.
-
-### Beta.1 entry criteria
-
-- Alpha.5 has been released and its adoption/self-test path has real evidence;
-- all compatibility aliases have an explicit Beta/stable disposition;
-- the structured-artifact public behavior is reviewed before implementation;
-- lifecycle ownership and rollback formats are versioned;
-- no open correctness or terminal-safety regression is classified release-blocking.
-
-### Beta.1 exit criteria
-
-- lifecycle commands pass destructive-operation tests in isolated Linux, macOS, and Windows environments;
-- configuration and install-state migrations are recoverable and documented;
-- copyable math/source retrieval works through real PTY and ConPTY sessions without hidden scrollback payloads;
-- merge and release verification phases are green on the exact release commit;
-- dependency, CodeQL, installer, managed renderer, package smoke, and source-only metadata checks pass;
-- the remaining stable-release work is limited to documented defects, performance tuning, and approved distribution-channel tasks rather than missing core lifecycle contracts.
-
-## Dependency order
-
-```text
-Alpha.4 release
-  -> fresh-source acceptance and path/state UX
-  -> guided setup + WezTerm onboarding
-  -> text/plain/CJK + bounded source retrieval foundation
-  -> Alpha.5 release
-  -> lifecycle mutation and rollback
-  -> configuration/public-contract freeze
-  -> typed structured-artifact minimum
-  -> measured worker/performance decisions
-  -> Beta.1 release
-```
-
-## Governance
-
-- release trackers own immutable version checklists; narrow issues own implementation and tests;
-- roadmap items are not marked complete until merged, tagged, and independently verified;
-- terminal byte preservation, exact-source fallback, child argv boundaries, PTY/ConPTY behavior, privacy, deadlines, and output bounds remain non-negotiable across both trains;
-- image protocols, persistence, and trusted binary channels require separate evidence and cannot bypass the copyable/source path;
-- scope changes must update this document, the canonical roadmap issue, and the relevant release tracker in the same reviewed change.
+1. Preserve child and terminal bytes unless a complete explicit semantic block is safely recognized.
+2. Keep transient session state separate from portable user intent and machine-local installation state.
+3. Never silently edit shell profiles, global `PATH`, terminal configuration, or clipboard contents.
+4. Keep source/copyable output a normal path; image protocols cannot become the sole representation.
+5. Prefer maintained libraries when they delete generic custom infrastructure without weakening bounds.
+6. Introduce abstractions only for multiple real implementations or an accepted near-term second use.
+7. Do not call a release complete until merge, tag, prerelease, zero-asset state, and release cleanup are verified.
+8. Release tags are immutable; every correction uses a higher version.

@@ -29,7 +29,7 @@ child output
   -> terminal-safe display bytes
 ```
 
-Keyboard input, signals, shell hooks, prompts, completion, mouse reports, bracketed paste, cursor-addressed interfaces, and alternate-screen applications remain outside semantic rendering. The native PTY/ConPTY host transports interactive bytes and terminal-size changes and restores the parent terminal mode before exit.
+Keyboard input, signals, shell hooks, prompts, completion, mouse reports, bracketed paste, cursor-addressed interfaces, and alternate-screen applications remain outside semantic rendering except for one reserved private-use scalar used to pause or resume rendering in the active session. The native PTY/ConPTY host consumes only exact UTF-8 `U+10FFFD`, forwards every other input byte, transports terminal-size changes, and restores the parent terminal mode before exit.
 
 ## Choose a route
 
@@ -44,7 +44,7 @@ Keyboard input, signals, shell hooks, prompts, completion, mouse reports, bracke
 | Configure engines and cache | [Configuration](#configuration) | [Examples](examples/README.md) |
 | Integrate with WezTerm | [WezTerm](#wezterm) | [Runnable configuration](examples/wezterm.lua) |
 | Develop or review a change | [Development and CI](#development-and-ci) | [Documentation map](documents/README.md) |
-| Review the next release trains | [Alpha.5/Beta roadmap](documents/roadmap-alpha5-beta.md) | [Verification catalog](verification/README.md) |
+| Review rendering control and later trains | [Alpha.5 toggle](documents/alpha5-render-toggle.md) | [Roadmap](documents/roadmap-alpha5-beta.md) · [Verification catalog](verification/README.md) |
 
 The complete product documentation map is [`documents/README.md`](documents/README.md).
 
@@ -56,6 +56,7 @@ Implemented:
 - native Unix PTY and Windows ConPTY sessions through canonical `ptymark shell -- COMMAND`, with `ptymark -- COMMAND` retained as an Alpha compatibility form;
 - pipe-oriented command filtering through `ptymark run -- COMMAND`;
 - keyboard forwarding, resize propagation, and child exit-status preservation;
+- session-local rendering pause/resume with exact mismatch forwarding and no persistent configuration mutation;
 - complete Mermaid, TeX block-math, and explicit OpenMath fences;
 - bounded local OpenMath XML-to-TeX conversion with generic custom-CD presentation;
 - byte-exact bypass for ANSI, OSC, DCS-style controls, carriage-return updates, completion redraws, right prompts, and alternate-screen applications;
@@ -176,22 +177,23 @@ ptymark shell --safe -- bash
 ptymark shell --private -- bash
 ```
 
-The Alpha.3 form remains a compatibility alias in Alpha.4:
+The Alpha.3 form remains a compatibility alias in Alpha.5:
 
 ```bash
 ptymark -- bash
 ```
 
-The command runs in a native Unix PTY or Windows ConPTY. Ptymark forwards input, propagates size changes, filters only safe child-output regions, and returns the child exit status. Child argv remains an `OsString` sequence after `--`; Ptymark does not build a shell command string.
+The command runs in a native Unix PTY or Windows ConPTY. Ptymark forwards input, propagates size changes, filters only safe child-output regions, and returns the child exit status. Child argv remains an `OsString` sequence after `--`; Ptymark does not build a shell command string. With the bundled WezTerm integration, `CTRL|SHIFT|ALT+R` pauses or resumes semantic rendering for that session only.
 
 Session modes change only pre-display policy:
 
 - `--source` keeps explicit block detection but emits each complete block's exact source;
 - `--safe` bypasses semantic detection, source-format conversion, engines, presentation, and cache;
 - `--private` keeps rendering but disables the process-local artifact cache;
-- `--allow-nested` permits deliberate development/debug nesting while accidental nesting remains rejected.
+- `--allow-nested` permits deliberate development/debug nesting while accidental nesting remains rejected;
+- the session-local toggle starts enabled, never changes persistent configuration, restores a partial block as exact source when paused, and resumes only at a clean logical-line boundary.
 
-`--source` and `--safe` are mutually exclusive. See [`documents/interactive-session.md`](documents/interactive-session.md).
+`--source` and `--safe` are mutually exclusive. The toggle can suppress but cannot expand the selected baseline policy, so source and safe sessions remain non-rendering. See [`documents/alpha5-render-toggle.md`](documents/alpha5-render-toggle.md) and [`documents/interactive-session.md`](documents/interactive-session.md).
 
 ## Pipe-oriented execution
 
@@ -412,7 +414,9 @@ Use explicit `--mermaid`, `--math`, and `--presenter` values to change one profi
 The renderer may change only a complete recognized semantic block found in safe text:
 
 ```text
-keyboard input ------------------------------> child process
+keyboard input:
+  exact UTF-8 U+10FFFD ----------------------> process-local rendering gate
+  every other byte --------------------------> child process
 signals / terminal mode / resize ------------> child process
 child output:
   safe text ---------------------------------> explicit detector
@@ -476,9 +480,9 @@ cp examples/wezterm.lua ~/.wezterm.lua
 Copy-Item examples/wezterm.lua $HOME/.wezterm.lua
 ```
 
-For an existing configuration, copy the `wezterm.plugin.require(...)` and `ptymark.apply_to_config(...)` blocks rather than replacing the file. The plugin appends one launch-menu entry and one `CTRL|SHIFT+P` binding. It remains a thin launcher; the spawned native process owns PTY/ConPTY hosting, validation, detection, conversion, rendering, fallback, and session modes.
+For an existing configuration, copy the `wezterm.plugin.require(...)` and `ptymark.apply_to_config(...)` blocks rather than replacing the file. The plugin appends one launch-menu entry, one `CTRL|SHIFT+P` launcher binding, and one `CTRL|SHIFT|ALT+R` session-toggle binding without replacing existing keys. `render_toggle_key` accepts a custom key table, and `render_toggle_key = false` omits only the toggle. Lua sends `U+10FFFD` with `SendString`; the spawned native process owns PTY/ConPTY hosting, validation, rendering state, detection, conversion, rendering, fallback, and session modes.
 
-`PTYMARK_BINARY` and `PTYMARK_CONFIG` override platform defaults. See [`examples/README.md`](examples/README.md#wezterm).
+`PTYMARK_BINARY` and `PTYMARK_CONFIG` override platform defaults. See [`documents/alpha5-render-toggle.md`](documents/alpha5-render-toggle.md) and [`examples/README.md`](examples/README.md#wezterm).
 
 ## Extension boundaries
 
@@ -531,6 +535,8 @@ GitHub Actions is the formal pull-request evidence. It runs:
 - [troubleshooting and support reports](documents/troubleshooting.md)
 - [installer and managed engine resolution](documents/ptymark-installer.md)
 - [release and recovery contract](documents/release.md)
+- [Alpha.5 session-local rendering toggle](documents/alpha5-render-toggle.md)
+- [Alpha.5, Alpha.6, and Beta roadmap](documents/roadmap-alpha5-beta.md)
 - [shell and rich-plugin compatibility](documents/shell-plugin-compatibility.md)
 - [verification catalog](verification/README.md)
 - [examples](examples/README.md)
