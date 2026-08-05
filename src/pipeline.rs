@@ -552,7 +552,9 @@ mod tests {
         let source = b"prefix$$\nA = 1\n$$\n";
 
         pipeline.set_rendering_enabled(false);
-        pipeline.feed(b"prefix", &mut output).expect("disabled prefix");
+        pipeline
+            .feed(b"prefix", &mut output)
+            .expect("disabled prefix");
         pipeline.set_rendering_enabled(true);
         pipeline
             .feed(b"$$\nA = 1\n$$\n", &mut output)

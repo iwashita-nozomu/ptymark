@@ -374,11 +374,10 @@ impl SessionInputFilter {
 
     fn pending_is_prefix(&self) -> bool {
         self.pending.len() <= RENDER_TOGGLE_SEQUENCE.len()
-            && self
-                .pending
+            && self.pending.iter().copied().eq(RENDER_TOGGLE_SEQUENCE
                 .iter()
                 .copied()
-                .eq(RENDER_TOGGLE_SEQUENCE.iter().copied().take(self.pending.len()))
+                .take(self.pending.len()))
     }
 }
 
@@ -635,7 +634,11 @@ mod input_filter_tests {
                 &RENDER_TOGGLE_SEQUENCE[..split],
                 &RENDER_TOGGLE_SEQUENCE[split..],
             ]);
-            assert_eq!(actions, vec![SessionInputAction::ToggleRendering], "split={split}");
+            assert_eq!(
+                actions,
+                vec![SessionInputAction::ToggleRendering],
+                "split={split}"
+            );
         }
     }
 
@@ -644,10 +647,7 @@ mod input_filter_tests {
         let mut filter = SessionInputFilter::default();
         let mut actions = Vec::new();
         filter.push(b"\x1b", &mut actions);
-        assert_eq!(
-            actions,
-            vec![SessionInputAction::Forward(vec![0x1b])]
-        );
+        assert_eq!(actions, vec![SessionInputAction::Forward(vec![0x1b])]);
         assert!(filter.pending.is_empty());
     }
 
