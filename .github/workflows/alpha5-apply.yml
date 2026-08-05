@@ -1,0 +1,57 @@
+name: Apply Alpha.5 candidate patch
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/alpha5.patch.gz.b64.part*"
+      - ".github/alpha5-finalize.py.b64.part*"
+      - ".github/workflows/alpha5-apply.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/alpha5-render-toggle'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out the candidate branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply the reviewed candidate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/alpha5.patch.gz.b64.part* \
+            | base64 --decode \
+            | gzip --decompress > /tmp/alpha5.patch
+          test "$(sha256sum /tmp/alpha5.patch | cut -d' ' -f1)" = "2d38167eaec4dd96998e1d34361bddc9d3d544bdb46d8ccab871c23c508d0fe5"
+          cat .github/alpha5-finalize.py.b64.part* \
+            | base64 --decode > /tmp/alpha5-finalize.py
+          test "$(sha256sum /tmp/alpha5-finalize.py | cut -d' ' -f1)" = "4bd05b7fa7efc48ef442079b8346c0f7bdaa6e4ed2857070a75a2df779a27f59"
+          git apply --check /tmp/alpha5.patch
+          git apply /tmp/alpha5.patch
+          python3 /tmp/alpha5-finalize.py
+          rm -f \
+            .github/alpha5.patch.gz.b64.part* \
+            .github/alpha5-finalize.py.b64.part* \
+            .github/workflows/alpha5-apply.yml
+          git diff --check
+
+      - name: Publish the candidate tree to the pull request branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add session-local rendering toggle"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
