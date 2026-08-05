@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/alpha5.patch.gz.b64.part*"
       - ".github/alpha5-finalize.py.b64.part*"
+      - ".github/alpha5-roadmap.md.b64.part*"
       - ".github/workflows/alpha5-apply.yml"
 
 permissions:
@@ -37,12 +38,16 @@ jobs:
           cat .github/alpha5-finalize.py.b64.part* \
             | base64 --decode > /tmp/alpha5-finalize.py
           test "$(sha256sum /tmp/alpha5-finalize.py | cut -d' ' -f1)" = "4bd05b7fa7efc48ef442079b8346c0f7bdaa6e4ed2857070a75a2df779a27f59"
-          git apply --check /tmp/alpha5.patch
-          git apply /tmp/alpha5.patch
+          git apply --check --exclude=documents/roadmap-alpha5-beta.md /tmp/alpha5.patch
+          git apply --exclude=documents/roadmap-alpha5-beta.md /tmp/alpha5.patch
+          cat .github/alpha5-roadmap.md.b64.part* \
+            | base64 --decode > documents/roadmap-alpha5-beta.md
+          test "$(sha256sum documents/roadmap-alpha5-beta.md | cut -d' ' -f1)" = "54412d699cfcf701d51dee333f361ddee86e86577cac61457132ed5542c84410"
           python3 /tmp/alpha5-finalize.py
           rm -f \
             .github/alpha5.patch.gz.b64.part* \
             .github/alpha5-finalize.py.b64.part* \
+            .github/alpha5-roadmap.md.b64.part* \
             .github/workflows/alpha5-apply.yml
           git diff --check
 
