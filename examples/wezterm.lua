@@ -54,10 +54,15 @@ ptymark.apply_to_config(config, {
     key = 'P',
     mods = 'CTRL|SHIFT',
   },
+  render_toggle_key = {
+    key = 'R',
+    mods = 'CTRL|SHIFT|ALT',
+  },
 })
 
 -- Add normal WezTerm options here. The plugin appends to existing `keys` and
--- `launch_menu` entries instead of replacing them.
+-- `launch_menu` entries instead of replacing them. Set `render_toggle_key = false`
+-- above to omit the session-local rendering toggle binding.
 -- config.color_scheme = 'Builtin Solarized Dark'
 -- config.font_size = 13.0
 

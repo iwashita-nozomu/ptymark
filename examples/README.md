@@ -20,7 +20,7 @@ downstream implementation ../tests/openmath_contract.rs executable OpenMath beha
 | Start from a validated runtime configuration | [`ptymark.toml`](./ptymark.toml) |
 | Select explicit renderer executables | [`external-engines.toml`](./external-engines.toml) |
 | Preview structured mathematical input | [`openmath.md`](./openmath.md) |
-| Add an append-only WezTerm launcher | [`wezterm.lua`](./wezterm.lua) |
+| Add an append-only WezTerm launcher and session toggle | [`wezterm.lua`](./wezterm.lua) |
 
 ## Semantic input samples
 
@@ -104,7 +104,8 @@ Linux/macOS/WSL binary  ~/.cargo/bin/ptymark
 Windows binary          %USERPROFILE%/.cargo/bin/ptymark.exe
 Linux/macOS/WSL config  ~/.config/ptymark/config.toml
 Windows config          %APPDATA%/ptymark/config.toml
-key                     CTRL|SHIFT+P
+launch key              CTRL|SHIFT+P
+render toggle key       CTRL|SHIFT|ALT+R
 menu label              ptymark shell
 shell                   $SHELL or /bin/sh; %COMSPEC% on Windows
 ```
@@ -126,7 +127,23 @@ local ptymark = wezterm.plugin.require(
 )
 ```
 
-The plugin appends to `config.keys` and `config.launch_menu`; it does not replace existing entries.
+The plugin appends to `config.keys` and `config.launch_menu`; it does not replace existing entries. The launch key opens a Ptymark-hosted tab. Inside that pane, the render-toggle key pauses or resumes semantic replacement for the current session only.
+
+Customize or omit the toggle without changing other entries:
+
+```lua
+ptymark.apply_to_config(config, {
+  render_toggle_key = { key = 'T', mods = 'CTRL|ALT' },
+})
+```
+
+```lua
+ptymark.apply_to_config(config, {
+  render_toggle_key = false,
+})
+```
+
+The default binding uses `wezterm.action.SendString` to send private-use scalar `U+10FFFD` to the active pane. Use it inside Ptymark; outside Ptymark that value would be delivered to the foreground application.
 
 Choose a mode for only the sessions created by the launcher entry:
 
@@ -136,4 +153,4 @@ ptymark.apply_to_config(config, {
 })
 ```
 
-`source` keeps semantic detection but displays exact source, `safe` bypasses detection and external renderers, and `private` keeps rendering while disabling the process-local cache. The plugin only constructs argv; validation and behavior remain in the native Ptymark process.
+`source` keeps semantic detection but displays exact source, `safe` bypasses detection and external renderers, and `private` keeps rendering while disabling the process-local cache. The plugin only constructs argv and sends the reserved toggle scalar; validation, PTY/ConPTY hosting, terminal safety, rendering state, and policy remain in the native Ptymark process.

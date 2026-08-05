@@ -7,6 +7,9 @@ local wezterm_stub = {
     SpawnCommandInNewTab = function(spec)
       return { kind = 'SpawnCommandInNewTab', spec = spec }
     end,
+    SendString = function(value)
+      return { kind = 'SendString', value = value }
+    end,
   },
   config_builder = function()
     return {}
@@ -26,6 +29,8 @@ end
 
 ptymark_module = dofile('plugin/init.lua')
 local ptymark = ptymark_module
+
+assert(ptymark.RENDER_TOGGLE_SEQUENCE == '\xF4\x8F\xBF\xBD')
 
 local command = ptymark.command({
   binary = '/usr/local/bin/ptymark',
@@ -68,6 +73,7 @@ ptymark.apply_to_config(config, {
   cwd = '/workspace',
   label = 'Rendered shell',
   key = { key = 'R', mods = 'CTRL|SHIFT' },
+  render_toggle_key = { key = 'T', mods = 'ALT' },
 })
 
 assert(#config.launch_menu == 2)
@@ -78,19 +84,34 @@ assert(config.launch_menu[2].args[1] == 'ptymark')
 assert(config.launch_menu[2].args[2] == '--')
 assert(config.launch_menu[2].args[3] == '/bin/fish')
 
-assert(#config.keys == 2)
+assert(#config.keys == 3)
 assert(config.keys[1].key == 'E')
 assert(config.keys[2].key == 'R')
 assert(config.keys[2].action.kind == 'SpawnCommandInNewTab')
+assert(config.keys[3].key == 'T')
+assert(config.keys[3].mods == 'ALT')
+assert(config.keys[3].action.kind == 'SendString')
+assert(config.keys[3].action.value == ptymark.RENDER_TOGGLE_SEQUENCE)
 
 local no_side_effects = {}
 ptymark.apply_to_config(no_side_effects, {
   command = { 'ptymark', 'preview', '--source', '-' },
   launch_menu = false,
   key = false,
+  render_toggle_key = false,
 })
 assert(no_side_effects.launch_menu == nil)
 assert(no_side_effects.keys == nil)
+
+local invalid_toggle_key, toggle_key_error = pcall(function()
+  ptymark.apply_to_config({}, {
+    launch_menu = false,
+    key = false,
+    render_toggle_key = { mods = 'ALT' },
+  })
+end)
+assert(not invalid_toggle_key)
+assert(tostring(toggle_key_error):find('render_toggle_key', 1, true) ~= nil)
 
 local original_getenv = os.getenv
 os.getenv = function(name)
@@ -118,10 +139,14 @@ assert(unix_example.launch_menu[1].args[3] == '/home/user/.config/ptymark/config
 assert(unix_example.launch_menu[1].args[4] == '--')
 assert(unix_example.launch_menu[1].args[5] == '/bin/zsh')
 assert(unix_example.launch_menu[1].args[6] == '-l')
-assert(#unix_example.keys == 1)
+assert(#unix_example.keys == 2)
 assert(unix_example.keys[1].key == 'P')
 assert(unix_example.keys[1].mods == 'CTRL|SHIFT')
 assert(unix_example.keys[1].action.kind == 'SpawnCommandInNewTab')
+assert(unix_example.keys[2].key == 'R')
+assert(unix_example.keys[2].mods == 'CTRL|SHIFT|ALT')
+assert(unix_example.keys[2].action.kind == 'SendString')
+assert(unix_example.keys[2].action.value == ptymark.RENDER_TOGGLE_SEQUENCE)
 
 wezterm_stub.home_dir = 'C:/Users/user'
 wezterm_stub.target_triple = 'x86_64-pc-windows-msvc'
@@ -144,5 +169,7 @@ assert(windows_example.launch_menu[1].args[3] == 'C:/Users/user/AppData/Roaming/
 assert(windows_example.launch_menu[1].args[4] == '--')
 assert(windows_example.launch_menu[1].args[5] == 'C:/Windows/System32/cmd.exe')
 assert(windows_example.launch_menu[1].args[6] == nil)
+assert(#windows_example.keys == 2)
+assert(windows_example.keys[2].action.kind == 'SendString')
 
 print('ptymark WezTerm plugin and platform examples smoke: ok')
