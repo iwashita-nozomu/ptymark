@@ -126,7 +126,7 @@ jobs:
           product_ci="$(gh api "repos/${REPOSITORY}/contents/.github/workflows/ptymark-ci.yml?ref=main" --jq .content | base64 --decode)"
           fresh_ok=true
           gh api "repos/${REPOSITORY}/contents/tests/fresh_source_acceptance.sh?ref=main" >/dev/null 2>&1 || fresh_ok=false
-          grep -Fq 'acceptance.fresh-source-linux' <<<"$manifest" || fresh_ok=false
+          grep -Fq 'fresh_source_acceptance.sh' <<<"$manifest" || fresh_ok=false
           grep -Fq 'fresh_source_acceptance.sh' <<<"$product_ci" || fresh_ok=false
           if [[ "$fresh_ok" != true ]]; then
             post_once "invariant:fresh-source" "Fresh-source acceptance" \
