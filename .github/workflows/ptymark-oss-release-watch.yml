@@ -6,7 +6,7 @@
 # downstream environment ../../.github/workflows/ptymark-ci.yml product-owned release gates
 # @dependency-end
 
-name: Ptymark OSS release watch
+name: Ptymark OSSリリース監視
 
 on:
   workflow_run:
@@ -38,12 +38,12 @@ env:
 
 jobs:
   watch:
-    name: Check OSS release path
+    name: OSSリリース経路を確認
     runs-on: ubuntu-24.04
     timeout-minutes: 8
 
     steps:
-      - name: Post only new actionable alerts
+      - name: 新規の実行可能な問題だけを通知
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,7 +67,7 @@ jobs:
             local marker="<!-- ptymark-oss-release-watch:${key} -->"
             grep -Fq "$marker" <<<"$issue_text" && return 0
             local body
-            body="$(printf '%s\n### 🚨 %s\n\n@%s\n\n**Impact:** %s\n**Next action:** %s\n\nEvidence: %s\n' \
+            body="$(printf '%s\n### 🚨 %s\n\n@%s\n\n**影響:** %s\n**次の対応:** %s\n\n根拠: %s\n' \
               "$marker" "$category" "$ALERT_OWNER" "$impact" "$next_action" "$evidence")"
             gh api --method POST "repos/${REPOSITORY}/issues/${ALERT_ISSUE}/comments" \
               -f body="$body" >/dev/null
@@ -83,7 +83,7 @@ jobs:
             run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}")"
             jobs_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs?per_page=100")"
             pr_number="$(jq -r '.pull_requests[0].number // empty' <<<"$run_json")"
-            subject="${RUN_NAME} on ${RUN_HEAD_SHA:0:12}"
+            subject="${RUN_NAME}（${RUN_HEAD_SHA:0:12}）"
             [[ -z "$pr_number" ]] || subject="PR #${pr_number}"
             failed="$(jq -r '
               [.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or
@@ -94,31 +94,31 @@ jobs:
                                                        .conclusion == "action_required")
                                       | .name][0] // "job failed"))]
               | join("; ")' <<<"$jobs_json")"
-            [[ -n "$failed" ]] || failed="workflow failed before job evidence was available"
+            [[ -n "$failed" ]] || failed="ジョブの失敗根拠を取得できる前にワークフローが失敗しました"
 
-            category="PR/release gate"
-            impact="${subject} cannot safely advance while ${RUN_NAME} is red."
-            next_action="Fix the first product-owned failure on the exact head SHA and rerun the canonical gate."
+            category="PR／リリースゲート"
+            impact="${subject} は ${RUN_NAME} が失敗しているため、OSSリリース経路を安全に進められません。"
+            next_action="対象head SHAで最初の製品責務側の失敗を修正し、正規ゲートを再実行してください。"
             lower="$(tr '[:upper:]' '[:lower:]' <<<"${RUN_NAME} ${failed}")"
             if grep -Eq 'codeql|dependency review|security' <<<"$lower"; then
-              category="Security gate"
-              impact="${subject} has a failed OSS security gate and should not enter the release branch."
-              next_action="Classify the first finding, patch or explicitly disposition it with evidence, and rerun the security gate."
+              category="セキュリティゲート"
+              impact="${subject} でOSSセキュリティゲートが失敗しており、リリースブランチへ進められません。"
+              next_action="最初の指摘を分類し、修正または根拠付きで明示的に処理したうえで、セキュリティゲートを再実行してください。"
             elif grep -Eq 'fresh[- ]?(source|clone)' <<<"$lower"; then
-              category="Fresh-source acceptance"
-              impact="${subject} no longer proves the clean install and first-run path."
-              next_action="Repair the first isolated install/launch/render failure and rerun fresh-source acceptance."
+              category="新規クローン／ソース導入受け入れ"
+              impact="${subject} では、クリーン導入から初回実行までの経路を証明できていません。"
+              next_action="分離環境における導入・起動・描画の最初の失敗を修正し、新規ソース受け入れテストを再実行してください。"
             elif grep -Eq 'install|managed renderer|package|docker' <<<"$lower"; then
-              category="Installer/package path"
-              impact="${subject} has broken installer, managed-renderer, Docker, or package evidence required for release."
-              next_action="Repair the first failing boundary on the exact head SHA and rerun ptymark CI."
+              category="インストーラー／パッケージ経路"
+              impact="${subject} で、リリースに必要なインストーラー、managed renderer、Docker、またはパッケージ検証が壊れています。"
+              next_action="対象head SHAで最初の失敗境界を修正し、ptymark CIを再実行してください。"
             elif grep -Eq 'node|setup-node|checkout|setup-python|github.actions' <<<"$lower"; then
-              category="Node 24 / Actions migration"
-              impact="${subject} has a failing Node runtime or GitHub Actions migration gate."
-              next_action="Align the Node 24 pin, engine range, action runtime, and runner support, then rerun the affected gates."
+              category="Node 24／GitHub Actions移行"
+              impact="${subject} でNodeランタイムまたはGitHub Actions移行ゲートが失敗しています。"
+              next_action="Node 24の固定値、engine範囲、Actionランタイム、runner対応を整合させ、影響するゲートを再実行してください。"
             fi
             post_once "run:${RUN_ID}" "$category" "$impact" "$next_action" \
-              "[${RUN_NAME} run ${RUN_ID}](${RUN_URL}); ${failed}."
+              "[${RUN_NAME} 実行 #${RUN_ID}](${RUN_URL}); ${failed}。"
             exit 0
           fi
 
@@ -133,10 +133,10 @@ jobs:
           grep -Fq 'fresh_source_acceptance.sh' <<<"$product_ci" || fresh_ok=false
           if [[ "$fresh_ok" != true ]]; then
             signature="$(printf '%s\n%s\n%s\n' "$fresh_file" "$(jq -r .sha <<<"$manifest_json")" "$(jq -r .sha <<<"$product_ci_json")" | sha256sum | cut -c1-12)"
-            post_once "invariant:fresh-source:${signature}" "Fresh-source acceptance" \
-              "The default branch does not require one isolated source install → state/config → real renderer → native PTY journey, so Alpha.6 evidence is incomplete." \
-              "Implement, register, and require the #127 acceptance test in ptymark CI." \
-              "#127, \`tests/fresh_source_acceptance.sh\`, and \`verification/manifest.toml\`."
+            post_once "invariant:fresh-source:${signature}" "新規クローン／ソース導入受け入れ" \
+              "default branchでは、ソース導入 → 状態・設定確認 → 実managed renderer → native PTYという一連の分離経路が必須化されておらず、Alpha.6の根拠が不足しています。" \
+              "#127の受け入れテストを実装し、verification manifestへ登録して、ptymark CIの必須検証にしてください。" \
+              "#127、\`tests/fresh_source_acceptance.sh\`、\`verification/manifest.toml\`。"
           fi
 
           versions="$(gh api "repos/${REPOSITORY}/contents/docker/ptymark-versions.env?ref=main" --jq .content | base64 --decode)"
@@ -148,10 +148,10 @@ jobs:
           [[ "$(printf '%s\n%s\n' "$minimum" "$image" | sort -V | head -n 1)" == "$minimum" ]] || node_ok=false
           if [[ "$node_ok" != true ]]; then
             signature="$(printf '%s\n%s\n' "$image" "$minimum" | sha256sum | cut -c1-12)"
-            post_once "invariant:node24:${signature}" "Node 24 contract drift" \
-              "The managed Node image no longer satisfies the renderer's supported Node 24 range; clean installs or managed rendering may break." \
-              "Restore one aligned Node 24 pin/range and rerun dependency alignment plus managed-renderer acceptance." \
-              "managed image \`${image:-missing}\`; minimum \`${minimum:-missing}\`."
+            post_once "invariant:node24:${signature}" "Node 24契約ずれ" \
+              "managed Nodeイメージがrendererの対応Node 24範囲を満たしておらず、クリーン導入またはmanaged renderingが壊れる可能性があります。" \
+              "Node 24の固定値と対応範囲を一つの整合した契約へ戻し、dependency alignmentとmanaged-renderer受け入れを再実行してください。" \
+              "managed image=\`${image:-missing}\`、minimum=\`${minimum:-missing}\`。"
           fi
 
           rulesets="$(gh api "repos/${REPOSITORY}/rulesets?includes_parents=true")"
@@ -165,10 +165,10 @@ jobs:
           fi
           if [[ "$required_checks" -lt 5 || "$thread_resolution" != true ]]; then
             signature="$(printf '%s\n%s\n%s\n' "${ruleset_id:-missing}" "$required_checks" "$thread_resolution" | sha256sum | cut -c1-12)"
-            post_once "invariant:ruleset:${signature}" "OSS merge governance" \
-              "The main ruleset does not require the canonical release checks and resolved conversations, so a red or unresolved PR can remain mergeable." \
-              "Require CI, ptymark CI, CodeQL, Dependency Review, release metadata, and conversation resolution; record evidence in #74." \
-              "ruleset \`${ruleset_id:-missing}\`: required checks=${required_checks}, conversation resolution=${thread_resolution}."
+            post_once "invariant:ruleset:${signature}" "OSSマージ統制" \
+              "main rulesetが正規リリースチェックと会話解決を必須化していないため、失敗中または未解決のPRがmergeableのまま残ります。" \
+              "CI、ptymark CI、CodeQL、Dependency Review、release metadata、会話解決を必須化し、#74へ設定根拠を記録してください。" \
+              "ruleset=\`${ruleset_id:-missing}\`、required checks=${required_checks}、conversation resolution=${thread_resolution}。"
           fi
 
           issue15_json="$(gh api "repos/${REPOSITORY}/issues/15")"
@@ -177,8 +177,8 @@ jobs:
           design="$(jq -r .content <<<"$design_json" | base64 --decode)"
           if grep -Fq 'schema_version = 1' <<<"$issue15" && grep -Fq '## Schema v2' <<<"$design"; then
             signature="$(printf '%s\n%s\n' "$(jq -r .updated_at <<<"$issue15_json")" "$(jq -r .sha <<<"$design_json")" | sha256sum | cut -c1-12)"
-            post_once "invariant:schema-v2:${signature}" "Schema-v2 roadmap drift" \
-              "#15 still defines the forward migration contract around schema v1 while the shipped contract is schema v2, leaving Beta ownership ambiguous." \
-              "Rewrite #15 against schema v2 and link only remaining stable-contract work into #148." \
-              "#15 versus \`documents/alpha4-design.md\`."
+            post_once "invariant:schema-v2:${signature}" "schema v2ロードマップずれ" \
+              "#15は依然としてschema v1を将来の移行契約として定義していますが、出荷済み契約はschema v2であり、Betaに向けた責務が曖昧です。" \
+              "#15をschema v2基準へ書き換え、未完の安定契約だけを#148へ接続してください。" \
+              "#15と\`documents/alpha4-design.md\`の不整合。"
           fi
