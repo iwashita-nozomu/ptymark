@@ -122,14 +122,18 @@ jobs:
             exit 0
           fi
 
-          manifest="$(gh api "repos/${REPOSITORY}/contents/verification/manifest.toml?ref=main" --jq .content | base64 --decode)"
-          product_ci="$(gh api "repos/${REPOSITORY}/contents/.github/workflows/ptymark-ci.yml?ref=main" --jq .content | base64 --decode)"
+          manifest_json="$(gh api "repos/${REPOSITORY}/contents/verification/manifest.toml?ref=main")"
+          product_ci_json="$(gh api "repos/${REPOSITORY}/contents/.github/workflows/ptymark-ci.yml?ref=main")"
+          manifest="$(jq -r .content <<<"$manifest_json" | base64 --decode)"
+          product_ci="$(jq -r .content <<<"$product_ci_json" | base64 --decode)"
+          fresh_file="$(gh api "repos/${REPOSITORY}/contents/tests/fresh_source_acceptance.sh?ref=main" --jq .sha 2>/dev/null || printf missing)"
           fresh_ok=true
-          gh api "repos/${REPOSITORY}/contents/tests/fresh_source_acceptance.sh?ref=main" >/dev/null 2>&1 || fresh_ok=false
+          [[ "$fresh_file" != missing ]] || fresh_ok=false
           grep -Fq 'fresh_source_acceptance.sh' <<<"$manifest" || fresh_ok=false
           grep -Fq 'fresh_source_acceptance.sh' <<<"$product_ci" || fresh_ok=false
           if [[ "$fresh_ok" != true ]]; then
-            post_once "invariant:fresh-source" "Fresh-source acceptance" \
+            signature="$(printf '%s\n%s\n%s\n' "$fresh_file" "$(jq -r .sha <<<"$manifest_json")" "$(jq -r .sha <<<"$product_ci_json")" | sha256sum | cut -c1-12)"
+            post_once "invariant:fresh-source:${signature}" "Fresh-source acceptance" \
               "The default branch does not require one isolated source install → state/config → real renderer → native PTY journey, so Alpha.6 evidence is incomplete." \
               "Implement, register, and require the #127 acceptance test in ptymark CI." \
               "#127, \`tests/fresh_source_acceptance.sh\`, and \`verification/manifest.toml\`."
@@ -160,16 +164,20 @@ jobs:
             thread_resolution="$(jq -r '[.rules[] | select(.type == "pull_request")][0].parameters.required_review_thread_resolution // false' <<<"$ruleset")"
           fi
           if [[ "$required_checks" -lt 5 || "$thread_resolution" != true ]]; then
-            post_once "invariant:ruleset" "OSS merge governance" \
+            signature="$(printf '%s\n%s\n%s\n' "${ruleset_id:-missing}" "$required_checks" "$thread_resolution" | sha256sum | cut -c1-12)"
+            post_once "invariant:ruleset:${signature}" "OSS merge governance" \
               "The main ruleset does not require the canonical release checks and resolved conversations, so a red or unresolved PR can remain mergeable." \
               "Require CI, ptymark CI, CodeQL, Dependency Review, release metadata, and conversation resolution; record evidence in #74." \
               "ruleset \`${ruleset_id:-missing}\`: required checks=${required_checks}, conversation resolution=${thread_resolution}."
           fi
 
-          issue15="$(gh api "repos/${REPOSITORY}/issues/15" --jq '.body // ""')"
-          design="$(gh api "repos/${REPOSITORY}/contents/documents/alpha4-design.md?ref=main" --jq .content | base64 --decode)"
+          issue15_json="$(gh api "repos/${REPOSITORY}/issues/15")"
+          design_json="$(gh api "repos/${REPOSITORY}/contents/documents/alpha4-design.md?ref=main")"
+          issue15="$(jq -r '.body // ""' <<<"$issue15_json")"
+          design="$(jq -r .content <<<"$design_json" | base64 --decode)"
           if grep -Fq 'schema_version = 1' <<<"$issue15" && grep -Fq '## Schema v2' <<<"$design"; then
-            post_once "invariant:schema-v2" "Schema-v2 roadmap drift" \
+            signature="$(printf '%s\n%s\n' "$(jq -r .updated_at <<<"$issue15_json")" "$(jq -r .sha <<<"$design_json")" | sha256sum | cut -c1-12)"
+            post_once "invariant:schema-v2:${signature}" "Schema-v2 roadmap drift" \
               "#15 still defines the forward migration contract around schema v1 while the shipped contract is schema v2, leaving Beta ownership ambiguous." \
               "Rewrite #15 against schema v2 and link only remaining stable-contract work into #148." \
               "#15 versus \`documents/alpha4-design.md\`."
