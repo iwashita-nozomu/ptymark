@@ -1,0 +1,176 @@
+# @dependency-start
+# contract workflow
+# responsibility Reports actionable OSS release-path failures and drift to issue #157.
+# upstream design ../../documents/roadmap-alpha5-beta.md release sequence and gates
+# upstream issue https://github.com/iwashita-nozomu/ptymark/issues/157 alert contract and baseline
+# downstream environment ../../.github/workflows/ptymark-ci.yml product-owned release gates
+# @dependency-end
+
+name: Ptymark OSS release watch
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+      - ptymark CI
+      - CodeQL
+      - Dependency Review
+      - ptymark Release Metadata
+      - ptymark dependency alignment
+    types: [completed]
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: ptymark-oss-release-watch
+  cancel-in-progress: false
+
+env:
+  ALERT_ISSUE: "157"
+  ALERT_OWNER: iwashita-nozomu
+
+jobs:
+  watch:
+    name: Check OSS release path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+
+    steps:
+      - name: Post only new actionable alerts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          issue_text="$({
+            gh api "repos/${REPOSITORY}/issues/${ALERT_ISSUE}" --jq '.body // ""'
+            gh api --paginate "repos/${REPOSITORY}/issues/${ALERT_ISSUE}/comments?per_page=100" --jq '.[].body'
+          } || true)"
+
+          post_once() {
+            local key="$1" category="$2" impact="$3" next_action="$4" evidence="$5"
+            local marker="<!-- ptymark-oss-release-watch:${key} -->"
+            grep -Fq "$marker" <<<"$issue_text" && return 0
+            local body
+            body="$(printf '%s\n### 🚨 %s\n\n@%s\n\n**Impact:** %s\n**Next action:** %s\n\nEvidence: %s\n' \
+              "$marker" "$category" "$ALERT_OWNER" "$impact" "$next_action" "$evidence")"
+            gh api --method POST "repos/${REPOSITORY}/issues/${ALERT_ISSUE}/comments" \
+              -f body="$body" >/dev/null
+            issue_text+=$'\n'"$marker"
+          }
+
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            case "$RUN_CONCLUSION" in
+              failure|timed_out|startup_failure|action_required) ;;
+              *) exit 0 ;;
+            esac
+
+            run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}")"
+            jobs_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs?per_page=100")"
+            pr_number="$(jq -r '.pull_requests[0].number // empty' <<<"$run_json")"
+            subject="${RUN_NAME} on ${RUN_HEAD_SHA:0:12}"
+            [[ -z "$pr_number" ]] || subject="PR #${pr_number}"
+            failed="$(jq -r '
+              [.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or
+                                 .conclusion == "startup_failure" or .conclusion == "action_required")
+               | (.name + ": " + ([.steps[]? | select(.conclusion == "failure" or
+                                                       .conclusion == "timed_out" or
+                                                       .conclusion == "startup_failure" or
+                                                       .conclusion == "action_required")
+                                      | .name][0] // "job failed"))]
+              | join("; ")' <<<"$jobs_json")"
+            [[ -n "$failed" ]] || failed="workflow failed before job evidence was available"
+
+            category="PR/release gate"
+            impact="${subject} cannot safely advance while ${RUN_NAME} is red."
+            next_action="Fix the first product-owned failure on the exact head SHA and rerun the canonical gate."
+            lower="$(tr '[:upper:]' '[:lower:]' <<<"${RUN_NAME} ${failed}")"
+            if grep -Eq 'codeql|dependency review|security' <<<"$lower"; then
+              category="Security gate"
+              impact="${subject} has a failed OSS security gate and should not enter the release branch."
+              next_action="Classify the first finding, patch or explicitly disposition it with evidence, and rerun the security gate."
+            elif grep -Eq 'fresh[- ]?(source|clone)' <<<"$lower"; then
+              category="Fresh-source acceptance"
+              impact="${subject} no longer proves the clean install and first-run path."
+              next_action="Repair the first isolated install/launch/render failure and rerun fresh-source acceptance."
+            elif grep -Eq 'install|managed renderer|package|docker' <<<"$lower"; then
+              category="Installer/package path"
+              impact="${subject} has broken installer, managed-renderer, Docker, or package evidence required for release."
+              next_action="Repair the first failing boundary on the exact head SHA and rerun ptymark CI."
+            elif grep -Eq 'node|setup-node|checkout|setup-python|github.actions' <<<"$lower"; then
+              category="Node 24 / Actions migration"
+              impact="${subject} has a failing Node runtime or GitHub Actions migration gate."
+              next_action="Align the Node 24 pin, engine range, action runtime, and runner support, then rerun the affected gates."
+            fi
+            post_once "run:${RUN_ID}" "$category" "$impact" "$next_action" \
+              "[${RUN_NAME} run ${RUN_ID}](${RUN_URL}); ${failed}."
+            exit 0
+          fi
+
+          manifest="$(gh api "repos/${REPOSITORY}/contents/verification/manifest.toml?ref=main" --jq .content | base64 --decode)"
+          product_ci="$(gh api "repos/${REPOSITORY}/contents/.github/workflows/ptymark-ci.yml?ref=main" --jq .content | base64 --decode)"
+          fresh_ok=true
+          gh api "repos/${REPOSITORY}/contents/tests/fresh_source_acceptance.sh?ref=main" >/dev/null 2>&1 || fresh_ok=false
+          grep -Fq 'acceptance.fresh-source-linux' <<<"$manifest" || fresh_ok=false
+          grep -Fq 'fresh_source_acceptance.sh' <<<"$product_ci" || fresh_ok=false
+          if [[ "$fresh_ok" != true ]]; then
+            post_once "invariant:fresh-source" "Fresh-source acceptance" \
+              "The default branch does not require one isolated source install → state/config → real renderer → native PTY journey, so Alpha.6 evidence is incomplete." \
+              "Implement, register, and require the #127 acceptance test in ptymark CI." \
+              "#127, \`tests/fresh_source_acceptance.sh\`, and \`verification/manifest.toml\`."
+          fi
+
+          versions="$(gh api "repos/${REPOSITORY}/contents/docker/ptymark-versions.env?ref=main" --jq .content | base64 --decode)"
+          package="$(gh api "repos/${REPOSITORY}/contents/renderers/package.json?ref=main" --jq .content | base64 --decode)"
+          image="$(sed -n 's/^NODE_IMAGE=node:\([0-9.]*\)-.*/\1/p' <<<"$versions")"
+          minimum="$(jq -r '.engines.node // ""' <<<"$package" | sed -n 's/^>=\([^ ]*\) <25$/\1/p')"
+          node_ok=true
+          [[ "$image" == 24.* && "$minimum" == 24.* ]] || node_ok=false
+          [[ "$(printf '%s\n%s\n' "$minimum" "$image" | sort -V | head -n 1)" == "$minimum" ]] || node_ok=false
+          if [[ "$node_ok" != true ]]; then
+            signature="$(printf '%s\n%s\n' "$image" "$minimum" | sha256sum | cut -c1-12)"
+            post_once "invariant:node24:${signature}" "Node 24 contract drift" \
+              "The managed Node image no longer satisfies the renderer's supported Node 24 range; clean installs or managed rendering may break." \
+              "Restore one aligned Node 24 pin/range and rerun dependency alignment plus managed-renderer acceptance." \
+              "managed image \`${image:-missing}\`; minimum \`${minimum:-missing}\`."
+          fi
+
+          rulesets="$(gh api "repos/${REPOSITORY}/rulesets?includes_parents=true")"
+          ruleset_id="$(jq -r '[.[] | select(.enforcement == "active" and .target == "branch")][0].id // empty' <<<"$rulesets")"
+          required_checks=0
+          thread_resolution=false
+          if [[ -n "$ruleset_id" ]]; then
+            ruleset="$(gh api "repos/${REPOSITORY}/rulesets/${ruleset_id}")"
+            required_checks="$(jq -r '[.rules[] | select(.type == "required_status_checks")][0].parameters.required_status_checks | length // 0' <<<"$ruleset")"
+            thread_resolution="$(jq -r '[.rules[] | select(.type == "pull_request")][0].parameters.required_review_thread_resolution // false' <<<"$ruleset")"
+          fi
+          if [[ "$required_checks" -lt 5 || "$thread_resolution" != true ]]; then
+            post_once "invariant:ruleset" "OSS merge governance" \
+              "The main ruleset does not require the canonical release checks and resolved conversations, so a red or unresolved PR can remain mergeable." \
+              "Require CI, ptymark CI, CodeQL, Dependency Review, release metadata, and conversation resolution; record evidence in #74." \
+              "ruleset \`${ruleset_id:-missing}\`: required checks=${required_checks}, conversation resolution=${thread_resolution}."
+          fi
+
+          issue15="$(gh api "repos/${REPOSITORY}/issues/15" --jq '.body // ""')"
+          design="$(gh api "repos/${REPOSITORY}/contents/documents/alpha4-design.md?ref=main" --jq .content | base64 --decode)"
+          if grep -Fq 'schema_version = 1' <<<"$issue15" && grep -Fq '## Schema v2' <<<"$design"; then
+            post_once "invariant:schema-v2" "Schema-v2 roadmap drift" \
+              "#15 still defines the forward migration contract around schema v1 while the shipped contract is schema v2, leaving Beta ownership ambiguous." \
+              "Rewrite #15 against schema v2 and link only remaining stable-contract work into #148." \
+              "#15 versus \`documents/alpha4-design.md\`."
+          fi
