@@ -1,0 +1,184 @@
+# @dependency-start
+# contract workflow
+# responsibility Reports actionable OSS release-path failures and drift to issue #157.
+# upstream design ../../documents/roadmap-alpha5-beta.md release sequence and gates
+# upstream issue https://github.com/iwashita-nozomu/ptymark/issues/157 alert contract and baseline
+# downstream environment ../../.github/workflows/ptymark-ci.yml product-owned release gates
+# @dependency-end
+
+name: Ptymark OSSリリース監視
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+      - ptymark CI
+      - CodeQL
+      - Dependency Review
+      - ptymark Release Metadata
+      - ptymark dependency alignment
+    types: [completed]
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: ptymark-oss-release-watch
+  cancel-in-progress: false
+
+env:
+  ALERT_ISSUE: "157"
+  ALERT_OWNER: iwashita-nozomu
+
+jobs:
+  watch:
+    name: OSSリリース経路を確認
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+
+    steps:
+      - name: 新規の実行可能な問題だけを通知
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          issue_text="$({
+            gh api "repos/${REPOSITORY}/issues/${ALERT_ISSUE}" --jq '.body // ""'
+            gh api --paginate "repos/${REPOSITORY}/issues/${ALERT_ISSUE}/comments?per_page=100" --jq '.[].body'
+          } || true)"
+
+          post_once() {
+            local key="$1" category="$2" impact="$3" next_action="$4" evidence="$5"
+            local marker="<!-- ptymark-oss-release-watch:${key} -->"
+            grep -Fq "$marker" <<<"$issue_text" && return 0
+            local body
+            body="$(printf '%s\n### 🚨 %s\n\n@%s\n\n**影響:** %s\n**次の対応:** %s\n\n根拠: %s\n' \
+              "$marker" "$category" "$ALERT_OWNER" "$impact" "$next_action" "$evidence")"
+            gh api --method POST "repos/${REPOSITORY}/issues/${ALERT_ISSUE}/comments" \
+              -f body="$body" >/dev/null
+            issue_text+=$'\n'"$marker"
+          }
+
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            case "$RUN_CONCLUSION" in
+              failure|timed_out|startup_failure|action_required) ;;
+              *) exit 0 ;;
+            esac
+
+            run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}")"
+            jobs_json="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs?per_page=100")"
+            pr_number="$(jq -r '.pull_requests[0].number // empty' <<<"$run_json")"
+            subject="${RUN_NAME}（${RUN_HEAD_SHA:0:12}）"
+            [[ -z "$pr_number" ]] || subject="PR #${pr_number}"
+            failed="$(jq -r '
+              [.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or
+                                 .conclusion == "startup_failure" or .conclusion == "action_required")
+               | (.name + ": " + ([.steps[]? | select(.conclusion == "failure" or
+                                                       .conclusion == "timed_out" or
+                                                       .conclusion == "startup_failure" or
+                                                       .conclusion == "action_required")
+                                      | .name][0] // "job failed"))]
+              | join("; ")' <<<"$jobs_json")"
+            [[ -n "$failed" ]] || failed="ジョブの失敗根拠を取得できる前にワークフローが失敗しました"
+
+            category="PR／リリースゲート"
+            impact="${subject} は ${RUN_NAME} が失敗しているため、OSSリリース経路を安全に進められません。"
+            next_action="対象head SHAで最初の製品責務側の失敗を修正し、正規ゲートを再実行してください。"
+            lower="$(tr '[:upper:]' '[:lower:]' <<<"${RUN_NAME} ${failed}")"
+            if grep -Eq 'codeql|dependency review|security' <<<"$lower"; then
+              category="セキュリティゲート"
+              impact="${subject} でOSSセキュリティゲートが失敗しており、リリースブランチへ進められません。"
+              next_action="最初の指摘を分類し、修正または根拠付きで明示的に処理したうえで、セキュリティゲートを再実行してください。"
+            elif grep -Eq 'fresh[- ]?(source|clone)' <<<"$lower"; then
+              category="新規クローン／ソース導入受け入れ"
+              impact="${subject} では、クリーン導入から初回実行までの経路を証明できていません。"
+              next_action="分離環境における導入・起動・描画の最初の失敗を修正し、新規ソース受け入れテストを再実行してください。"
+            elif grep -Eq 'install|managed renderer|package|docker' <<<"$lower"; then
+              category="インストーラー／パッケージ経路"
+              impact="${subject} で、リリースに必要なインストーラー、managed renderer、Docker、またはパッケージ検証が壊れています。"
+              next_action="対象head SHAで最初の失敗境界を修正し、ptymark CIを再実行してください。"
+            elif grep -Eq 'node|setup-node|checkout|setup-python|github.actions' <<<"$lower"; then
+              category="Node 24／GitHub Actions移行"
+              impact="${subject} でNodeランタイムまたはGitHub Actions移行ゲートが失敗しています。"
+              next_action="Node 24の固定値、engine範囲、Actionランタイム、runner対応を整合させ、影響するゲートを再実行してください。"
+            fi
+            post_once "run:${RUN_ID}" "$category" "$impact" "$next_action" \
+              "[${RUN_NAME} 実行 #${RUN_ID}](${RUN_URL}); ${failed}。"
+            exit 0
+          fi
+
+          manifest_json="$(gh api "repos/${REPOSITORY}/contents/verification/manifest.toml?ref=main")"
+          product_ci_json="$(gh api "repos/${REPOSITORY}/contents/.github/workflows/ptymark-ci.yml?ref=main")"
+          manifest="$(jq -r .content <<<"$manifest_json" | base64 --decode)"
+          product_ci="$(jq -r .content <<<"$product_ci_json" | base64 --decode)"
+          fresh_file="$(gh api "repos/${REPOSITORY}/contents/tests/fresh_source_acceptance.sh?ref=main" --jq .sha 2>/dev/null || printf missing)"
+          fresh_ok=true
+          [[ "$fresh_file" != missing ]] || fresh_ok=false
+          grep -Fq 'fresh_source_acceptance.sh' <<<"$manifest" || fresh_ok=false
+          grep -Fq 'fresh_source_acceptance.sh' <<<"$product_ci" || fresh_ok=false
+          if [[ "$fresh_ok" != true ]]; then
+            signature="$(printf '%s\n%s\n%s\n' "$fresh_file" "$(jq -r .sha <<<"$manifest_json")" "$(jq -r .sha <<<"$product_ci_json")" | sha256sum | cut -c1-12)"
+            post_once "invariant:fresh-source:${signature}" "新規クローン／ソース導入受け入れ" \
+              "default branchでは、ソース導入 → 状態・設定確認 → 実managed renderer → native PTYという一連の分離経路が必須化されておらず、Alpha.6の根拠が不足しています。" \
+              "#127の受け入れテストを実装し、verification manifestへ登録して、ptymark CIの必須検証にしてください。" \
+              "#127、\`tests/fresh_source_acceptance.sh\`、\`verification/manifest.toml\`。"
+          fi
+
+          versions="$(gh api "repos/${REPOSITORY}/contents/docker/ptymark-versions.env?ref=main" --jq .content | base64 --decode)"
+          package="$(gh api "repos/${REPOSITORY}/contents/renderers/package.json?ref=main" --jq .content | base64 --decode)"
+          image="$(sed -n 's/^NODE_IMAGE=node:\([0-9.]*\)-.*/\1/p' <<<"$versions")"
+          minimum="$(jq -r '.engines.node // ""' <<<"$package" | sed -n 's/^>=\([^ ]*\) <25$/\1/p')"
+          node_ok=true
+          [[ "$image" == 24.* && "$minimum" == 24.* ]] || node_ok=false
+          [[ "$(printf '%s\n%s\n' "$minimum" "$image" | sort -V | head -n 1)" == "$minimum" ]] || node_ok=false
+          if [[ "$node_ok" != true ]]; then
+            signature="$(printf '%s\n%s\n' "$image" "$minimum" | sha256sum | cut -c1-12)"
+            post_once "invariant:node24:${signature}" "Node 24契約ずれ" \
+              "managed Nodeイメージがrendererの対応Node 24範囲を満たしておらず、クリーン導入またはmanaged renderingが壊れる可能性があります。" \
+              "Node 24の固定値と対応範囲を一つの整合した契約へ戻し、dependency alignmentとmanaged-renderer受け入れを再実行してください。" \
+              "managed image=\`${image:-missing}\`、minimum=\`${minimum:-missing}\`。"
+          fi
+
+          rulesets="$(gh api "repos/${REPOSITORY}/rulesets?includes_parents=true")"
+          ruleset_id="$(jq -r '[.[] | select(.enforcement == "active" and .target == "branch")][0].id // empty' <<<"$rulesets")"
+          required_checks=0
+          thread_resolution=false
+          if [[ -n "$ruleset_id" ]]; then
+            ruleset="$(gh api "repos/${REPOSITORY}/rulesets/${ruleset_id}")"
+            required_checks="$(jq -r '[.rules[] | select(.type == "required_status_checks")][0].parameters.required_status_checks | length // 0' <<<"$ruleset")"
+            thread_resolution="$(jq -r '[.rules[] | select(.type == "pull_request")][0].parameters.required_review_thread_resolution // false' <<<"$ruleset")"
+          fi
+          if [[ "$required_checks" -lt 5 || "$thread_resolution" != true ]]; then
+            signature="$(printf '%s\n%s\n%s\n' "${ruleset_id:-missing}" "$required_checks" "$thread_resolution" | sha256sum | cut -c1-12)"
+            post_once "invariant:ruleset:${signature}" "OSSマージ統制" \
+              "main rulesetが正規リリースチェックと会話解決を必須化していないため、失敗中または未解決のPRがmergeableのまま残ります。" \
+              "CI、ptymark CI、CodeQL、Dependency Review、release metadata、会話解決を必須化し、#74へ設定根拠を記録してください。" \
+              "ruleset=\`${ruleset_id:-missing}\`、required checks=${required_checks}、conversation resolution=${thread_resolution}。"
+          fi
+
+          issue15_json="$(gh api "repos/${REPOSITORY}/issues/15")"
+          design_json="$(gh api "repos/${REPOSITORY}/contents/documents/alpha4-design.md?ref=main")"
+          issue15="$(jq -r '.body // ""' <<<"$issue15_json")"
+          design="$(jq -r .content <<<"$design_json" | base64 --decode)"
+          if grep -Fq 'schema_version = 1' <<<"$issue15" && grep -Fq '## Schema v2' <<<"$design"; then
+            signature="$(printf '%s\n%s\n' "$(jq -r .updated_at <<<"$issue15_json")" "$(jq -r .sha <<<"$design_json")" | sha256sum | cut -c1-12)"
+            post_once "invariant:schema-v2:${signature}" "schema v2ロードマップずれ" \
+              "#15は依然としてschema v1を将来の移行契約として定義していますが、出荷済み契約はschema v2であり、Betaに向けた責務が曖昧です。" \
+              "#15をschema v2基準へ書き換え、未完の安定契約だけを#148へ接続してください。" \
+              "#15と\`documents/alpha4-design.md\`の不整合。"
+          fi
