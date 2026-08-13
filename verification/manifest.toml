@@ -217,6 +217,16 @@ evidence = ["Canonical Docker checks", "release package smoke"]
 required = true
 
 [[check]]
+id = "acceptance.fresh-source-linux"
+owner = "ptymark-ci"
+level = "acceptance"
+platforms = ["docker"]
+command = "PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/fresh_source_acceptance.sh"
+sources = ["tests/fresh_source_acceptance.sh", "scripts/installer.sh", "scripts/install-managed-bundle.sh", "src/install.rs", "src/interactive.rs"]
+evidence = ["Canonical Docker checks"]
+required = true
+
+[[check]]
 id = "installer.powershell"
 owner = "ptymark-ci"
 level = "integration"
