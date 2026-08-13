@@ -28,6 +28,7 @@ This directory is the Git-owned source of truth for **what must be verified** be
 | `static` | Formatting, linting, parser, syntax, or manifest validation without executing the feature path. |
 | `contract` | Deterministic unit/integration contract with controlled fixtures. |
 | `integration` | Real installer, renderer, browser, process, or adapter execution. |
+| `acceptance` | One complete isolated user or release journey through the installed product and its real dependencies. |
 | `package` | A native executable is built and packaged in an ephemeral CI workspace, locally installed and smoke-tested, then discarded without upload or distribution. |
 | `compatibility` | Terminal behavior and shell ownership are validated without claiming every upstream release is vendored. |
 | `repository` | Lightweight repository wiring that is independent of feature behavior. |
@@ -70,6 +71,10 @@ The following IDs are stable review references. Renaming or removing one require
 - `installer.powershell`
 - `installer.cmd`
 - `installer.winbash`
+
+### Fresh-source end-to-end acceptance
+
+- `acceptance.fresh-source-linux`
 
 ### Shell and WezTerm coexistence
 
@@ -117,6 +122,16 @@ PTYMARK_TEST_BROWSER=/usr/bin/chromium \
 PTYMARK_BROWSER_NO_SANDBOX=1 \
 bash tests/managed_renderer_smoke.sh
 ```
+
+Fresh-source installation through the normal source installer, private Node runtime, real managed engines, strict preview, and native PTY:
+
+```bash
+PTYMARK_TEST_BROWSER=/usr/bin/chromium \
+PTYMARK_BROWSER_NO_SANDBOX=1 \
+bash tests/fresh_source_acceptance.sh
+```
+
+This CI/release acceptance proves the documented source wiring. It does not define or replace a future user-facing guided setup or self-test.
 
 Windows-native checks are run by GitHub Actions using `installer.ps1`, `installer.cmd`, Git Bash path conversion, the managed renderer smoke, shell-profile coexistence, and `package-release.ps1`.
 

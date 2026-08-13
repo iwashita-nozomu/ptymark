@@ -106,7 +106,7 @@ jobs:
                   ;;
               esac
               case "$path" in
-                src/config.rs|src/install.rs|src/managed_launcher.rs|src/engine.rs|scripts/*|distribution/*|compat/*|renderers/*|tests/install*|tests/managed*|tests/windows*|tests/shell_profile*|.github/workflows/ptymark-ci.yml)
+                src/config.rs|src/install.rs|src/managed_launcher.rs|src/engine.rs|scripts/*|distribution/*|compat/*|renderers/*|tests/install*|tests/managed*|tests/fresh_source*|tests/windows*|tests/shell_profile*|.github/workflows/ptymark-ci.yml)
                   installer=true
                   ;;
               esac
@@ -198,7 +198,7 @@ jobs:
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -gt 0) { throw "$path parser errors: $($errors -join '; ')" }
           }
-          bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh distribution/install.sh tests/managed_renderer_smoke.sh tests/shell_profile_coexistence.sh
+          bash -n scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh distribution/install.sh tests/fresh_source_acceptance.sh tests/managed_renderer_smoke.sh tests/shell_profile_coexistence.sh
 
       - name: Build native binary
         run: cargo build --locked
@@ -246,7 +246,7 @@ jobs:
         run: |
           set -euo pipefail
           compose=(docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml)
-          scripts=(scripts/check-ptymark-renderers.sh scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh distribution/install.sh tests/install_smoke.sh tests/managed_renderer_smoke.sh tests/shell_profile_coexistence.sh)
+          scripts=(scripts/check-ptymark-renderers.sh scripts/installer.sh scripts/install.sh scripts/install-managed-bundle.sh distribution/install.sh tests/fresh_source_acceptance.sh tests/install_smoke.sh tests/managed_renderer_smoke.sh tests/shell_profile_coexistence.sh)
           "${compose[@]}" run --rm --no-TTY dev bash -n "${scripts[@]}"
           "${compose[@]}" run --rm --no-TTY dev shellcheck "${scripts[@]}"
           "${compose[@]}" run --rm --no-TTY dev node --check renderers/managed/mathjax-cli.mjs
@@ -258,6 +258,9 @@ jobs:
 
       - name: Run isolated managed-renderer acceptance
         run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev bash -lc 'cargo build --locked && PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/managed_renderer_smoke.sh && bash scripts/check-ptymark-renderers.sh'
+
+      - name: Run fresh-source installation acceptance
+        run: docker compose --env-file docker/ptymark-versions.env --file docker/ptymark-compose.yaml run --rm --no-TTY dev bash -lc 'PTYMARK_TEST_BROWSER=/usr/bin/chromium PTYMARK_BROWSER_NO_SANDBOX=1 bash tests/fresh_source_acceptance.sh'
 
   windows-managed-renderers:
     name: Windows managed renderer installation and strict rendering
