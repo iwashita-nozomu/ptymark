@@ -363,8 +363,8 @@ pty_after="$(grep -n -m1 'pty-after' "$raw/native-pty.lines" | cut -d: -f1)"
 # CRLF boundaries. Reject every LF byte that is not immediately preceded by CR.
 od -An -v -t u1 "$raw/native-pty.out" | awk '
   {
-    for (index = 1; index <= NF; index++) {
-      byte = $index + 0
+    for (field = 1; field <= NF; field++) {
+      byte = $field + 0
       if (byte == 10 && previous != 13) bad = 1
       previous = byte
     }
