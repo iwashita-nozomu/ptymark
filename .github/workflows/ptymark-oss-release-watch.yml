@@ -48,6 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
           EVENT_NAME: ${{ github.event_name }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_NAME: ${{ github.event.workflow_run.name }}
@@ -175,10 +176,18 @@ jobs:
           design_json="$(gh api "repos/${REPOSITORY}/contents/documents/alpha4-design.md?ref=main")"
           issue15="$(jq -r '.body // ""' <<<"$issue15_json")"
           design="$(jq -r .content <<<"$design_json" | base64 --decode)"
-          if grep -Fq 'schema_version = 1' <<<"$issue15" && grep -Fq '## Schema v2' <<<"$design"; then
+          checker_dir="$(mktemp -d)"
+          trap 'rm -rf "$checker_dir"' EXIT
+          gh api "repos/${REPOSITORY}/contents/scripts/check-release-watch.py?ref=${WORKFLOW_SHA}" \
+            --jq .content | base64 --decode >"$checker_dir/check-release-watch.py"
+          printf '%s' "$issue15" >"$checker_dir/issue15.md"
+          printf '%s' "$design" >"$checker_dir/alpha4-design.md"
+          schema_v2_status="$(python3 "$checker_dir/check-release-watch.py" schema-v2-status \
+            "$checker_dir/issue15.md" "$checker_dir/alpha4-design.md")"
+          if [[ "$schema_v2_status" == mismatch ]]; then
             signature="$(printf '%s\n%s\n' "$(jq -r .updated_at <<<"$issue15_json")" "$(jq -r .sha <<<"$design_json")" | sha256sum | cut -c1-12)"
             post_once "invariant:schema-v2:${signature}" "schema v2ロードマップずれ" \
-              "#15は依然としてschema v1を将来の移行契約として定義していますが、出荷済み契約はschema v2であり、Betaに向けた責務が曖昧です。" \
-              "#15をschema v2基準へ書き換え、未完の安定契約だけを#148へ接続してください。" \
-              "#15と\`documents/alpha4-design.md\`の不整合。"
+              "#15の未完了taskがschema v1を将来契約として定義していますが、出荷済み契約はschema v2であり、Betaに向けた責務が曖昧です。" \
+              "未完了taskをschema v2基準へ修正し、未完の安定契約だけを#148へ接続してください。" \
+              "#15の未完了taskと\`documents/alpha4-design.md\`の不整合。"
           fi

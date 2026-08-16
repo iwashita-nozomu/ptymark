@@ -51,4 +51,7 @@ jobs:
           fi
           cargo metadata --locked --no-deps --format-version 1 >/dev/null
           python3 scripts/check-workflow-policy.py
-          python3 -m unittest tests.tools.test_workflow_policy -v
+          python3 -m unittest \
+            tests.tools.test_workflow_policy \
+            tests.tools.test_release_watch \
+            -v
