@@ -1,19 +1,20 @@
+use crate::limits::{MAX_RENDERER_DIAGNOSTIC_BYTES, PROCESS_POLL_INTERVAL};
 use serde::Deserialize;
 use std::env;
 use std::fs;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
 pub const MANAGED_BUNDLE_SCHEMA_VERSION: u32 = 1;
 pub const MANAGED_RUNTIME_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
-pub const BROWSER_RUNTIME_LIBRARIES_MISSING: &str =
-    "browser.runtime_libraries_missing";
+pub const BROWSER_RUNTIME_LIBRARIES_MISSING: &str = "browser.runtime_libraries_missing";
 pub const BROWSER_RUNTIME_LAUNCH_FAILED: &str = "browser.runtime_launch_failed";
 pub const BROWSER_RUNTIME_TIMEOUT: &str = "browser.runtime_timeout";
-const MANAGED_RUNTIME_PROBE_CAPTURE_BYTES: u64 = 4096;
 #[cfg(target_os = "linux")]
 const LINUX_LIBRARY_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -353,7 +354,7 @@ fn probe_managed_alias_with_timeout(
             });
         }
 
-        if artifact.is_valid(&output.stdout)? {
+        if artifact.is_valid(&output.stdout) {
             Ok(ManagedRuntimeStatus::Ready)
         } else {
             Ok(ManagedRuntimeStatus::InvalidArtifact)
@@ -369,11 +370,11 @@ enum ProbeArtifact {
 }
 
 impl ProbeArtifact {
-    fn is_valid(&self, stdout: &[u8]) -> Result<bool, String> {
+    fn is_valid(&self, stdout: &[u8]) -> bool {
         match self {
-            Self::SvgFile(path) => Ok(read_prefix(path).is_ok_and(|bytes| contains_svg(&bytes))),
-            Self::StdoutSvg => Ok(contains_svg(stdout)),
-            Self::StdoutNonempty => Ok(stdout.iter().any(|byte| !byte.is_ascii_whitespace())),
+            Self::SvgFile(path) => read_probe_artifact(path).is_ok_and(|bytes| contains_svg(&bytes)),
+            Self::StdoutSvg => contains_svg(stdout),
+            Self::StdoutNonempty => stdout.iter().any(|byte| !byte.is_ascii_whitespace()),
         }
     }
 }
@@ -386,71 +387,165 @@ struct BoundedOutput {
     stderr: Vec<u8>,
 }
 
+#[derive(Debug)]
+enum BoundedOutcome {
+    Exited(bool),
+    TimedOut,
+    OutputLimit,
+    WaitFailed(String),
+}
+
 fn run_bounded(mut command: Command, timeout: Duration) -> Result<BoundedOutput, String> {
-    let mut stdout = tempfile::tempfile()
-        .map_err(|error| format!("cannot create managed runtime stdout capture: {error}"))?;
-    let mut stderr = tempfile::tempfile()
-        .map_err(|error| format!("cannot create managed runtime stderr capture: {error}"))?;
     command
         .stdin(Stdio::null())
-        .stdout(Stdio::from(stdout.try_clone().map_err(|error| {
-            format!("cannot clone managed runtime stdout capture: {error}")
-        })?))
-        .stderr(Stdio::from(stderr.try_clone().map_err(|error| {
-            format!("cannot clone managed runtime stderr capture: {error}")
-        })?));
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
 
     let mut child = command
         .spawn()
         .map_err(|error| format!("cannot start managed runtime probe: {error}"))?;
-    let started = Instant::now();
-    let mut timed_out = false;
-    let success = loop {
-        match child
-            .try_wait()
-            .map_err(|error| format!("cannot inspect managed runtime probe: {error}"))?
-        {
-            Some(status) => break status.success(),
-            None if started.elapsed() >= timeout => {
-                timed_out = true;
-                let _ = child.kill();
-                let _ = child.wait();
-                break false;
-            }
-            None => thread::sleep(Duration::from_millis(10)),
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            terminate_process_tree(&mut child);
+            return Err("managed runtime stdout is unavailable".to_owned());
+        }
+    };
+    let stderr = match child.stderr.take() {
+        Some(stderr) => stderr,
+        None => {
+            terminate_process_tree(&mut child);
+            return Err("managed runtime stderr is unavailable".to_owned());
         }
     };
 
-    stdout
-        .seek(SeekFrom::Start(0))
-        .map_err(|error| format!("cannot rewind managed runtime stdout capture: {error}"))?;
-    stderr
-        .seek(SeekFrom::Start(0))
-        .map_err(|error| format!("cannot rewind managed runtime stderr capture: {error}"))?;
-    let mut stdout_bytes = Vec::new();
-    let mut stderr_bytes = Vec::new();
-    stdout
-        .take(MANAGED_RUNTIME_PROBE_CAPTURE_BYTES)
-        .read_to_end(&mut stdout_bytes)
-        .map_err(|error| format!("cannot read managed runtime stdout capture: {error}"))?;
-    stderr
-        .take(MANAGED_RUNTIME_PROBE_CAPTURE_BYTES)
-        .read_to_end(&mut stderr_bytes)
-        .map_err(|error| format!("cannot read managed runtime stderr capture: {error}"))?;
+    let overflowed = Arc::new(AtomicBool::new(false));
+    let stdout_overflowed = Arc::clone(&overflowed);
+    let stderr_overflowed = Arc::clone(&overflowed);
+    let stdout_reader = thread::spawn(move || read_capped_stream(stdout, stdout_overflowed));
+    let stderr_reader = thread::spawn(move || read_capped_stream(stderr, stderr_overflowed));
 
-    Ok(BoundedOutput {
-        success,
-        timed_out,
-        stdout: stdout_bytes,
-        stderr: stderr_bytes,
-    })
+    let started = Instant::now();
+    let outcome = loop {
+        if overflowed.load(Ordering::Acquire) {
+            break BoundedOutcome::OutputLimit;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break BoundedOutcome::Exited(status.success()),
+            Ok(None) if started.elapsed() >= timeout => break BoundedOutcome::TimedOut,
+            Ok(None) => thread::sleep(PROCESS_POLL_INTERVAL),
+            Err(error) => break BoundedOutcome::WaitFailed(error.to_string()),
+        }
+    };
+    if !matches!(outcome, BoundedOutcome::Exited(_)) {
+        terminate_process_tree(&mut child);
+    }
+
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| "managed runtime stdout reader panicked".to_owned())?
+        .map_err(|error| format!("cannot read managed runtime stdout: {error}"))?;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| "managed runtime stderr reader panicked".to_owned())?
+        .map_err(|error| format!("cannot read managed runtime stderr: {error}"))?;
+
+    match outcome {
+        BoundedOutcome::Exited(success) => Ok(BoundedOutput {
+            success,
+            timed_out: false,
+            stdout,
+            stderr,
+        }),
+        BoundedOutcome::TimedOut => Ok(BoundedOutput {
+            success: false,
+            timed_out: true,
+            stdout,
+            stderr,
+        }),
+        BoundedOutcome::OutputLimit => Ok(BoundedOutput {
+            success: false,
+            timed_out: false,
+            stdout,
+            stderr,
+        }),
+        BoundedOutcome::WaitFailed(error) => {
+            Err(format!("cannot inspect managed runtime probe: {error}"))
+        }
+    }
 }
 
-fn read_prefix(path: &Path) -> std::io::Result<Vec<u8>> {
-    let file = fs::File::open(path)?;
-    let mut bytes = Vec::new();
-    file.take(MANAGED_RUNTIME_PROBE_CAPTURE_BYTES)
-        .read_to_end(&mut bytes)?;
+fn read_capped_stream(
+    mut reader: impl Read,
+    overflowed: Arc<AtomicBool>,
+) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(MAX_RENDERER_DIAGNOSTIC_BYTES.min(8192));
+    let mut chunk = [0_u8; 8192];
+    loop {
+        let count = reader.read(&mut chunk)?;
+        if count == 0 {
+            break;
+        }
+        let remaining = MAX_RENDERER_DIAGNOSTIC_BYTES.saturating_sub(bytes.len());
+        let retained = remaining.min(count);
+        bytes.extend_from_slice(&chunk[..retained]);
+        if retained < count {
+            overflowed.store(true, Ordering::Release);
+            break;
+        }
+        if bytes.len() == MAX_RENDERER_DIAGNOSTIC_BYTES {
+            let mut probe = [0_u8; 1];
+            if reader.read(&mut probe)? != 0 {
+                overflowed.store(true, Ordering::Release);
+            }
+            break;
+        }
+    }
+    Ok(bytes)
+}
+
+fn terminate_process_tree(child: &mut Child) {
+    #[cfg(unix)]
+    {
+        let process_group = format!("-{}", child.id());
+        let _ = Command::new("/bin/kill")
+            .arg("-KILL")
+            .arg("--")
+            .arg(process_group)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn read_probe_artifact(path: &Path) -> std::io::Result<Vec<u8>> {
+    let metadata = fs::metadata(path)?;
+    if metadata.len() > MAX_RENDERER_DIAGNOSTIC_BYTES as u64 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "managed runtime probe artifact exceeded its byte limit",
+        ));
+    }
+    let mut file = fs::File::open(path)?;
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.read_to_end(&mut bytes)?;
     Ok(bytes)
 }
 
@@ -475,8 +570,8 @@ fn extract_missing_libraries(bytes: &[u8]) -> Vec<String> {
             libraries.push(library);
         }
         if line.contains("cannot open shared object file") {
-            for candidate in line
-                .split(|character: char| character.is_whitespace() || character == ':')
+            for candidate in
+                line.split(|character: char| character.is_whitespace() || character == ':')
             {
                 if let Some(library) = stable_library_name(candidate) {
                     libraries.push(library);
@@ -491,7 +586,10 @@ fn extract_missing_libraries(bytes: &[u8]) -> Vec<String> {
 
 fn stable_library_name(candidate: &str) -> Option<String> {
     let candidate = candidate.trim_matches(|character: char| {
-        matches!(character, '`' | '\'' | '"' | ',' | ';' | '(' | ')' | '[' | ']')
+        matches!(
+            character,
+            '`' | '\'' | '"' | ',' | ';' | '(' | ')' | '[' | ']'
+        )
     });
     if candidate.len() > 128
         || !candidate.starts_with("lib")
@@ -604,6 +702,7 @@ mod tests {
     };
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::thread;
     use std::time::Duration;
 
     #[test]
@@ -732,6 +831,24 @@ exit 127
             .expect("managed alias")
             .expect("runtime probe");
         assert_eq!(status, ManagedRuntimeStatus::TimedOut);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_runtime_probe_kills_descendants_at_deadline() {
+        let marker_root = tempfile::tempdir().expect("marker root");
+        let marker = marker_root.path().join("leaked-child");
+        let body = format!(
+            "#!/bin/sh\n(sleep 1; printf leaked > '{}') &\nwait\n",
+            marker.display()
+        );
+        let (_root, alias) = managed_fixture("chafa", &body);
+        let status = probe_managed_alias_with_timeout(&alias, Duration::from_millis(50))
+            .expect("managed alias")
+            .expect("runtime probe");
+        assert_eq!(status, ManagedRuntimeStatus::TimedOut);
+        thread::sleep(Duration::from_millis(1200));
+        assert!(!marker.exists(), "timed-out descendant survived the probe");
     }
 
     #[cfg(unix)]
