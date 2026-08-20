@@ -2,9 +2,9 @@
 
 # @dependency-start
 # contract test
-# responsibility Proves isolated Mermaid, math, and presenter execution.
+# responsibility Proves isolated Mermaid, math, presenter, and managed runtime diagnosis.
 # upstream implementation ../scripts/install-managed-bundle.sh bundle installation
-# upstream implementation ../src/managed_launcher.rs role execution
+# upstream implementation ../src/managed_launcher.rs role execution and bounded runtime probe
 # downstream environment ../.github/workflows/ptymark-ci.yml evidence recording
 # @dependency-end
 
@@ -47,6 +47,21 @@ export PTYMARK_INSTALL_STATE="$state"
 "$binary" --config "$config" config check
 "$binary" --config "$config" engine check
 "$binary" install status --state "$state"
+
+normal_doctor="$root/doctor-normal.json"
+tmux_doctor="$root/doctor-tmux.json"
+env -u TMUX TERM=xterm-256color \
+  "$binary" --config "$config" doctor --json >"$normal_doctor"
+TMUX="$root/tmux-socket,1,0" TERM=tmux-256color \
+  "$binary" --config "$config" doctor --json >"$tmux_doctor"
+for report in "$normal_doctor" "$tmux_doctor"; do
+  test "$(grep -c '"'"'runtime_state'"'"': '"'"'ready'"'"'' "$report")" -eq 3
+  grep -F '"browser_state": "present"' "$report" >/dev/null
+  if grep -F 'browser.runtime_' "$report" >/dev/null; then
+    echo 'healthy managed bundle produced a browser runtime finding' >&2
+    exit 1
+  fi
+done
 
 cat >"$root/diagram.mmd" <<'EOF_MERMAID_BODY'
 flowchart LR
