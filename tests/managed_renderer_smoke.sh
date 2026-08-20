@@ -55,7 +55,7 @@ env -u TMUX TERM=xterm-256color \
 TMUX="$root/tmux-socket,1,0" TERM=tmux-256color \
   "$binary" --config "$config" doctor --json >"$tmux_doctor"
 for report in "$normal_doctor" "$tmux_doctor"; do
-  test "$(grep -c '"'"'runtime_state'"'"': '"'"'ready'"'"'' "$report")" -eq 3
+  test "$(grep -c '"runtime_state": "ready"' "$report")" -eq 3
   grep -F '"browser_state": "present"' "$report" >/dev/null
   if grep -F 'browser.runtime_' "$report" >/dev/null; then
     echo 'healthy managed bundle produced a browser runtime finding' >&2
