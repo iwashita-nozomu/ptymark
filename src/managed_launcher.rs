@@ -372,7 +372,9 @@ enum ProbeArtifact {
 impl ProbeArtifact {
     fn is_valid(&self, stdout: &[u8]) -> bool {
         match self {
-            Self::SvgFile(path) => read_probe_artifact(path).is_ok_and(|bytes| contains_svg(&bytes)),
+            Self::SvgFile(path) => {
+                read_probe_artifact(path).is_ok_and(|bytes| contains_svg(&bytes))
+            }
             Self::StdoutSvg => contains_svg(stdout),
             Self::StdoutNonempty => stdout.iter().any(|byte| !byte.is_ascii_whitespace()),
         }
@@ -585,6 +587,7 @@ fn extract_missing_libraries(bytes: &[u8]) -> Vec<String> {
 }
 
 fn stable_library_name(candidate: &str) -> Option<String> {
+    let candidate = candidate.trim();
     let candidate = candidate.trim_matches(|character: char| {
         matches!(
             character,
