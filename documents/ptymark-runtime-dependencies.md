@@ -71,8 +71,9 @@ range. `renderers/package-lock.json` owns the exact transitive graph consumed by
 A present managed bundle is not sufficient evidence that its browser can execute.
 `ptymark doctor` therefore keeps file/manifest state separate from `runtime_state` and,
 for managed aliases only, runs fixed Mermaid, MathJax, and presenter samples under an
-eight-second monotonic deadline. Arbitrary external renderers and system-browser
-selection remain presence-only during doctor inspection.
+eight-second monotonic deadline. Arbitrary external renderer aliases remain presence-only.
+When a managed alias records an explicit system browser, the fixed sample follows that
+browser path without replacing or rediscovering it.
 
 On fresh Ubuntu 22.04, Ubuntu 24.04, or WSL installations, Chromium commonly needs the
 NSPR and NSS loader packages. When doctor reports
