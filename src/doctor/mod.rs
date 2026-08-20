@@ -9,8 +9,8 @@ use crate::diagnostics::{
 };
 use crate::engine::resolve_executable;
 use crate::managed_launcher::{
-    BROWSER_RUNTIME_LAUNCH_FAILED, BROWSER_RUNTIME_LIBRARIES_MISSING,
-    BROWSER_RUNTIME_TIMEOUT, ManagedRuntimeStatus, inspect_managed_alias, probe_managed_alias,
+    BROWSER_RUNTIME_LAUNCH_FAILED, BROWSER_RUNTIME_LIBRARIES_MISSING, BROWSER_RUNTIME_TIMEOUT,
+    ManagedRuntimeStatus, inspect_managed_alias, probe_managed_alias,
 };
 use crate::runtime::PipelineOptions;
 use serde::Serialize;
@@ -432,12 +432,8 @@ fn inspect_engine(
                             });
                         }
                         if inspection.complete {
-                            runtime_state = Some(inspect_managed_runtime(
-                                role,
-                                &path,
-                                strict,
-                                findings,
-                            ));
+                            runtime_state =
+                                Some(inspect_managed_runtime(role, &path, strict, findings));
                         } else {
                             state = "incompatible";
                             runtime_state = Some("incompatible");
