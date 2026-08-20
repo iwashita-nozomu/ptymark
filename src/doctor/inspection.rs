@@ -1,8 +1,7 @@
 use super::{InstallationReport, TerminalReport};
 use crate::config::Config;
 use crate::diagnostics::{
-    DiagnosticComponent, DiagnosticEvidence, DiagnosticFinding, DiagnosticSeverity, Redactor,
-    code,
+    DiagnosticComponent, DiagnosticEvidence, DiagnosticFinding, DiagnosticSeverity, Redactor, code,
 };
 use crate::install::{InstallState, default_install_state_path};
 use std::env;
