@@ -70,19 +70,19 @@ impl DoctorReport {
             push_line(
                 &mut output,
                 format!(
-                    "engine {}: {} ({}, runtime={}, origin={})",
+                    "engine {}: {} ({}, origin={}) runtime={}",
                     engine.role,
                     engine.backend,
                     engine.state,
-                    engine.runtime_state.unwrap_or("not-applicable"),
-                    engine.origin
+                    engine.origin,
+                    engine.runtime_state.unwrap_or("not-applicable")
                 ),
             );
         }
         push_line(
             &mut output,
             format!(
-                "presenter: {} ({}, runtime={})",
+                "presenter: {} ({}) runtime={}",
                 self.presenter.backend,
                 self.presenter.state,
                 self.presenter.runtime_state.unwrap_or("not-applicable")
