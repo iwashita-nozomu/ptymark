@@ -1,8 +1,15 @@
 import fs from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import process from 'node:process';
-import puppeteer from 'puppeteer';
 
-function parseArguments(arguments_) {
+const ALPHA_THRESHOLD = 0.02;
+const OPAQUE_THRESHOLD = 0.98;
+const CORNER_COLOR_TOLERANCE = 8;
+const BACKGROUND_DISTANCE_THRESHOLD = 0.03;
+const MIN_CONTRAST_RATIO = 4.5;
+const UNKNOWN_BACKGROUND_FOREGROUND = Object.freeze([117, 117, 117]);
+
+export function parseArguments(arguments_) {
   let columns = 80;
   let color = true;
   let inputPath;
@@ -49,64 +56,207 @@ function parseArguments(arguments_) {
   return { columns, color, inputPath };
 }
 
+function rawPixel(data, offset) {
+  const alpha = data[offset + 3] / 255;
+  if (alpha <= ALPHA_THRESHOLD) return null;
+  return {
+    alpha,
+    rgb: [data[offset], data[offset + 1], data[offset + 2]],
+  };
+}
+
+function channelDistance(left, right) {
+  return Math.max(
+    Math.abs(left[0] - right[0]),
+    Math.abs(left[1] - right[1]),
+    Math.abs(left[2] - right[2]),
+  );
+}
+
+function estimateRasterBackground(pixels, width, height) {
+  const offsets = [
+    0,
+    (width - 1) * 4,
+    (height - 1) * width * 4,
+    ((height * width) - 1) * 4,
+  ];
+  const corners = offsets
+    .map((offset) => rawPixel(pixels, offset))
+    .filter((sample) => sample !== null && sample.alpha >= OPAQUE_THRESHOLD);
+
+  for (const candidate of corners) {
+    const inliers = corners.filter(
+      (sample) => channelDistance(sample.rgb, candidate.rgb) <= CORNER_COLOR_TOLERANCE,
+    );
+    if (inliers.length < 3) continue;
+    return [0, 1, 2].map((channel) => Math.round(
+      inliers.reduce((total, sample) => total + sample.rgb[channel], 0)
+        / inliers.length,
+    ));
+  }
+  return null;
+}
+
+function linearChannel(channel) {
+  const value = channel / 255;
+  return value <= 0.04045
+    ? value / 12.92
+    : ((value + 0.055) / 1.055) ** 2.4;
+}
+
+function linearRgbDistance(left, right) {
+  return Math.sqrt([0, 1, 2].reduce((distance, channel) => {
+    const difference = linearChannel(left[channel]) - linearChannel(right[channel]);
+    return distance + (difference * difference);
+  }, 0));
+}
+
 function blend(channel, alpha, background) {
   return Math.round(channel * alpha + background * (1 - alpha));
 }
 
-function pixel(data, offset, background) {
-  const alpha = data[offset + 3] / 255;
-  if (alpha <= 0.02) return null;
-  return [
-    blend(data[offset], alpha, background),
-    blend(data[offset + 1], alpha, background),
-    blend(data[offset + 2], alpha, background),
-  ];
+function foregroundPixel(data, offset, background) {
+  const sample = rawPixel(data, offset);
+  if (sample === null) return null;
+  if (background === null) return sample;
+
+  const rgb = [0, 1, 2].map(
+    (channel) => blend(sample.rgb[channel], sample.alpha, background[channel]),
+  );
+  if (linearRgbDistance(rgb, background) < BACKGROUND_DISTANCE_THRESHOLD) {
+    return null;
+  }
+  return { alpha: sample.alpha, rgb };
 }
 
-function luminance(rgb) {
-  if (rgb === null) return 0;
-  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-}
-
-function monochromeCell(top, bottom) {
-  const upper = luminance(top) >= 128;
-  const lower = luminance(bottom) >= 128;
-  if (upper && lower) return '█';
-  if (upper) return '▀';
-  if (lower) return '▄';
+function cellGlyph(top, bottom) {
+  if (top !== null && bottom !== null) return '█';
+  if (top !== null) return '▀';
+  if (bottom !== null) return '▄';
   return ' ';
 }
 
-function renderAnsi({ pixels, width, height, color, background }) {
+function representativeColor(top, bottom) {
+  const samples = [top, bottom].filter((sample) => sample !== null);
+  const totalAlpha = samples.reduce((total, sample) => total + sample.alpha, 0);
+  return [0, 1, 2].map((channel) => Math.round(
+    samples.reduce(
+      (total, sample) => total + sample.rgb[channel] * sample.alpha,
+      0,
+    ) / totalAlpha,
+  ));
+}
+
+export function relativeLuminance(rgb) {
+  return 0.2126 * linearChannel(rgb[0])
+    + 0.7152 * linearChannel(rgb[1])
+    + 0.0722 * linearChannel(rgb[2]);
+}
+
+export function contrastRatio(left, right) {
+  const leftLuminance = relativeLuminance(left);
+  const rightLuminance = relativeLuminance(right);
+  const lighter = Math.max(leftLuminance, rightLuminance);
+  const darker = Math.min(leftLuminance, rightLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function normalizeAppearance(value) {
+  const appearance = String(value || '').trim().toLowerCase();
+  return appearance === 'dark' || appearance === 'light' ? appearance : 'unknown';
+}
+
+export function contrastSafeForeground(rgb, appearance) {
+  switch (normalizeAppearance(appearance)) {
+    case 'dark':
+      return contrastRatio(rgb, [0, 0, 0]) >= MIN_CONTRAST_RATIO
+        ? rgb
+        : [255, 255, 255];
+    case 'light':
+      return contrastRatio(rgb, [255, 255, 255]) >= MIN_CONTRAST_RATIO
+        ? rgb
+        : [0, 0, 0];
+    default:
+      // #757575 lies near the equal-contrast point and clears 4.5:1
+      // against both ideal black and ideal white.
+      return [...UNKNOWN_BACKGROUND_FOREGROUND];
+  }
+}
+
+function terminalBackgrounds(appearance) {
+  switch (normalizeAppearance(appearance)) {
+    case 'dark':
+      return [[0, 0, 0]];
+    case 'light':
+      return [[255, 255, 255]];
+    default:
+      return [[0, 0, 0], [255, 255, 255]];
+  }
+}
+
+export function renderAnsi({ pixels, width, height, color, appearance }) {
+  const rasterBackground = estimateRasterBackground(pixels, width, height);
   const lines = [];
+  let occupiedCells = 0;
+  let visibleCells = 0;
+
   for (let y = 0; y < height; y += 2) {
     let line = '';
+    let activeColor = null;
+
     for (let x = 0; x < width; x += 1) {
       const topOffset = (y * width + x) * 4;
-      const bottomY = Math.min(y + 1, height - 1);
-      const bottomOffset = (bottomY * width + x) * 4;
-      const top = pixel(pixels, topOffset, background);
-      const bottom = pixel(pixels, bottomOffset, background);
+      const bottomOffset = ((y + 1) * width + x) * 4;
+      const top = foregroundPixel(pixels, topOffset, rasterBackground);
+      const bottom = y + 1 < height
+        ? foregroundPixel(pixels, bottomOffset, rasterBackground)
+        : null;
+      const glyph = cellGlyph(top, bottom);
+
+      if (glyph === ' ') {
+        line += glyph;
+        continue;
+      }
+      occupiedCells += 1;
 
       if (!color) {
-        line += monochromeCell(top, bottom);
+        visibleCells += 1;
+        line += glyph;
         continue;
       }
-      if (top === null && bottom === null) {
-        line += '\x1b[0m ';
-        continue;
+
+      const foreground = contrastSafeForeground(
+        representativeColor(top, bottom),
+        appearance,
+      );
+      if (terminalBackgrounds(appearance).every(
+        (background) => contrastRatio(foreground, background) >= MIN_CONTRAST_RATIO,
+      )) {
+        visibleCells += 1;
       }
-      const foreground = top ?? [background, background, background];
-      const backdrop = bottom ?? [background, background, background];
-      line += `\x1b[38;2;${foreground[0]};${foreground[1]};${foreground[2]}m`;
-      line += `\x1b[48;2;${backdrop[0]};${backdrop[1]};${backdrop[2]}m▀`;
+      const key = foreground.join(';');
+      if (activeColor !== key) {
+        line += `\x1b[38;2;${key}m`;
+        activeColor = key;
+      }
+      line += glyph;
     }
-    lines.push(`${line}\x1b[0m`);
+
+    if (activeColor !== null) line += '\x1b[39m';
+    lines.push(line);
+  }
+
+  if (occupiedCells === 0) {
+    throw new Error('raster contains no foreground terminal cells');
+  }
+  if (visibleCells === 0) {
+    throw new Error('raster contains only zero-contrast terminal cells');
   }
   return `${lines.join('\n')}\n`;
 }
 
 async function rasterize(svg, columns, executablePath) {
+  const { default: puppeteer } = await import('puppeteer');
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: executablePath || undefined,
@@ -147,19 +297,27 @@ async function rasterize(svg, columns, executablePath) {
   }
 }
 
-try {
-  const options = parseArguments(process.argv.slice(2));
-  const svg = await fs.readFile(options.inputPath, 'utf8');
-  if (!svg.includes('<svg')) throw new Error('input does not contain an SVG element');
-  const raster = await rasterize(
-    svg,
-    options.columns,
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-  );
-  const appearance = (process.env.PTYMARK_APPEARANCE || 'dark').toLowerCase();
-  const background = appearance === 'light' ? 255 : 0;
-  process.stdout.write(renderAnsi({ ...raster, color: options.color, background }));
-} catch (error) {
-  console.error(`ptymark managed presenter: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
+async function main() {
+  try {
+    const options = parseArguments(process.argv.slice(2));
+    const svg = await fs.readFile(options.inputPath, 'utf8');
+    if (!svg.includes('<svg')) throw new Error('input does not contain an SVG element');
+    const raster = await rasterize(
+      svg,
+      options.columns,
+      process.env.PUPPETEER_EXECUTABLE_PATH,
+    );
+    process.stdout.write(renderAnsi({
+      ...raster,
+      color: options.color,
+      appearance: process.env.PTYMARK_APPEARANCE,
+    }));
+  } catch (error) {
+    console.error(`ptymark managed presenter: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
 }

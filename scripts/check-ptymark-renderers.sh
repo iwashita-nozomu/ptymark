@@ -10,11 +10,13 @@
 
 set -euo pipefail
 
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 renderer_root="${PTYMARK_RENDERER_ROOT:-/opt/ptymark-renderers}"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
 node "$renderer_root/check.mjs"
+node --test "$repo_root/tests/managed_presenter_contrast.mjs"
 
 real_mmdc="${PTYMARK_TEST_MMDC:-$(command -v mmdc 2>/dev/null || true)}"
 if [[ -z "$real_mmdc" && -x "$renderer_root/node_modules/.bin/mmdc" ]]; then
