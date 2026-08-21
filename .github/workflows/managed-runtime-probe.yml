@@ -1,0 +1,58 @@
+# @dependency-start
+# contract workflow
+# responsibility Runs the managed-browser diagnostic regression on supported Ubuntu hosts.
+# upstream implementation ../../src/managed_launcher.rs bounded managed runtime probe
+# upstream implementation ../../src/doctor/mod.rs public-safe diagnostic projection
+# downstream implementation ../../tests/managed_runtime_probe_contract.rs host regression
+# @dependency-end
+
+name: Managed Chromium runtime diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/cli.rs"
+      - "src/doctor/**"
+      - "src/managed_launcher.rs"
+      - "tests/managed_runtime_probe_contract.rs"
+      - "tests/managed_renderer_smoke.sh"
+      - "documents/ptymark-runtime-dependencies.md"
+      - "documents/troubleshooting.md"
+      - ".github/workflows/managed-runtime-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: managed-runtime-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-runtime:
+    name: Managed runtime probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal
+          rustup override set 1.97.0
+
+      - name: Run bounded-probe unit regressions
+        run: cargo test --locked managed_runtime_probe
+
+      - name: Run doctor and install-status contract
+        run: cargo test --locked --test managed_runtime_probe_contract
