@@ -63,10 +63,8 @@ fn config(root: &Path, mermaid: &Path, math: &Path, presenter: &Path) -> PathBuf
     fs::write(
         &path,
         format!(
-            "schema_version = 1\n\n[engines.mermaid]\nbackend = 'mermaid-cli'\npath = '{}'\n\n[engines.math]\nbackend = 'mathjax-cli'\npath = '{}'\n\n[engines.presenter]\npath = '{}'\n",
-            mermaid.display(),
-            math.display(),
-            presenter.display(),
+            "schema_version = 2\ndefault_profile = 'default'\n\n[profiles.default.engines.mermaid]\nprovider = 'external'\nprogram = {:?}\n\n[profiles.default.engines.math]\nprovider = 'external'\nprogram = {:?}\n\n[profiles.default.engines.presenter]\nprovider = 'external'\nprogram = {:?}\n",
+            mermaid, math, presenter,
         ),
     )
     .expect("config");
@@ -130,9 +128,11 @@ esac
         String::from_utf8_lossy(&output.stderr)
     );
     let json: Value = serde_json::from_slice(&output.stdout).expect("doctor JSON");
+    assert_eq!(json["engines"][0]["origin"], "managed-bundle");
     assert_eq!(json["engines"][0]["state"], "ready");
     assert_eq!(json["engines"][0]["runtime_state"], "ready");
     assert_eq!(json["engines"][0]["browser_state"], "present");
+    assert_eq!(json["engines"][1]["origin"], "managed-bundle");
     assert_eq!(json["engines"][1]["runtime_state"], "ready");
     assert_eq!(json["presenter"]["state"], "ready");
     assert_eq!(json["presenter"]["runtime_state"], "ready");
@@ -157,7 +157,13 @@ exit 127
     let config = config(&root, &mermaid, &math, &presenter);
 
     let output = doctor(&root, &config);
-    assert_eq!(output.status.code(), Some(10));
+    assert_eq!(
+        output.status.code(),
+        Some(10),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     let public = String::from_utf8(output.stdout).expect("UTF-8 JSON");
     assert!(public.contains("browser.runtime_libraries_missing"));
     assert!(public.contains("libnspr4.so"));
