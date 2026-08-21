@@ -17,7 +17,7 @@ downstream design ../verification/README.md verification policy
 | --- | --- | --- |
 | Build and install from source | [Root README](../README.md) | [Installer design](./ptymark-installer.md) |
 | Verify or troubleshoot an installation | [Troubleshooting](./troubleshooting.md) | [Verification catalog](../verification/README.md) |
-| Understand terminal and rendering safety | [Ptymark design](./ptymark-design.md) | [Presentation color and contrast](./presentation-color.md) · [Interactive sessions](./interactive-session.md) · [Alpha.5 toggle](./alpha5-render-toggle.md) |
+| Understand terminal and rendering safety | [Ptymark design](./ptymark-design.md) | [Presentation geometry and contrast](./presentation-color.md) · [Interactive sessions](./interactive-session.md) · [Alpha.5 toggle](./alpha5-render-toggle.md) |
 | Render structured mathematics | [OpenMath input](./openmath.md) | [Runnable example](../examples/openmath.md) |
 | Filter non-interactive command output | [Filtered command execution](./filtered-command.md) | [Architecture](./ptymark-design.md) |
 | Review shell coexistence | [Shell compatibility](./shell-plugin-compatibility.md) | [Verification catalog](../verification/README.md) |
@@ -32,7 +32,7 @@ All documents below are product-owned contracts maintained in this repository.
 ### Product contracts
 
 - [`ptymark-design.md`](./ptymark-design.md): architecture, terminal invariants, rendering boundaries, and extension rules.
-- [`presentation-color.md`](./presentation-color.md): terminal-background-safe symbols, color policy, contrast, and fallback behavior.
+- [`presentation-color.md`](./presentation-color.md): terminal-cell geometry, stroke legibility, background-safe color, and fallback behavior.
 - [`ptymark-installer.md`](./ptymark-installer.md): source installation, managed renderer isolation, and state ownership.
 - [`interactive-session.md`](./interactive-session.md): Unix PTY and Windows ConPTY behavior.
 - [`alpha5-render-toggle.md`](./alpha5-render-toggle.md): session-local rendering pause/resume and WezTerm key contract.
