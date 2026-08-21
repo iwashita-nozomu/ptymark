@@ -99,11 +99,7 @@ fn color_policy_maps_to_the_presenter_without_tty_guessing() {
         ("never", true, "none"),
     ] {
         write_config(&config, &tex2svg, &presenter, policy);
-        let options = if cli_color {
-            &["--color"][..]
-        } else {
-            &[][..]
-        };
+        let options = if cli_color { &["--color"][..] } else { &[][..] };
         let output = preview(&config, options);
         assert!(output.status.success(), "{policy}: {output:?}");
         assert_eq!(output.stdout, b"visible math\n");
