@@ -2,11 +2,9 @@ use crate::limits::{MAX_RENDERER_DIAGNOSTIC_BYTES, PROCESS_POLL_INTERVAL};
 use serde::Deserialize;
 use std::env;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -42,6 +40,10 @@ impl ManagedRole {
             Self::Math => "managed/mathjax-cli.mjs",
             Self::Presenter => "managed/ansi-presenter.mjs",
         }
+    }
+
+    const fn uses_browser(self) -> bool {
+        matches!(self, Self::Mermaid | Self::Presenter)
     }
 }
 
@@ -115,13 +117,6 @@ impl ManagedRuntimeStatus {
 
     pub const fn is_ready(&self) -> bool {
         matches!(self, Self::Ready)
-    }
-
-    pub fn missing_libraries(&self) -> &[String] {
-        match self {
-            Self::MissingLibraries { libraries } => libraries,
-            _ => &[],
-        }
     }
 }
 
@@ -342,7 +337,9 @@ fn probe_managed_alias_with_timeout(
         }
         if !output.success {
             let mut libraries = extract_missing_libraries(&output.stderr);
-            if let Some(browser) = inspection.browser_path.as_deref() {
+            if role.uses_browser()
+                && let Some(browser) = inspection.browser_path.as_deref()
+            {
                 libraries.extend(missing_linux_libraries(browser));
             }
             libraries.sort();
@@ -398,10 +395,18 @@ enum BoundedOutcome {
 }
 
 fn run_bounded(mut command: Command, timeout: Duration) -> Result<BoundedOutput, String> {
+    let mut stdout = tempfile::tempfile()
+        .map_err(|error| format!("cannot create managed runtime stdout capture: {error}"))?;
+    let mut stderr = tempfile::tempfile()
+        .map_err(|error| format!("cannot create managed runtime stderr capture: {error}"))?;
     command
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdout(Stdio::from(stdout.try_clone().map_err(|error| {
+            format!("cannot clone managed runtime stdout capture: {error}")
+        })?))
+        .stderr(Stdio::from(stderr.try_clone().map_err(|error| {
+            format!("cannot clone managed runtime stderr capture: {error}")
+        })?));
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -411,30 +416,9 @@ fn run_bounded(mut command: Command, timeout: Duration) -> Result<BoundedOutput,
     let mut child = command
         .spawn()
         .map_err(|error| format!("cannot start managed runtime probe: {error}"))?;
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            terminate_process_tree(&mut child);
-            return Err("managed runtime stdout is unavailable".to_owned());
-        }
-    };
-    let stderr = match child.stderr.take() {
-        Some(stderr) => stderr,
-        None => {
-            terminate_process_tree(&mut child);
-            return Err("managed runtime stderr is unavailable".to_owned());
-        }
-    };
-
-    let overflowed = Arc::new(AtomicBool::new(false));
-    let stdout_overflowed = Arc::clone(&overflowed);
-    let stderr_overflowed = Arc::clone(&overflowed);
-    let stdout_reader = thread::spawn(move || read_capped_stream(stdout, stdout_overflowed));
-    let stderr_reader = thread::spawn(move || read_capped_stream(stderr, stderr_overflowed));
-
     let started = Instant::now();
-    let outcome = loop {
-        if overflowed.load(Ordering::Acquire) {
+    let mut outcome = loop {
+        if capture_exceeded(&stdout)? || capture_exceeded(&stderr)? {
             break BoundedOutcome::OutputLimit;
         }
         match child.try_wait() {
@@ -444,19 +428,19 @@ fn run_bounded(mut command: Command, timeout: Duration) -> Result<BoundedOutput,
             Err(error) => break BoundedOutcome::WaitFailed(error.to_string()),
         }
     };
-    if !matches!(outcome, BoundedOutcome::Exited(_)) {
-        terminate_process_tree(&mut child);
+
+    // Always sweep the probe process group. A launcher may exit while a browser
+    // descendant still owns the capture descriptors; leaving it alive would
+    // make a nominally bounded probe leak work past the deadline.
+    terminate_process_tree(&mut child);
+    if matches!(outcome, BoundedOutcome::Exited(_))
+        && (capture_exceeded(&stdout)? || capture_exceeded(&stderr)?)
+    {
+        outcome = BoundedOutcome::OutputLimit;
     }
 
-    let stdout = stdout_reader
-        .join()
-        .map_err(|_| "managed runtime stdout reader panicked".to_owned())?
-        .map_err(|error| format!("cannot read managed runtime stdout: {error}"))?;
-    let stderr = stderr_reader
-        .join()
-        .map_err(|_| "managed runtime stderr reader panicked".to_owned())?
-        .map_err(|error| format!("cannot read managed runtime stderr: {error}"))?;
-
+    let stdout = read_capture(&mut stdout)?;
+    let stderr = read_capture(&mut stderr)?;
     match outcome {
         BoundedOutcome::Exited(success) => Ok(BoundedOutput {
             success,
@@ -482,32 +466,19 @@ fn run_bounded(mut command: Command, timeout: Duration) -> Result<BoundedOutput,
     }
 }
 
-fn read_capped_stream(
-    mut reader: impl Read,
-    overflowed: Arc<AtomicBool>,
-) -> std::io::Result<Vec<u8>> {
-    let mut bytes = Vec::with_capacity(MAX_RENDERER_DIAGNOSTIC_BYTES.min(8192));
-    let mut chunk = [0_u8; 8192];
-    loop {
-        let count = reader.read(&mut chunk)?;
-        if count == 0 {
-            break;
-        }
-        let remaining = MAX_RENDERER_DIAGNOSTIC_BYTES.saturating_sub(bytes.len());
-        let retained = remaining.min(count);
-        bytes.extend_from_slice(&chunk[..retained]);
-        if retained < count {
-            overflowed.store(true, Ordering::Release);
-            break;
-        }
-        if bytes.len() == MAX_RENDERER_DIAGNOSTIC_BYTES {
-            let mut probe = [0_u8; 1];
-            if reader.read(&mut probe)? != 0 {
-                overflowed.store(true, Ordering::Release);
-            }
-            break;
-        }
-    }
+fn capture_exceeded(file: &fs::File) -> Result<bool, String> {
+    file.metadata()
+        .map(|metadata| metadata.len() > MAX_RENDERER_DIAGNOSTIC_BYTES as u64)
+        .map_err(|error| format!("cannot inspect managed runtime capture: {error}"))
+}
+
+fn read_capture(file: &mut fs::File) -> Result<Vec<u8>, String> {
+    file.seek(SeekFrom::Start(0))
+        .map_err(|error| format!("cannot rewind managed runtime capture: {error}"))?;
+    let mut bytes = Vec::new();
+    file.take(MAX_RENDERER_DIAGNOSTIC_BYTES as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("cannot read managed runtime capture: {error}"))?;
     Ok(bytes)
 }
 
@@ -852,6 +823,37 @@ exit 127
         assert_eq!(status, ManagedRuntimeStatus::TimedOut);
         thread::sleep(Duration::from_millis(1200));
         assert!(!marker.exists(), "timed-out descendant survived the probe");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_runtime_probe_cleans_descendants_after_parent_exit() {
+        let marker_root = tempfile::tempdir().expect("marker root");
+        let marker = marker_root.path().join("leaked-child");
+        let body = format!(
+            "#!/bin/sh\n(sleep 1; printf leaked > '{}') &\nprintf '#\\n'\n",
+            marker.display()
+        );
+        let (_root, alias) = managed_fixture("chafa", &body);
+        let status = probe_managed_alias(&alias)
+            .expect("managed alias")
+            .expect("runtime probe");
+        assert_eq!(status, ManagedRuntimeStatus::Ready);
+        thread::sleep(Duration::from_millis(1200));
+        assert!(!marker.exists(), "successful probe left a descendant alive");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_runtime_probe_rejects_output_over_the_hard_cap() {
+        let (_root, alias) = managed_fixture(
+            "chafa",
+            "#!/bin/sh\ndd if=/dev/zero bs=70000 count=1 2>/dev/null\n",
+        );
+        let status = probe_managed_alias(&alias)
+            .expect("managed alias")
+            .expect("runtime probe");
+        assert_eq!(status, ManagedRuntimeStatus::LaunchFailed);
     }
 
     #[cfg(unix)]
