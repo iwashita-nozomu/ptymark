@@ -8,6 +8,7 @@ use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MATH_SOURCE: &[u8] = b"$$\nE = mc^2\n$$\n";
+const JAPANESE_ADJACENT_SOURCE: &str = "計算前\n$$\n\\frac{a+b}{c+d} + x^2\n$$\n計算後\n";
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_ptymark")
@@ -52,7 +53,7 @@ fn write_config(path: &Path, tex2svg: &Path, presenter: &Path, color: &str) {
     .expect("write config");
 }
 
-fn preview(config: &Path, options: &[&str]) -> Output {
+fn preview_with_source(config: &Path, options: &[&str], source: &[u8]) -> Output {
     let mut child = Command::new(binary())
         .arg("--config")
         .arg(config)
@@ -67,9 +68,13 @@ fn preview(config: &Path, options: &[&str]) -> Output {
         .stdin
         .take()
         .expect("stdin")
-        .write_all(MATH_SOURCE)
+        .write_all(source)
         .expect("write input");
     child.wait_with_output().expect("wait for preview")
+}
+
+fn preview(config: &Path, options: &[&str]) -> Output {
+    preview_with_source(config, options, MATH_SOURCE)
 }
 
 #[test]
@@ -123,6 +128,7 @@ fn presenter_failure_restores_exact_source_and_safe_modes_bypass_engines() {
     let presenter = root.join("presenter");
     let started = root.join("renderer-started");
     let config = root.join("ptymark.toml");
+    let source = JAPANESE_ADJACENT_SOURCE.as_bytes();
 
     write_executable(
         &tex2svg,
@@ -133,24 +139,24 @@ fn presenter_failure_restores_exact_source_and_safe_modes_bypass_engines() {
     );
     write_executable(
         &presenter,
-        "#!/bin/sh\nprintf 'zero-contrast presentation rejected\\n' >&2\nexit 9\n",
+        "#!/bin/sh\nprintf 'fragmented presentation rejected\\n' >&2\nexit 9\n",
     );
     write_config(&config, &tex2svg, &presenter, "always");
 
-    let fallback = preview(&config, &[]);
+    let fallback = preview_with_source(&config, &[], source);
     assert!(fallback.status.success(), "{fallback:?}");
-    assert_eq!(fallback.stdout, MATH_SOURCE);
+    assert_eq!(fallback.stdout, source);
     assert!(started.is_file());
 
     fs::remove_file(&started).expect("clear renderer marker");
     for mode in ["--source", "--safe"] {
-        let output = preview(&config, &[mode]);
+        let output = preview_with_source(&config, &[mode], source);
         assert!(output.status.success(), "{mode}: {output:?}");
-        assert_eq!(output.stdout, MATH_SOURCE);
+        assert_eq!(output.stdout, source);
         assert!(!started.exists(), "{mode} must not start external engines");
     }
 
-    let strict = preview(&config, &["--strict"]);
+    let strict = preview_with_source(&config, &["--strict"], source);
     assert!(!strict.status.success());
 
     let _ = fs::remove_dir_all(root);
