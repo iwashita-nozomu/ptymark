@@ -19,6 +19,8 @@ math = true
 
 [profiles.default.presentation]
 mode = "auto" # auto | symbols | plain | source
+# auto enables contrast-safe ANSI only with --color; always forces it; never
+# uses terminal-default foreground/background and emits no color SGR.
 color = "auto" # auto | always | never
 fallback_columns = 80
 
