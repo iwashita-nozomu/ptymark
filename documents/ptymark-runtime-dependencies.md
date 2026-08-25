@@ -43,8 +43,10 @@ The following are execution-environment details, not product dependency sources:
 
 The alignment checker does not read any file under `docker/`. Those surfaces may be
 changed when their own build or CI requirements change without expanding this product
-dependency contract. Runtime executable discovery, browser compatibility, external
-presenter selection, and managed-bundle lifecycle remain owned by issue #16.
+dependency contract. Host packages needed to load an explicitly selected Chromium are
+runtime prerequisites, not version-pinned product inputs. Runtime executable discovery,
+browser compatibility, external presenter selection, and managed-bundle lifecycle remain
+owned by issue #16.
 
 ## Sources of truth
 
@@ -63,6 +65,33 @@ Node.js runtime version, and direct Mermaid, MathJax, font, and Puppeteer versio
 `renderers/package.json` declares the direct npm packages and supported Node major
 range. `renderers/package-lock.json` owns the exact transitive graph consumed by
 `npm ci`. The manifest, lockfile root, and managed-bundle environment must agree.
+
+## Linux host runtime for managed Chromium
+
+A present managed bundle is not sufficient evidence that its browser can execute.
+`ptymark doctor` therefore keeps file/manifest state separate from `runtime_state` and,
+for managed aliases only, runs fixed Mermaid, MathJax, and presenter samples under an
+eight-second monotonic deadline. Arbitrary external renderer aliases remain presence-only.
+When a managed alias records an explicit system browser, the fixed sample follows that
+browser path without replacing or rediscovering it.
+
+On fresh Ubuntu 22.04, Ubuntu 24.04, or WSL installations, Chromium commonly needs the
+NSPR and NSS loader packages. When doctor reports
+`browser.runtime_libraries_missing` with `libnspr4.so`, `libnss3.so`,
+`libnssutil3.so`, or `libsmime3.so`, use:
+
+```bash
+sudo apt-get update
+sudo apt-get install --yes libnspr4 libnss3
+ptymark doctor
+```
+
+Any additional validated `.so` basename in the finding must be satisfied by the
+corresponding distribution package before rerunning doctor. The public report contains
+only validated library basenames and a fixed remedy; raw Chromium/Puppeteer stderr,
+home paths, semantic input, and child environment are not serialized. `ptymark install
+status` uses the same managed runtime probe and reports the component as `missing`
+instead of `ready` when the bounded sample cannot run.
 
 ## Alignment check
 

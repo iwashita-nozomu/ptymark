@@ -2,9 +2,10 @@ use crate::config::{Config, UserConfig};
 use crate::doctor::{DoctorReport, DoctorRequest};
 use crate::engine::check_configured_engines;
 use crate::install::{
-    EnginePreference, InstallRequest, InstallState, Installer, PathProgramResolver,
-    PresenterPreference, default_install_state_path,
+    EnginePreference, InstallError, InstallRequest, InstallState, Installer, PathProgramResolver,
+    PresenterPreference, ProgramResolver, default_install_state_path,
 };
+use crate::managed_launcher::probe_managed_alias;
 use crate::runtime::{PipelineFactory, PipelineOptions};
 use crate::stream::PipelinePump;
 use clap::builder::OsStringValueParser;
@@ -508,10 +509,28 @@ fn run_install_status(arguments: InstallStatusArgs) -> Result<i32, String> {
         .map_err(|error| error.to_string())?;
     let state = InstallState::load(&state_path).map_err(|error| error.to_string())?;
     println!("state\t{}", state_path.display());
-    for line in state.status_lines(&PathProgramResolver) {
+    for line in state.status_lines(&RuntimeStatusResolver) {
         println!("{line}");
     }
     Ok(0)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct RuntimeStatusResolver;
+
+impl ProgramResolver for RuntimeStatusResolver {
+    fn resolve(&self, configured: &Path) -> Result<PathBuf, InstallError> {
+        let resolved = PathProgramResolver.resolve(configured)?;
+        match probe_managed_alias(&resolved) {
+            None => Ok(resolved),
+            Some(Ok(status)) if status.is_ready() => Ok(resolved),
+            Some(Ok(status)) => Err(InstallError::new(format!(
+                "managed runtime is {}",
+                status.as_str()
+            ))),
+            Some(Err(error)) => Err(InstallError::new(error)),
+        }
+    }
 }
 
 fn engine_preference(value: OsString, option: &str) -> Result<EnginePreference, String> {
